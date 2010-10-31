@@ -1,0 +1,160 @@
+% -*- mode: Noweb; noweb-code-mode: c-mode -*-
+% $Id: runtime.nw,v 1.21 2004-06-28 13:29:35 lindig Exp $
+% ---------------------------------------------------------------------------
+\section{Runtime Startup Code}
+\label{sec:runtime}
+
+The initial size of the heap is taken from the environment variable
+[[TIGER_HEAPSIZE]] if present; otherwise a default is used.
+
+% ---------------------------------------------------------------------------
+<<runtime.c-->>=
+target byteorder little;
+import tig_set_handler;
+import gc_init;
+import tiger_main;
+import printf;
+import getenv;
+import atoi;
+export main;
+
+const HEAP_SIZE = 8192;
+
+bits32 alloc_ptr;
+
+section "data" {
+  exn_msg           : bits8[] "unhandled exception %d\n\000";
+  tiger_heapsize    : bits8[] "TIGER_HEAPSIZE\0";
+  heapsize_msg      : bits8[] "heapsize %d\n\0";
+}
+
+foreign "C"
+main(bits32 argc, "address" bits32 argv)
+{
+  bits32 rv;
+  bits32 heapsize;
+  bits32 env;
+  
+  env = foreign "C" getenv("address" tiger_heapsize);
+  if (env != 0) {
+    heapsize = foreign "C" atoi("address" env);
+  } else {
+    heapsize = HEAP_SIZE;
+  }  
+  // foreign "C" printf("address" heapsize_msg, heapsize);
+  alloc_ptr = foreign "C" gc_init(heapsize);
+
+  tig_set_handler(k);
+  rv = tiger_main(0) also cuts to k;
+  foreign "C" return (rv);
+
+continuation k(rv):
+  foreign "C" printf(exn_msg, rv);
+  foreign "C" return(-1);
+}
+@ 
+% ---------------------------------------------------------------------------
+\subsection{Interpreter Startup}
+% ---------------------------------------------------------------------------
+<<client.c>>=
+#include <assert.h>
+#include <qc--interp.h>
+
+#include "stdlib.h"
+#include "gc.h"
+
+#define BUFF_SIZE     256
+#define VALSTACK_SIZE 256
+#define ARGSPACE_SIZE 256
+#define HEAP_SIZE     4096
+
+typedef struct {
+  Cmm_Cont cont;
+  void     *stack_space;
+  unsigned  stack_space_size;
+  void     *limit_cookie;
+} Cmm_TCB;
+
+extern int      verbosity;
+static unsigned stack_size = 65536;
+
+static void* globals_backup = NULL;
+
+Cmm_TCB *TCB_new(void) {
+  Cmm_Dataptr  data;
+  Cmm_TCB     *tcb = (Cmm_TCB *) malloc(sizeof(*tcb));
+  assert(tcb != NULL);
+
+  tcb->stack_space      = (Cmm_Dataptr) malloc(stack_size * sizeof(*data));
+  mem_assert(tcb->stack_space);
+  tcb->stack_space_size = stack_size;
+
+  tcb->limit_cookie     = NULL;
+
+  return tcb;
+}
+
+void TCB_free(Cmm_TCB *tcb) {
+  free(tcb->stack_space);
+
+  /* FIX make sure that 'cont' is freed? */
+  free(tcb);
+}
+
+//extern void gc_set_thread(Cmm_Cont* t);
+
+int main(int argc, char *argv[])
+{
+  verbosity = 0;
+
+  if (Cmm_open(VALSTACK_SIZE, ARGSPACE_SIZE) != 0) {
+    exit(1);
+  }
+
+  /* standard library functions */
+  register_c_func("tig_print",     (void*)tig_print,     "pointer:void");
+  register_c_func("tig_printi",    (void*)tig_printi,    "int:void");
+  register_c_func("tig_flush",     (void*)tig_flush,     "void:void");
+  register_c_func("tig_getchar",   (void*)tig_getchar,   "void:pointer");
+  register_c_func("tig_ord",       (void*)tig_ord,       "pointer:int");
+  register_c_func("tig_chr" ,      (void*)tig_chr,       "unsigned:pointer");
+  register_c_func("tig_size" ,     (void*)tig_size,      "pointer:unsigned");
+  register_c_func("tig_sizea" ,    (void*)tig_sizea,     "pointer:unsigned");
+  register_c_func("tig_substring", (void*)tig_substring, "pointer,unsigned,unsigned:pointer");
+  register_c_func("tig_concat",    (void*)tig_concat,    "pointer,pointer:pointer");
+  register_c_func("tig_not",       (void*)tig_not,       "int:int");
+  register_c_func("tig_exit",      (void*)tig_exit,      "int:void");
+
+  /* GC functions  */
+  register_c_func("tig_gc",    (void*)tig_gc,    "void:void");
+  register_c_func("tig_alloc", (void*)tig_alloc, "unsigned:pointer");
+  register_c_func("tig_compare_str", (void*)tig_compare_str,
+				  "pointer,pointer:int");
+  register_c_func("tig_bounds_check", (void*)tig_bounds_check,
+				  "pointer,int,int:void");
+
+  if (!load_assembly_unit(argv[1],SRC_FILE))
+  {
+    Cmm_Codeptr loc = cmm_find_export("tiger_main");
+    if (loc == NULL) {
+      fprintf(stderr, "error: cannot find procedure \"tiger_main\"\n");
+    } else {
+      Cmm_TCB     *tcb = TCB_new();
+      globals_backup = malloc(Cmm_GlobalSize());
+      assert(globals_backup);
+      tcb->cont = Cmm_CreateThread(loc,
+                                   (void*)&globals_backup,
+                                   tcb->stack_space,
+                                   tcb->stack_space_size,
+                                   &(tcb->limit_cookie));
+      //gc_set_thread(&(tcb->cont));
+      gc_init(atoi(getenv("TIGER_HEAPSIZE")) || HEAP_SIZE);
+      tcb->cont = Cmm_RunThread(&(tcb->cont));
+      gc_finish();
+      free(globals_backup);
+      TCB_free(tcb);      
+    }
+  }
+  Cmm_close();
+  return 0;
+}

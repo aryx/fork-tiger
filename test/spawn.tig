@@ -1,0 +1,7 @@
+/* A simple test of the spawn keyword  */
+
+let
+  function f() = print("in f")
+in
+  spawn f
+end

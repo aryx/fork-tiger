@@ -1,0 +1,115 @@
+% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
+% $Id: error.nw,v 1.9 2004-06-05 15:35:47 govereau Exp $
+% ---------------------------------------------------------------------------
+\section{Error Handling}
+\label{sec:errors}
+% ---------------------------------------------------------------------------
+The [[Error]] module handles error reporting for the tiger compiler.
+Other modules can raise exceptions defined in this module to signal
+unrecoverable errors. The set of errors that can be raised is listed
+below.
+<<types>>=
+type error =
+    Internal_error of string
+  | Illegal_character of char
+  | Illegal_escape of string
+  | Unterminated_comment
+  | Unterminated_string
+  | Syntax_error
+  | Type_error of string
+  | Undefined_symbol of string
+  | Duplicate_symbol of string
+  | Illegal_break
+type ex = error * int
+exception Error of ex
+@
+When an exception is raised, the compiler driver will use this module
+to report the error. The [[handle_exception]] function will print a
+source line number and an error message, and then exit.
+<<error.mli>>=
+<<types>>
+val handle_exception : ex -> unit
+@
+A few functions are defined for reporting warnings and raising common
+errors.
+<<error.mli>>=
+val warning   : int -> string -> unit
+val type_err  : int -> string -> 'a
+val undefined : int -> string -> 'a
+val internal  :        string -> 'a
+@ 
+The [[Error]] module maintains a mapping of source line numbers in
+order to provide more informative error messages. The scanner
+(Section~\ref{sec:scanner}) populates this mapping during the parsing
+phase.
+<<error.mli>>=
+val add_source_mapping : int -> int -> unit
+val line_number : int -> int * int
+@
+% ---------------------------------------------------------------------------
+\subsection{Error Implementation}
+% ---------------------------------------------------------------------------
+<<error.ml>>=
+<<types>>
+@
+The source map is a list of pairs of integers. The first integer is a
+source position, and the second is the line number that ends at that
+position. In effect, the scanner records the position and line number
+of each newline character.
+<<error.ml>>=
+type sm = { mutable sm: (int * int) list }
+let source_map = { sm = [(0,0)] }
+let add_source_mapping pos line =
+  source_map.sm <- source_map.sm @ [(pos,line)]
+@
+To compute the line number of a source position, we do a linear search
+through the pairs of integers.
+<<error.ml>>=
+let line_number pos =
+  let rec line ln last_p = function
+      (p,l) :: rest ->
+        if p > pos then (l, pos - last_p)
+        else line l p rest
+    | [] -> (ln + 1, pos - last_p)
+  in line 0 0 source_map.sm
+@
+Errors are printed with a prefix that indicates the type of error. If
+the source line number can be computed, then it is also printed along
+with the error message.
+<<error.ml>>=
+let err_msg prefix pos msg =
+  let (line,col) = line_number pos in
+  if line > 0 then
+    Printf.fprintf stderr
+      "%s:%d,%d: %s\n" (Option.filename()) line col msg
+  else
+    Printf.fprintf stderr "%s: %s\n" prefix msg
+
+let warning = err_msg "Warning"
+@
+The exception handler is used by the compiler driver
+(Section~\ref{sec:driver}) to print error messages and exit in the
+case of errors.
+<<error.ml>>=
+let handle_exception (ex,pos) =
+  let msg = match ex with
+    Internal_error s     -> "Compiler bug: " ^ s
+  | Illegal_character ch -> Printf.sprintf "illegal character '%c'" ch
+  | Illegal_escape str   -> Printf.sprintf "illegal escape %s" str
+  | Unterminated_comment -> "unterminated comment"
+  | Unterminated_string  -> "unterminated string"
+  | Syntax_error         -> "syntax error"
+  | Type_error str       -> str
+  | Undefined_symbol str -> "undefined symbol: " ^ str
+  | Duplicate_symbol str -> "duplcate definition of: " ^ str
+  | Illegal_break        -> "Illegal break statement"
+  in
+  err_msg "Error" pos msg;
+  exit 1
+@
+Finally, here is the definition of the error raising functions.
+<<error.ml>>=
+let type_err  pos msg = raise(Error(Type_error msg, pos))
+let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
+let internal      msg = raise(Error(Internal_error msg, 0))
+@ 

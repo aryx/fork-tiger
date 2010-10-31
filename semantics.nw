@@ -1,0 +1,632 @@
+% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
+% $Id: semantics.nw,v 1.18 2005-03-08 03:36:22 govereau Exp $
+% ---------------------------------------------------------------------------
+\section{Semantic Analysis}
+\label{sec:semantics}
+% ---------------------------------------------------------------------------
+The Tiger compiler performs type-checking and translation to
+intermediate representation in a single pass. The [[Semantics]] module
+type checks each Tiger expressions and the passes each one to the
+[[Translate]] module (Section~\ref{sec:translate}) where it is
+translated to the intermediate representation.
+
+The interface to the [[Semantic]] module consist of a single function,
+[[translate]]. The [[translate]] function takes an initial environment
+and an abstract syntax tree as input, and produces a list of Tiger
+functions. Each Tiger function consists of a stack frame
+(Section~\ref{sec:frame}), and an expression tree
+(Section~\ref{sec:tree})---the intermediate representation of the
+function body.
+<<semantics.mli>>=
+<<variable types>>
+val translate : vartype Environment.t -> Ast.exp ->
+               (Frame.frame * Translate.exp) list
+@
+The [[Semantics]] module implementation consists of a definition of
+the type system used internally in the compiler, the [[translate]]
+function entry point, and a private translator function for each type
+of [[Ast]] node.
+<<semantics.ml>>=
+module E = Error
+module A = Ast
+module S = Symbol
+module V = Environment
+module T = Translate
+<<variable types>>
+<<type system>>
+<<translators>>
+<<entry point>>
+@
+% ----------------------------------------------------------------------------
+\subsection{Type System}
+\label{sec:types}
+% ----------------------------------------------------------------------------
+The set of types used internally by the compiler is given below. The
+[[NAME]] type is an alias to another defined type. The [[ANY]] type
+can be used as a type variable when constructing polymorphic types.
+The [[ANY]] type is only used to define library functions.
+<<variable types>>=
+type vartype =
+    UNIT
+  | NIL
+  | INT
+  | STRING
+  | ARRAY  of vartype
+  | RECORD of (Symbol.symbol * vartype) list
+  | NAME   of Symbol.symbol
+  | ANY
+@ 
+The [[type_name]] function will return a string representation of a
+type. This function is used by to report type errors.
+<<type system>>=
+let rec type_name = function
+    RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
+                "record {" l) ^ "}"
+  | NIL      -> "nil"
+  | INT      -> "int"
+  | STRING   -> "string"
+  | ARRAY vt -> "array of " ^ (type_name vt)
+  | NAME(s)  -> "named type " ^ (S.name s)
+  | UNIT     -> "unit"
+  | ANY      -> "any"
+@ 
+The internal type system allows type aliases by way of the [[NAME]]
+type. We often want to get the concrete base type for a type alias.
+The [[base_type]] function will lookup the definition of a [[NAME]]
+type and return the concrete base type. The return value is guaranteed
+to be a base type (not a [[NAME]] type).
+
+To compute a base type, we keep looking up the definitions of [[NAME]]
+types until we reach a base type. If a [[NAME]] type references a type
+that is not defined, then there is something wrong with the compiler
+and we give up.
+<<type system>>=
+let rec base_type env = function
+    NAME s ->
+      begin
+        try base_type env (V.lookup_type env s 0)
+        with Not_found -> E.internal "NAME symbol not found"
+      end
+  | x -> x
+
+let lookup_base_type env sym pos =
+  base_type env (V.lookup_type env sym pos)
+@ 
+For code generation we will be interested in partitioning the internal
+types into two classes: those that are represented by a pointer to a
+data structure~(e.g. arrays), and those that are represented by a
+single machine word~(e.g. integers). The [[is_ptr]] function returns
+true of the supplied type is represented as a pointer and false
+otherwise.
+
+The types [[INT]] and [[UNIT]] are represented as machine words, all
+others are pointers to data structures. The compiler should not call
+the [[is_ptr]] function with a [[NAME]] or and [[ANY]] type.
+<<type system>>=
+let is_ptr = function
+    INT | UNIT -> false
+  | NIL | RECORD _ | STRING | ARRAY _ -> true
+  | _ -> E.internal "non-base type for variable"
+@
+During type-checking, we commonly want to assert that an expression
+either has type [[int]] or type [[unit]].
+<<type system>>=
+let check_type_t ty pos msg typ =
+  if typ <> ty
+  then E.type_err pos (msg ^ " must be of type " ^ type_name ty)
+let check_type_int  = check_type_t INT
+let check_type_unit = check_type_t UNIT
+@ 
+Similarly, we often want to assert that two types are equivalent. In
+Tiger, [[nil]] is the type of an uninitialized record. Therefore, the
+nil and record types are equivalent for the purposes of type-checking.
+
+The [[ANY]] type can only be used in a few restricted ways. The
+[[ANY]] type is completely internal to the compiler, and it only has
+as much power as we need to define the initial basis.
+<<type system>>=
+let check_type_eq pos msg t1 t2 =
+  let check = match (t1,t2) with
+                (RECORD _,NIL)
+              | (NIL,RECORD _)
+              | (ARRAY ANY, ARRAY _)
+              | (ARRAY _, ARRAY ANY) -> false
+              | _                    -> true
+  in if check && t1 <> t2 then
+    E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
+@
+% ----------------------------------------------------------------------------
+\subsection{The [[translate]] Entry Point}
+% ----------------------------------------------------------------------------
+The [[translate]] function returns a list of function bodies and their
+associated frames. The functions are held in a mutable reference to a
+list. When a new expression is added to the list, we first call the
+[[Translate]] module (Section~\ref{sec:translate}) to convert the
+expression into a function body.
+<<translators>>=
+let functions                 = ref []
+let get_functions ()          = List.rev !functions
+let add_function frm (ex,typ) =
+  functions := (frm, T.func frm ex (is_ptr typ)) :: !functions
+@
+There are three private translation functions for handling
+declarations, variables, and expressions. All of these are enclosed in
+the function [[trans]]. The [[trans]] function can only be called with
+an expression or declaration.
+<<translators>>=
+type ast_node = DEC of Ast.dec | EXP of Ast.exp
+let rec trans (env : vartype V.t) (node : ast_node) =
+  <<declaration translator>>
+  <<variable translator>>
+  <<expression translator>>
+in match node with
+  DEC d -> (trdec d, NIL)
+| EXP e -> trexp e
+@
+The entry point for the [[Semantics]] module is the [[translate]]
+function shown below.
+<<entry point>>=
+let translate env ast =
+  begin
+    let (mainex,mainty) = trans env (EXP ast) in
+    if mainty <> INT && mainty <> UNIT then
+      E.type_err 0 "tiger program must return INT or UNIT"
+    else ();
+    add_function (V.frame env) (mainex,mainty);
+    get_functions()
+  end
+@
+% ----------------------------------------------------------------------------
+\subsection{Declarations}
+% ----------------------------------------------------------------------------
+The [[trdec]] function translates declarations of functions,
+variables, and types.
+<<declaration translator>>=
+let rec trdec = function
+  <<function declarations>>
+  <<variable declarations>>
+  <<type declarations>>
+  <<exception declarations>>
+@
+\paragraph{Function Declarations}
+Function declarations in tiger can be mutually recursive if the
+functions are declared together in the same block. To translate a list
+of function declarations, we first add each function signature to the
+current environment, and then translate the function bodies. The
+translated function bodies are then added to the function list.
+
+The [[mk_func_env]] function enters a function signature into the
+variable environment, and creates a new nested environment for
+evaluating the function body.
+<<function declarations>>=
+  A.FunctionDec functions ->
+    let mk_param fenv (name, typ, pos) =
+      let t = lookup_base_type env typ pos in
+      V.enter_param fenv name t (is_ptr t)
+    in
+    let mk_func_env (name, params, typ, _, pos) =
+      let ret_type = match typ with
+        Some x -> lookup_base_type env x pos
+      | None   -> UNIT
+      and types = List.map (fun(_,t,p)-> lookup_base_type env t p) params in
+      let fenv  = V.enter_fun env name None types ret_type in
+      List.iter (mk_param fenv) params;
+      fenv
+    in
+@
+After all of the function signatures have been added to the
+environment, the bodies of the functions can be evaluated.
+[[trans_func]] evaluates a function body in the given environment and
+adds the translated body to the function list.
+<<function declarations>>=
+    let trans_func fenv (_, _, _, body, _) =
+      let b = trans fenv (EXP body) in
+      add_function (V.frame fenv) b
+    in
+@
+For each function, we must call [[mk_func_env]] to create a new
+environment, and then [[trans_func]] to translate the function body.
+As mentioned above, we need enter all of the function signatures into
+the new environment before processing the function bodies.
+<<function declarations>>=
+    let envs = (List.map mk_func_env functions) in
+    List.iter2 trans_func envs functions;
+    T.nil
+@
+\paragraph{Variable Declarations}
+To translate a variable declaration, first we evaluate the
+initializing expression in the current environment. Then, we check
+that the type of the initial expression is compatible with the
+declared type of the variable. If the types are compatible, we enter
+the variable definition into the environment, allocate a new local on
+the current frame, and initialize it.
+<<variable declarations>>=
+  | A.VarDec(name, typ, init, pos) ->
+      let e,t = trexp init in
+      begin match typ with
+        Some x -> check_type_eq pos
+            "Variable of type %s cannot be initialized with type %s"
+            (V.lookup_type env x pos) t
+      | None -> ()
+      end;
+      let acc = V.enter_local env name t (is_ptr t) in
+      T.assign (T.simple_var (V.frame env) acc) e
+@
+\paragraph{Type Declarations}
+Similar to functions, types may have mutually recursive definitions.
+To translate a list of type declarations, first a new scope is created
+that will later be discarded when all of the types have been checked.
+Each type name is entered into the new environment as an alias to
+itself. Technically, this is an invalid type definition. However, as
+long as we do not try to get the base type, it is a good placeholder
+for the real type. After all of the types are checked in the new
+environment, we enter the real type definitions into the current
+environment and discard the new environment.
+<<type declarations>>=
+  | A.TypeDec types ->
+      let penv = V.new_scope env in
+      let real_type (name, typ, _) = (name, match typ with
+        A.NameTy(name, pos) -> V.lookup_type penv name pos
+      | A.RecordTy(fields) ->
+          let chkfld(name,ty,p) = (name,(V.lookup_type penv ty p))
+          in RECORD (List.map chkfld fields)
+      | A.ArrayTy(name, pos) -> ARRAY (V.lookup_type penv name pos))
+      in
+      List.iter (fun(n,_,_) -> V.enter_type penv n (NAME n)) types;
+      let real_types = (List.map real_type types) in
+      List.iter (fun (n,t) -> V.enter_type env n t) real_types;
+      T.nil
+@
+\paragraph{Exception Declarations}
+Exception declarations in Tiger are very simple---an exception is just
+an identifier. When an exception is declared, we store the identifier
+in the environment.
+<<exception declarations>>=
+  | A.ExceptionDec(sym,_) -> V.enter_exn env sym; T.nil
+@ 
+% ----------------------------------------------------------------------------
+\subsection{Variables}
+% ----------------------------------------------------------------------------
+The variable translator checks and translates simple variables, field
+variables which refer to record elements, and subscript variables
+which refer to array elements.
+<<variable translator>>=
+and trvar = function
+  <<simple vars>>
+  <<field vars>>
+  <<subscript vars>>
+@
+\paragraph{Simple Variables}
+A simple variable can be used as an expression in Tiger as long as the
+variable is defined. To translate a simple variable, we look up its
+definition in the environment and use it to create a variable access.
+<<simple vars>>=
+    A.SimpleVar(sym, pos) ->
+      begin match V.lookup_value env sym pos with
+        V.VarEntry(acc, vt) ->
+          (T.simple_var (V.frame env) acc, base_type env vt)
+      | V.FunEntry _ ->
+          E.type_err pos "function used as value"
+      end
+@
+\paragraph{Field Variables}
+Since field variables are references to record elements, first we must
+check that the base variable is of type [[RECORD]]. Then, the field
+offset is calculated by searching through the list of declared fields.
+The [[Translate]] module (Section~\ref{sec:translate}) then converts
+the base variable and offset into a field access.
+<<field vars>>=
+  | A.FieldVar(var, sym, pos) ->
+      let (exp, fields) = match (trvar var) with
+        (x, RECORD y) -> (x,y)
+      | _ -> E.type_err pos "attempt to dereference non-record type"
+      in
+      let offset  = ref (-1) in
+      let (_,fld) =
+        try List.find (fun (s,v) -> incr offset; s = sym) fields
+        with Not_found -> E.undefined pos (S.name sym)
+      in
+      let typ = base_type env fld in
+      (T.field_var exp !offset (is_ptr typ), typ)
+@
+\paragraph{Subscript Variables}
+Subscript variables are computed in the same manner as field
+variables. However, instead of computing the offset, we use an
+expression which must be of type [[int]].
+<<subscript vars>>=
+  | A.SubscriptVar(var, exp, pos) ->
+      let e,t = (trexp exp) in
+      check_type_int pos "subscript variable" t;
+      begin match (trvar var) with
+        (exp, ARRAY vt) ->
+          let typ = (base_type env vt) in
+          (T.subscript_var exp e (is_ptr typ) pos, typ)
+      | _ ->
+          E.type_err pos "attempt to dereference a non-array type"
+      end
+@
+% ----------------------------------------------------------------------------
+\subsection{Expressions}
+% ----------------------------------------------------------------------------
+Expressions are translated by the [[trexp]] function.
+<<expression translator>>=
+and trexp = function
+  <<simple expressions>>
+  <<records>>
+  <<arrays>>
+  <<assignment>>
+  <<operator expressions>>
+  <<function calls>>
+  <<conditionals>>
+  <<loops>>
+  <<sequences>>
+  <<let expressions>>
+  <<exceptions>>
+  <<threads>>
+@
+\paragraph{Simple Expressions}
+The simple expressions include variable access, [[nil]], and string
+and integer literals. Variables are handled by the [[trvar]] function.
+Literals are translated and assigned the appropriate type.
+<<simple expressions>>=
+    A.VarExp v       -> trvar v
+  | A.NilExp         -> (T.nil,           NIL)
+  | A.IntExp i       -> (T.int_literal i, INT)
+  | A.StringExp(s,_) -> (T.str_literal s, STRING)
+@
+\paragraph{Records}
+When creating a new record instance, the new instance must match the
+declared type of the record. A record instance matches a record
+declaration if they both have the same number of fields, with the same
+names and types, in the same order. The [[chk_field]] function
+compares a field label and expression with a declared field label and
+type. To check a record instance, we call the [[chk_field]] function
+on each field expression paired with the corresponding field
+declaration.
+<<records>>=
+  | A.RecordExp(var, fields, pos) ->
+      let chk_field (s1,e,p) (s2,vt) =
+        if (s1 <> s2) then E.type_err p "field names do not match";
+        let ex,ty = trexp e in
+        check_type_eq p "field type (%s) does not match declaration (%s)"
+                        (base_type env vt) ty;
+        (ex, is_ptr ty)
+      in
+      begin match V.lookup_type env var pos with
+        RECORD dec_fields ->
+          begin try
+            let field_vals = (List.map2 chk_field fields dec_fields) in
+            (T.new_record field_vals, RECORD dec_fields)
+          with Invalid_argument s ->
+            E.type_err pos "Record instance does not match declared type"
+          end
+      | _ ->
+          E.type_err pos "Attempt to use non-record type as record"
+      end
+@
+\paragraph{Arrays}
+When creating a new array instance, the initializing expression must
+match the declared type of the array elements.
+<<arrays>>=
+  | A.ArrayExp(name, size, init, pos) ->
+      begin match V.lookup_type env name pos with
+        ARRAY vt ->
+          let size,sizety = trexp size
+          and init,initty = trexp init
+          and typ         = base_type env vt in
+          check_type_int pos "array size" sizety;
+          check_type_eq  pos "array type(%s) does not type(%s)" typ initty;
+          (T.new_array size init (is_ptr typ), ARRAY vt)
+      | _ ->
+          E.type_err pos "Attempt to use a non-array type as an array"
+      end
+@
+\paragraph{Assignment}
+For assignment expressions, the type of the variable being assigned to
+on the left-hand side, must match the type of the expression on the
+right-hand side. In Tiger, assignments are only executed for
+side-effect; the type of an assignment expression is [[UNIT]].
+<<assignment>>=
+  | A.AssignExp(var, exp, pos) ->
+      let exp,ety = trexp exp
+      and var,vty = trvar var in
+      check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
+      (T.assign var exp, UNIT)
+@
+\paragraph{Operator Expressions}
+Operators come in two flavors: arithmetic and comparison. The
+arithmetic operators can only be applied to expressions of type
+[[int]]. All of the comparison operators can be applied to integers,
+[[nil]], and strings. In addition, the equality testing operators can
+also be applied to records and arrays.
+
+The [[Translate]] module provides three functions for each of
+arithmetic, integer comparison, and string comparison. To translate an
+operator expression, we first check that the types of the left-hand
+and right-hand side expressions are compatible. Then, we select the
+correct translation function, and apply it to the two expressions.
+<<operator expressions>>=
+  | A.OpExp(left, oper, right, pos) ->
+      let lexp,lty = trexp left
+      and rexp,rty = trexp right in
+      check_type_eq pos "Incompatible types %s,%s" lty rty;
+      let trans_fn =
+        match oper with
+          A.PlusOp | A.MinusOp | A.TimesOp | A.DivideOp ->
+            check_type_int pos "operator argument" lty;    T.arithmetic
+        | A.EqOp | A.NeqOp
+        | A.LtOp | A.LeOp | A.GtOp | A.GeOp ->
+            begin match lty with
+              INT | NIL                                 -> T.compare_int
+            | STRING                                    -> T.compare_str
+            | ARRAY  _ when oper=A.EqOp or oper=A.NeqOp -> T.compare_int
+            | RECORD _ when oper=A.EqOp or oper=A.NeqOp -> T.compare_int
+            | _ ->
+                E.type_err pos "Incomparable types"
+            end
+      in (trans_fn oper lexp rexp, INT)
+@
+\paragraph{Function Calls}
+When a function is called, the supplied arguments must have the
+correct types. To translate a function call, first the argument types
+are checked against the function declaration. If the types match, then
+the return type of the function is used as the result type for the
+call expression.
+<<function calls>>=
+  | A.CallExp(sym, arglist, pos) ->
+      let chk_arg = check_type_eq pos
+                    "Argument type (%s) does not match declaration (%s)"
+      in begin match V.lookup_value env sym pos with
+        V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          let args,tys = List.split (List.map trexp arglist) in
+          begin try
+            List.iter2 chk_arg tys dec_args;
+            let rtyp = base_type env return_type in
+            (T.call (V.frame env) lbl cc frm args
+                    (V.exn_label env) (is_ptr rtyp), rtyp)
+          with Invalid_argument x ->
+            E.type_err pos "function arguments do not match declaration"
+          end
+      | _ ->
+          E.type_err pos (S.name sym ^ " is not a function")
+      end
+@
+\paragraph{Conditionals}
+Conditional expressions return a value if both the then clause and the
+else clause have the same type. Otherwise, the if statement does not
+return a value, and has type [[UNIT]]. The [[Translate]] module
+provides two translators for conditionals---one for if expressions
+that return a value and one for if statements that do not.
+<<conditionals>>=
+  | A.IfExp(if', then', else', pos) ->
+      let iex,ity = trexp if'
+      and tex,tty = trexp then'
+      and eex,ety = match else' with
+                      None    -> (T.nil, UNIT)
+                    | Some ex -> trexp ex
+      in
+      check_type_int pos "if condition" ity;
+      check_type_eq  pos
+        "type of then expression (%s) does not match else (%s)" tty ety;
+      let typ = base_type env tty in
+      (T.ifexp iex tex eex (is_ptr typ), typ)
+@
+\paragraph{Loops}
+Tiger defines two looping constructs: a while loop and a for loop. The
+while loop is composed of a test expression of type [[INT]], and a
+body of type [[UNIT]]. Before the body is translated, a break label is
+added to the environment.
+<<loops>>=
+  | A.WhileExp(test, body, pos) ->
+      let body_env = V.new_break_label env in
+      let tex,tty = trexp test
+      and bex,bty = trans body_env (EXP body) in
+      check_type_int pos "while condition" tty;
+      check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
+      (T.loop tex bex (V.break_label body_env), UNIT)
+@
+For loops are translated into equivalent [[let]] and [[while]]
+expressions. First, a looping variable is created and initialized to
+the low value. Then a test expression is created that compares the
+looping variable to the high value. Finally, the body of the for loop
+is modified to include an assignment to the looping variable, and is
+then used as the body of the new while loop.
+<<loops>>=
+  | A.ForExp(sym, lo, hi, body, pos) ->
+      let _,loty = trexp lo
+      and _,hity = trexp hi in
+      check_type_int pos "for lower bound" loty;
+      check_type_int pos "for upper bound" hity;
+      let v            = A.SimpleVar(sym, pos) in
+      let ve           = A.VarExp v in
+      let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
+      and v_plus_1     = A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos) in
+      trexp (A.LetExp(
+             [(A.VarDec(sym,(Some(S.symbol "int")), lo, pos))],
+             (A.WhileExp
+                (v_less_eq_hi,
+                 (A.SeqExp([body;
+                           (A.AssignExp(v, v_plus_1, pos))], pos)),
+                 pos)),
+             pos))
+@
+Break expressions are handled by generating a jump to the nearest
+break label, which is stored in the current environment.
+<<loops>>=
+  | A.BreakExp pos ->
+      begin
+        try (T.break (V.break_label env), UNIT)
+        with Not_found -> raise(E.Error(E.Illegal_break, pos))
+      end
+@
+\paragraph{Sequences}
+A sequence expression evaluates a list of tiger expressions and
+returns the value of the last expression. The empty sequence is a
+valid expression, and returns a value of type [[UNIT]].
+<<sequences>>=
+  | A.SeqExp ([],_) -> (T.nil, UNIT)
+  | A.SeqExp (el,_) ->
+      let exprs = List.rev_map trexp el in
+      let _,typ = List.hd exprs in
+      let exprs = List.rev_map fst exprs in
+      (T.sequence exprs, typ)
+@
+\paragraph{Let Expressions}
+The let expression consists of a sequence of declarations followed by
+a sequence of expressions. To process the let expression, first a new
+environment is created. Then each declaration is processed and added
+to the environment using the [[trdec]] function. Finally, the let body
+is processed inside the new environment, and a sequence is created
+consisting of the declarations followed by the body.
+<<let expressions>>=
+  | A.LetExp(decls, body, _) ->
+      let trns    = trans (V.new_scope env) in
+      let decs    = List.map (fun d -> fst (trns (DEC d))) decls
+      and bex,bty = trns (EXP body) in
+      (T.sequence (decs @ [bex]), bty)
+@ 
+\paragraph{Exceptions}
+A try block consists of an expression and one or more exception
+handlers. For simplicity, a try block is required to have type
+[[unit]]. Therefore, both the expression and all of the handlers must
+have type [[unit]]. To translate a try block, we create a new
+environment with a fresh exception label and translate the expression
+in the new environment. Then, we translate each of the exception
+handlers in our current environment. Finally, we pass the expression
+and the handlers to the [[Translate]] module.
+<<exceptions>>=
+  | A.TryExp(expr, handlers, pos) ->
+      let new_env         = V.new_exn_label env in
+      let tryex, tryty    = trans new_env (EXP expr) in
+      let handler (s,h,p) =
+        let ex,ty = trexp h in
+        check_type_unit p "handler" ty;
+        (S.uid s, ex)
+      in
+      check_type_unit pos "try" tryty;
+      begin match V.exn_label new_env with
+        None     -> E.internal "no exception label for try block"
+      | Some lbl ->
+          (T.try_block tryex lbl (List.map handler handlers), tryty)
+      end
+@ 
+When an exception is raised, we lookup the exception id in the
+environment and call the [[Translate]] module.
+<<exceptions>>=
+  | A.RaiseExp(sym, pos) ->
+      let exn_id = V.lookup_exn env sym pos in
+      (T.raise_exn exn_id, UNIT)
+@
+The spawn keyword is given a function name. The function must take
+zero arguments; the return value is ignored.
+<<threads>>=
+  | A.SpawnExp(sym, pos) ->
+      begin match V.lookup_value env sym pos with
+        V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          if dec_args <> []
+          then E.type_err pos "spawn function must take zero arguments."
+          else (T.spawn lbl,INT)
+      | _ ->
+          E.type_err pos (S.name sym ^ " is not a function")
+      end
+@
