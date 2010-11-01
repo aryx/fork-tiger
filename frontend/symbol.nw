@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: symbol.nw,v 1.5 2004-06-05 15:35:49 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Symbols}
 \label{sec:symbols}

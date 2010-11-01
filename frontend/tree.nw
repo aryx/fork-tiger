@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: tree.nw,v 1.9 2004-06-05 15:35:49 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Intermediate Representation}
 \label{sec:tree}

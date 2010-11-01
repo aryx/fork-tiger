@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: option.nw,v 1.6 2004-06-05 15:35:48 govereau Exp $
 \section{Command Line Options}
 \label{sec:options}
 

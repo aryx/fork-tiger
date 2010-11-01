@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: c-mode -*-
-% $Id: gc.nw,v 1.18 2004-11-28 00:02:58 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Allocation and Garbage Collection}
 \label{sec:gc}

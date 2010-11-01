@@ -1,12 +1,10 @@
-% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: codegen.nw,v 1.25 2004-06-28 13:29:35 lindig Exp $
 % ---------------------------------------------------------------------------
 \section{Code Generation}
 \label{sec:codegen}
 % ---------------------------------------------------------------------------
 This module has two interface functions: one for generating the
 [[C--]] file header, and one for generating the bodies of [[C--]]
-functions. The compiler diver will call the first function to generate
+functions. The compiler driver will call the first function to generate
 the file header and pass in a list of imports. The imports correspond
 to the external functions that may be called by Tiger programs.
 <<codegen.mli>>=

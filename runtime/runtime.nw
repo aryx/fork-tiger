@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: c-mode -*-
-% $Id: runtime.nw,v 1.21 2004-06-28 13:29:35 lindig Exp $
 % ---------------------------------------------------------------------------
 \section{Runtime Startup Code}
 \label{sec:runtime}

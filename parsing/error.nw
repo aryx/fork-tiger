@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: error.nw,v 1.9 2004-06-05 15:35:47 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Error Handling}
 \label{sec:errors}

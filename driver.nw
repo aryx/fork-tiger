@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: driver.nw,v 1.10 2005-03-08 03:36:22 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Compiler Driver}
 \label{sec:driver}

@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: parser.nw,v 1.7 2005-03-08 03:36:22 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Scanner}
 \label{sec:scanner}

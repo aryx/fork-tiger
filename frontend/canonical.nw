@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: canonical.nw,v 1.7 2004-06-05 15:35:45 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Canonical Trees}
 \label{sec:canonical}

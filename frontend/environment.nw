@@ -1,5 +1,4 @@
 % -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% $Id: environment.nw,v 1.5 2004-06-05 15:35:46 govereau Exp $
 % ---------------------------------------------------------------------------
 \section{Environments}
 \label{sec:environments}
