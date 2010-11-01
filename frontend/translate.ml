@@ -1,4 +1,4 @@
-# 47 "translate.nw"
+(*s: translate.ml *)
 module E = Error
 module A = Ast
 module S = Symbol
@@ -7,23 +7,23 @@ module F = Frame
 type exp   = T.exp
 type label = T.label
 let  ws    = Sys.word_size / 8
-# 73 "translate.nw"
+(*s: utilities *)
 let rec seq = function
     []        -> E.internal "nil passed to seq"
   | x :: []   -> x
   | x :: rest -> T.SEQ(x, seq rest)
-# 82 "translate.nw"
+(*x: utilities *)
 let eseq exp stmts = T.ESEQ (seq stmts, exp)
-# 87 "translate.nw"
+(*x: utilities *)
 let temp ptr = T.TEMP (T.new_temp(), ptr)
-# 97 "translate.nw"
+(*x: utilities *)
 let getfp frm parent_frm =
   let diff = F.level frm  - F.level parent_frm in
   let rec deref = function
       0 -> F.fp frm
     | x -> T.MEM (deref (x-1), true)
   in assert (diff >= 0); deref diff
-# 108 "translate.nw"
+(*x: utilities *)
 let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
 let goto lbl  = T.JUMP (T.NAME lbl)
@@ -36,11 +36,13 @@ let simplify tig_op op x y =
 let (<+>) = simplify T.PLUS  ( + )
 let (<->) = simplify T.MINUS ( - )
 let (<*>) = simplify T.MUL   ( * )
-# 129 "translate.nw"
+(*e: utilities *)
+(*s: literals *)
 let nil           = T.CONST 0
 let int_literal i = T.CONST i
 let str_literal s = T.NAME (F.alloc_string s)
-# 145 "translate.nw"
+(*e: literals *)
+(*s: function calls *)
 let call myfrm lbl cc frm args k ptr =
   let args =
     if F.level frm == 0 then args
@@ -49,7 +51,7 @@ let call myfrm lbl cc frm args k ptr =
       else T.MEM(getfp myfrm frm, true)
     in pfp  :: args
   in
-# 159 "translate.nw"
+(*x: function calls *)
   match cc with
     None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
   | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
@@ -59,7 +61,7 @@ let call myfrm lbl cc frm args k ptr =
       in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
                      T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
                      T.MOVE(tmp1, alloc_ptr) ]
-# 172 "translate.nw"
+(*x: function calls *)
 let ext_call cc name args =
   call F.base_frame (S.symbol name) cc
        F.base_frame args None false

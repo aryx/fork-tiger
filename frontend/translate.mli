@@ -1,4 +1,4 @@
-# 16 "translate.nw"
+(*s: translate.mli *)
 type exp   = Tree.exp
 type label = Tree.label
 
@@ -25,3 +25,4 @@ val func          : Frame.frame -> exp -> bool -> exp
 val try_block     : exp -> label -> (int *exp) list -> exp
 val raise_exn     : int -> exp
 val spawn         : label -> exp
+(*e: translate.mli *)

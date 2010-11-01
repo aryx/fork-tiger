@@ -122,3 +122,4 @@ let linearize stm0 =
 
  in (* body of linearize *)
     linear(do_stm stm0, [])
+@

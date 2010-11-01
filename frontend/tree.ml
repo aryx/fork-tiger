@@ -1,9 +1,9 @@
-# 106 "tree.nw"
+(*s: tree.ml *)
 module S = Symbol
-# 14 "tree.nw"
+(*s: types *)
 type label = Symbol.symbol
 and  temp  = Symbol.symbol
-# 24 "tree.nw"
+(*x: types *)
 type stm =
     SEQ    of stm * stm
   | LABEL  of label
@@ -15,7 +15,7 @@ type stm =
   | TRY    of label
   | TRYEND of label
   | RET    of exp
-# 43 "tree.nw"
+(*x: types *)
 and exp =
     BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
@@ -25,13 +25,14 @@ and exp =
   | NAME  of label
   | CONST of int
   | CALL  of exp * exp list * string option * label option * bool
-# 56 "tree.nw"
+(*x: types *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE | LT | GT | LE | GE
-# 112 "tree.nw"
+(*e: types *)
+(*x: tree.ml *)
 let new_label s = S.new_symbol ("L" ^ s)
 let new_temp () = S.new_symbol "temp"
-# 117 "tree.nw"
+(*x: tree.ml *)
 let relop_inverse = function
     EQ  -> NE
   | NE  -> EQ
@@ -51,7 +52,7 @@ let cmm_relop = function
   | GT -> "gt"
   | LE -> "le"
   | GE -> "ge"
-# 141 "tree.nw"
+(*x: tree.ml *)
 let rec is_ptr = function
     BINOP _         -> false
   | RELOP _         -> false
@@ -61,13 +62,13 @@ let rec is_ptr = function
   | NAME _          -> false
   | CONST _         -> false
   | CALL(_,_,_,_,p) -> p
-# 156 "tree.nw"
+(*x: tree.ml *)
 module TempSet = Set.Make(
   struct
     type t = Symbol.symbol * bool
     let compare = Pervasives.compare
   end)
-# 165 "tree.nw"
+(*x: tree.ml *)
 let find_temps stmts =
   let foldl = List.fold_left in
   let rec stm set = function
@@ -92,7 +93,7 @@ let find_temps stmts =
     | CALL(e,el,_,_,_) -> foldl exp set (e :: el)
   in
   TempSet.elements (foldl stm TempSet.empty stmts)
-# 194 "tree.nw"
+(*x: tree.ml *)
 let print_stm =
   let rec iprintf = function
       0 -> Printf.printf
@@ -125,5 +126,6 @@ let print_stm =
     | CALL(e,el,_,_,_) -> iprintf d "CALL:\n";
                           prexp (d+1) e; List.iter (prexp (d+2)) el
   in prstm 0
-# 230 "tree.nw"
+(*x: tree.ml *)
 let print_exp e = print_stm (EXP e)
+(*e: tree.ml *)

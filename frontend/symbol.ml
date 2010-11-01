@@ -1,4 +1,4 @@
-# 29 "symbol.nw"
+(*s: symbol.ml *)
 type symbol = string * int
 
 let nextsym = ref 0
@@ -14,7 +14,7 @@ let symbol name =
     (name, !nextsym)
 
 let new_symbol s = symbol (Printf.sprintf "%s_%d" s !nextsym)
-# 79 "symbol.nw"
+(*x: symbol.ml *)
 type 'a table = {
     level  : int;
     tbl    : (symbol, 'a) Hashtbl.t;
@@ -25,15 +25,15 @@ let enter env s v =
   if Hashtbl.mem env.tbl s
   then failwith "Compiler error: symbol table duplicate entry"
   else Hashtbl.add env.tbl s v
-# 94 "symbol.nw"
+(*x: symbol.ml *)
 let rec look env s =
   try Hashtbl.find env.tbl s
   with Not_found -> match env.parent with
     None -> raise Not_found
   | Some e -> look e s
-# 103 "symbol.nw"
+(*x: symbol.ml *)
 let mem env = Hashtbl.mem env.tbl
-# 109 "symbol.nw"
+(*x: symbol.ml *)
 let create l =
   let env = {
     level = 0;
@@ -46,7 +46,7 @@ let create l =
 let new_scope env = { level = env.level + 1;
                       tbl = Hashtbl.create 20;
                       parent = Some env }
-# 126 "symbol.nw"
+(*x: symbol.ml *)
 let rec iter f env =
   Hashtbl.iter (f env.level) env.tbl;
   match env.parent with
@@ -59,3 +59,4 @@ let rec fold f env init =
   match env.parent with
     None -> result
   | Some e -> fold f e result
+(*e: symbol.ml *)

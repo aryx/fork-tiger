@@ -1,4 +1,5 @@
-# 49 "semantics.nw"
+(*s: semantics.mli *)
+(*s: variable types *)
 type vartype =
     UNIT
   | NIL
@@ -8,6 +9,7 @@ type vartype =
   | RECORD of (Symbol.symbol * vartype) list
   | NAME   of Symbol.symbol
   | ANY
-# 22 "semantics.nw"
+(*e: variable types *)
 val translate : vartype Environment.t -> Ast.exp ->
                (Frame.frame * Translate.exp) list
+(*e: semantics.mli *)
