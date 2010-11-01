@@ -1,0 +1,47 @@
+# mkfile for tigerc test suite
+# $Id: mkfile,v 1.17 2004-11-24 23:26:54 govereau Exp $
+
+# load configure settings
+<|../configure
+
+TIGERC      = ../tigerc
+TIGERC_OPTS = -unwind
+CLIENT      = `cd .. ; pwd`/client
+
+QCMMLUAPATH="../../../qc--/test2:.::*"
+
+# testing
+
+test:V:
+    qc-- testdrv.lua tiger.tst
+
+test-update:V:
+    qc-- testdrv.lua Test.update=1 tiger.tst
+
+TIG=`echo *.tig`
+EXE=${TIG:%.tig=%.exe}
+exe:V: $EXE
+
+# native code build rules
+
+&.c--:D: &.tig $TIGERC
+    $TIGERC $TIGERC_OPTS $stem.tig > $target
+
+&.s: &.c--
+    $QCMM -globals -stop .s $prereq
+
+&.exe: &.s ../runtime.o ../stdlib.a $RTLIB
+    gcc -o $target $prereq -L$QCMMLIB $QCMMLIB/pcmap.ld -lqc--
+
+# interpreter build rules
+
+&.qs: &.c--
+    $QCMM -globals -interp -stop .qs -o $target $prereq
+
+&.interp: &.qs
+    $QCMM -interp Interp.hashbang="\"#! $CLIENT\"" -o $target $prereq
+
+# cleaning
+
+clean:V:
+    rm -f *.c-- *.o *.exe *.qs *.s *.interp a.out

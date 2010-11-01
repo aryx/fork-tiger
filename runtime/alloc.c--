@@ -1,0 +1,25 @@
+target byteorder little;
+import bits32 space_end;
+import bits32 tig_gc;
+export tig_alloc;
+export tig_call_gc;
+bits32 alloc_ptr;
+tig_call_gc() {
+  alloc_ptr = foreign "C" tig_gc(k) also cuts to k;
+  return;
+continuation k():
+  return;
+}
+tig_alloc(bits32 size) {
+  bits32 p;
+  p = 0;
+  size = (size + 7) & 0xFFFFFFFC;
+  if (alloc_ptr + size > bits32[space_end]) {
+    tig_call_gc();
+  }
+
+  bits32[alloc_ptr] = size;
+  p = alloc_ptr + 4;
+  alloc_ptr = alloc_ptr + size;
+  return(p);
+}

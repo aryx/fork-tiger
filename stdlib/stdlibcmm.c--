@@ -1,0 +1,96 @@
+target byteorder little memsize 8 wordsize 32 pointersize 32;
+import bits32 tig_alloc;
+import bits32 unwinder;
+import bits32 printf;
+import bits32 exit;
+import bits32 getchar;
+import bits32 bcopy;
+
+export tig_substring;
+export tig_concat;
+export tig_chr;
+export tig_getchar;
+export tig_set_handler;
+export tig_raise;
+export tig_unwind;
+export tig_spawn;
+
+bits32 alloc_ptr;
+section "data" {  substr_msg: bits8[] "substring: index (%d,%d) out of range of (0,%d)\n\000";
+                  curr_exn : bits32;
+                  spawn_msg : bits8[] "spawning to %X\n\000"; }
+new_string(bits32 size) {
+  bits32 str_ptr;
+  str_ptr = tig_alloc(size + 4 + 1);
+  bits32[str_ptr] = size;
+  bits8[str_ptr + 4 + size] = 0 :: bits8;
+  return(str_ptr);
+}
+tig_chr(bits32 ch) {
+  bits32 str_ptr;
+  str_ptr = new_string(1);
+  bits8[str_ptr+4] = %lobits8(ch);
+  return(str_ptr);
+}
+tig_getchar() {
+  bits32 ch;
+  bits32 p;
+  p = alloc_ptr;
+  ch = foreign "C" getchar();
+  alloc_ptr = p;
+  p = tig_chr(ch);
+  if (ch == 0xFFFFFFFF) {
+    bits32[p] = 0;
+  }
+  return(p);
+}
+tig_substring("address" bits32 str_ptr, bits32 first, bits32 length) {
+  bits32 new_str_ptr;
+  bits32 ap;
+  if (first < 0)                        { goto Lerror; }
+  if (first + length > bits32[str_ptr]) { goto Lerror; }
+
+  new_str_ptr = new_string(length);
+  ap = alloc_ptr;
+  foreign "C" bcopy(str_ptr+first+4, new_str_ptr+4, length);
+  alloc_ptr = ap;
+  return(new_str_ptr);
+
+Lerror:
+  foreign "C" printf(substr_msg, first, length, bits32[str_ptr]);
+  foreign "C" exit(1) never returns;
+  return(0);
+}
+tig_concat("address" bits32 str_a, "address" bits32 str_b) {
+  bits32 new_str;
+  bits32 ap;
+  if (bits32[str_a] == 0) { return(str_b); }
+  if (bits32[str_b] == 0) { return(str_a); }
+
+  new_str = new_string(bits32[str_a] + bits32[str_b]);
+  ap = alloc_ptr;
+  foreign "C" bcopy(str_a+4, new_str+4,               bits32[str_a]);
+  foreign "C" bcopy(str_b+4, new_str+4+bits32[str_a], bits32[str_b]);
+  alloc_ptr = ap;
+  return(new_str);
+}
+tig_set_handler(bits32 exn) {
+  bits32 old_exn;
+  old_exn = bits32[curr_exn];
+  bits32[curr_exn] = exn;
+  return(old_exn);
+}
+tig_raise(bits32 exn_id) {
+  cut to bits32[curr_exn](exn_id);
+  return;
+}
+tig_unwind(bits32 exn_id) {
+  foreign "C" unwinder(k, exn_id) also aborts also cuts to k;
+  return;
+continuation k():
+  return;
+}
+tig_spawn(bits32 lbl) {
+  foreign "C" printf(spawn_msg, lbl);
+  return(0);
+}

@@ -1,0 +1,437 @@
+% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
+% $Id: ldb.nw,v 1.3 2003-06-13 21:35:10 govereau Exp $
+% ---------------------------------------------------------------------------
+\section{Module Structure}
+% ---------------------------------------------------------------------------
+\epsfbox{modules.eps}
+<<ldb.mli>>=
+module Extref : sig
+  <<external references sig>>
+end
+
+module PSInfo : sig
+  <<info type sig>>
+  <<basic types sig>>
+  <<array sig>>
+  <<table sig>>
+end
+
+<<ldb types sig>>
+<<address sig>>
+<<symbol table sig>>
+
+@
+<<ldb.ml>>=
+module Extref = struct
+  <<external references>>
+end
+module E = Extref
+
+module PSInfo = struct
+  <<info type>>
+  <<basic types>>
+  <<array>>
+  <<table>>
+end
+
+<<ldb types>>
+<<address>>
+<<symbol table>>
+
+@ 
+% ---------------------------------------------------------------------------
+\section{External References}
+% ---------------------------------------------------------------------------
+<<external references sig>>=
+  type t
+  val ref_of_symbol : string -> t
+  val ref_of_string : string -> string -> string -> t
+  val ref_of_int : int -> t
+  val string_of_ref : t -> string
+@ 
+<<external references>>=
+  type t = string
+  let current_ref = ref 0
+  let ref_of_symbol s = incr current_ref; s ^ (string_of_int !current_ref)
+  let ref_of_string l c r = l ^ c ^ r
+  let ref_of_int = string_of_int
+  let string_of_ref r = r
+
+@ 
+% ---------------------------------------------------------------------------
+\section{PS Info Types}
+% ---------------------------------------------------------------------------
+\epsfbox{psinfo.eps}
+<<public methods>>=
+  method ref : Extref.t
+  method extern : out_channel -> unit
+  method externing : bool
+  method externed : bool
+@ 
+<<info type sig>>=
+class type t =
+  object
+    <<public methods>>
+  end
+class virtual info : t
+class virtual mutable_info : t
+@ 
+<<info type>>=
+class type t =
+  object
+    <<public methods>>
+    method private setRef : Extref.t -> unit
+    method private iextern : out_channel -> unit
+    method private string_of : string
+  end
+
+class virtual info : t =
+  object (self)
+    val mutable external_ref = (E.ref_of_int 0)
+    val mutable extern_in_progress = false
+
+    method private setRef r = external_ref <- r
+    method ref = external_ref
+            
+    method externing = extern_in_progress
+    method externed = false
+
+    method extern ch =
+      extern_in_progress <- true;
+      self#iextern ch;
+      extern_in_progress <- false
+
+    method private iextern ch = ()
+    method private string_of = (E.string_of_ref external_ref)
+  end
+
+class virtual mutable_info : t =
+  object (self)
+    inherit info as super
+    val mutable externed = false
+
+    method ref = assert externed; super#ref
+
+    method externed = externed
+    method extern ch =
+      assert (not externed);
+      super#extern ch;
+      externed <- true
+
+    method private iextern ch =
+      Printf.fprintf ch "/%s %s def\n"
+        (E.string_of_ref super#ref)
+        self#string_of;
+  end
+
+@ 
+% ---------------------------------------------------------------------------
+\subsection{Basic Types}
+% ---------------------------------------------------------------------------
+<<basic types sig>>=
+class ldbint : int -> object inherit info end
+class ldbstring : string -> object inherit info end
+class ldbpscode : string -> object inherit info end
+@ 
+<<basic types>>=
+class ldbint (value : int) =
+  object (self)
+    inherit info as super
+    initializer super#setRef (E.ref_of_int value)
+  end
+class ldbstring (value : string) =
+  object (self)
+    inherit info as super
+    initializer super#setRef (E.ref_of_string "(" value ")")
+  end
+class ldbpscode (value : string) =
+  object (self)
+    inherit info as super
+    initializer super#setRef (E.ref_of_string "{" value "}")
+  end
+
+@
+% ---------------------------------------------------------------------------
+\subsection{Array Types}
+% ---------------------------------------------------------------------------
+<<array sig>>=
+class ldbarray :
+  object
+    inherit info
+    method put : t -> unit
+    method get : int -> t
+  end
+class ldbmutablearray : string ->
+  object
+    inherit mutable_info
+    method put : t -> unit
+    method get : int -> t
+  end
+@ 
+<<array>>=
+module type INFO = sig class virtual c : t end
+
+module Array =
+  functor (Parent : INFO) ->
+  struct
+    class c =
+      object (self)
+        inherit Parent.c as super
+
+        val mutable data = []
+        method put (i : t) = data <- (data @ [i])
+        method get = List.nth data
+
+        method private string_of =
+          (List.fold_left
+             (fun s i -> s ^" "^ (E.string_of_ref i#ref))
+             "[" data) ^ " ]"
+
+        method private iextern ch =
+          List.iter (fun (i : info) -> (assert (not i#externing))) data;
+          super#iextern ch
+      end
+  end
+
+module ArrayNormal = Array(struct class virtual c = info end)
+module ArrayMutable = Array(struct class virtual c = mutable_info end)
+
+class ldbarray =
+  object
+    inherit ArrayNormal.c as super
+    method put (i: t) =
+      super#put i;
+      super#setRef (E.ref_of_string "" super#string_of "")
+  end
+
+class ldbmutablearray (name : string) =
+  object
+    inherit ArrayMutable.c as super
+    initializer super#setRef (E.ref_of_symbol name)
+    method put (i : t) =
+      assert (not super#externed);
+      super#put i
+
+    method private iextern ch =
+      List.iter (fun i -> if (not i#externed) then i#extern ch) data;
+      super#iextern ch
+  end
+
+@ 
+% ---------------------------------------------------------------------------
+\subsection{Table Type}
+% ---------------------------------------------------------------------------
+<<table sig>>=
+class ldbtable : string ->
+  object
+    inherit mutable_info
+    method put : string -> t -> unit
+    method get : string -> t
+  end
+@ 
+<<table>>=
+class ldbtable (name : string) =
+  object (self)
+    inherit mutable_info as super
+    initializer super#setRef (E.ref_of_symbol name)
+    val table = Hashtbl.create 20
+    method put (s : string) (i : t) =
+      assert (not super#externed);
+      Hashtbl.add table s i
+    method get = Hashtbl.find table
+
+    method private iextern ch =
+      Hashtbl.iter (fun s i -> if (not i#externed) then i#extern ch) table;
+      super#iextern ch
+
+    method private string_of = "<<\n" ^
+      (Hashtbl.fold
+         (fun s i r ->
+           Printf.sprintf "\t/%s %s\n%s"
+             s (E.string_of_ref i#ref) r)
+         table ">>")
+  end
+@ 
+% ---------------------------------------------------------------------------
+\section{LDB Types}
+% ---------------------------------------------------------------------------
+\epsfbox{ldbtypes.eps}
+<<ldb types sig>>=
+class ldbType :
+  object
+    inherit PSInfo.ldbtable
+  end
+class ldbSymbol : string -> ldbType -> string -> int -> int ->
+  object
+    inherit PSInfo.ldbtable
+    method name : string
+  end
+class ldbProcedure :
+    string -> ldbSymbol -> string -> 
+      string -> int -> int ->
+  object
+    inherit ldbSymbol
+    method label : string
+  end
+@ 
+<<ldb types>>=
+class ldbType =
+  object (self)
+    inherit PSInfo.ldbtable "T" as super
+    initializer
+      super#put "kind" (new PSInfo.ldbstring "type")
+  end
+class ldbSymbol
+    (name : string)
+    (typ  : ldbType)
+    (file : string)
+    (line : int)
+    (col  : int) =
+  object (self)
+    inherit PSInfo.ldbtable "S" as super
+    initializer
+      super#put "name" (new PSInfo.ldbstring name);
+      super#put "type" (typ :> PSInfo.t);
+      super#put "sourcefile" (new PSInfo.ldbstring file);
+      super#put "sourcey" (new PSInfo.ldbint col);
+      super#put "sourcex" (new PSInfo.ldbint line)
+
+    method name = name
+  end
+class ldbProcedure
+    (name : string)
+    (formals : ldbSymbol)
+    (retype : string)
+    (file : string)
+    (line : int)
+    (col  : int) =
+  object (self)
+    inherit ldbSymbol name (new ldbType) file line col as super
+    initializer
+      super#put "kind" (new PSInfo.ldbstring "prodcedure");
+      super#put "formals" (formals :> PSInfo.t);
+      super#put "returntype" (new PSInfo.ldbstring retype)
+
+    method label = "label"
+  end
+
+@ 
+% ---------------------------------------------------------------------------
+\section{Addresses}
+% ---------------------------------------------------------------------------
+<<address sig>>=
+class objloc : string ->
+  object
+    inherit PSInfo.info
+    method register : string -> unit
+    method frame : string -> int -> unit
+    method psCode : string -> unit
+  end
+class address : int -> object inherit PSInfo.ldbint end
+class address_table :
+  object
+    method new_address : string -> address
+    method put : ldbProcedure -> address
+    method get : ldbProcedure -> address
+    method finalize : unit
+    method anchor : string
+    method get_data_addr : address -> string
+    method get_proc_addr : address -> string
+  end
+@ 
+<<address>>=
+class objloc (s : string) =
+  object (self)
+    inherit PSInfo.info as super
+    val mutable value = s
+
+    initializer self#set "" value ""
+
+    method private set l s r =
+      value <- s;
+      super#setRef (E.ref_of_string l s r)
+
+    method register reg = self#set "reg" reg ""
+    method frame reg offset =
+      self#set "reg" (reg ^ " " ^ (string_of_int offset)) " IndData"
+    method psCode code = self#set "{" code "}"
+  end
+
+class address i = object inherit PSInfo.ldbint i end
+class address_table =
+  object (self)
+    val anchor = "anchor"
+    val mutable offset = 0
+    val mutable addresses = []
+    val proc_table = Hashtbl.create 20
+
+    method new_address (s : string) =
+      addresses <- addresses @ [s];
+      offset <- (offset + 1);
+      new address offset
+
+    method put (p : ldbProcedure) =
+      let a = self#new_address p#label in
+      Hashtbl.add proc_table p a; a
+
+    method get = Hashtbl.find proc_table
+
+    method finalize = () (*
+      Printf.printf ".globl %s\n.data\n.align 2\n%s:\n" anchor anchor;
+      List.iter (fun a -> Printf.printf ".word %s\n" a) addresses
+                       *)
+    method anchor = anchor
+
+    method get_data_addr (a : address) =
+      Printf.sprintf "(%s) %s LazyData" anchor (E.string_of_ref a#ref)
+    method get_proc_addr = self#get_data_addr
+  end
+@ 
+% ---------------------------------------------------------------------------
+\section{Symbol Table}
+% ---------------------------------------------------------------------------
+<<symbol table sig>>=
+class symbolTable :
+  object
+    inherit PSInfo.info
+    method addProc : ldbProcedure -> unit
+    method addExported : ldbSymbol -> unit
+    method addPrivates : ldbSymbol -> unit
+  end
+@ 
+<<symbol table>>=
+class symbolTable =
+  object (self)
+    inherit PSInfo.info as super
+    val addr_table = new address_table
+    val mutable procs = []
+    val mutable exports = []
+    val mutable privates = []
+
+    method addProc (p : ldbProcedure) = procs <- procs @ [p]
+    method addExported (sym : ldbSymbol) = exports <- exports @ [sym]
+    method addPrivates (sym : ldbSymbol) = privates <- privates @ [sym]
+
+    method private iextern ch =
+      addr_table#finalize;
+      self#lazy_table ch;
+      self#full_table ch
+
+    method private lazy_table ch =
+      Printf.printf "$lazy {() cvx exec currentfile closefile} if\n"
+
+    method private full_table ch =
+      List.iter (fun i -> i#extern ch)
+        ((procs :> ldbSymbol list)  @ exports @ privates);
+      Printf.printf "/externs < < %s >> def\n"
+        (List.fold_left (fun s i ->
+          Printf.sprintf "/%s %s %s" i#name (E.string_of_ref i#ref) s)
+           "" exports);
+      Printf.printf "/statics < < %s >> def\n"
+        (List.fold_left (fun s i ->
+          Printf.sprintf "/%s %s %s" i#name (E.string_of_ref i#ref) s)
+           "" privates);
+      Printf.printf "/ProcArray [ %s ] def\n"
+        (List.fold_left (fun s i -> (E.string_of_ref i#ref) ^ " " ^ s)
+           "" procs);
+  end

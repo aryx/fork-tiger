@@ -1,2 +1,11 @@
-modifs: moved files around
+http://www.eecs.harvard.edu/~govereau/tigerc/
+
+src:
+ DONE http://www.cminusminus.org/rsync/dist/tigerc.2007.11.27.tar.gz
+ DONE http://www.cminusminus.org/rsync/frontends/tiger/   (27 June 2009)
+ DONE http://www.eecs.harvard.edu/~govereau/tigerc/tigerc.tar.gz
+
+modifs: moved files around. Integrate differents parts of the
+ 3 sources above.
+
 

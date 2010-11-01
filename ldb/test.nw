@@ -1,0 +1,85 @@
+% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
+% $Id: test.nw,v 1.2 2003-06-13 21:35:10 govereau Exp $
+% ---------------------------------------------------------------------------
+\section{Library Testing}
+% ---------------------------------------------------------------------------
+<<test.ml>>=
+(* testing *)
+let i = new Ldb.PSInfo.ldbint 5
+and s = new Ldb.PSInfo.ldbstring "a string"
+and ps = new Ldb.PSInfo.ldbpscode "2 3 add"
+and loc = new Ldb.objloc "location"
+and reg = new Ldb.objloc "register"
+and frm = new Ldb.objloc "frame"
+and code = new Ldb.objloc "code"
+and arr = new Ldb.PSInfo.ldbarray
+in
+reg#register "R12";
+frm#frame "R8" 2;
+code#psCode "ps code location";
+arr#put i;
+arr#put s;
+arr#put ps;
+arr#put (reg :> Ldb.PSInfo.t);
+arr#put (frm :> Ldb.PSInfo.t);
+arr#put (code :> Ldb.PSInfo.t);
+
+Printf.printf "\n%% LDB Mutable Array\n";
+let marr = new Ldb.PSInfo.ldbmutablearray "arrayname"
+in
+marr#put i;
+marr#put s;
+marr#put (arr :> Ldb.PSInfo.t);
+marr#put (new Ldb.PSInfo.ldbint 10);
+marr#extern stdout; print_newline();
+
+Printf.printf "\n%% LDB Table\n";
+let tbl = new Ldb.PSInfo.ldbtable "table name"
+in
+tbl#put "ten" (new Ldb.PSInfo.ldbint 10);
+tbl#put "string" (new Ldb.PSInfo.ldbstring "a string");
+tbl#put "procedure" (new Ldb.PSInfo.ldbpscode "some code");
+tbl#put "location" ((new Ldb.objloc "R18") :> Ldb.PSInfo.t);
+tbl#put "code "(code :> Ldb.PSInfo.t);
+tbl#put "array" (arr  :> Ldb.PSInfo.t);
+tbl#put "marray" (marr :>  Ldb.PSInfo.t);
+tbl#extern stdout; print_newline();
+
+let tbl2 = new Ldb.PSInfo.ldbtable "second table"
+in
+tbl2#put "table" (tbl :> Ldb.PSInfo.t);
+tbl2#extern stdout; print_newline()
+
+;;
+
+Printf.printf "\n%% Symbol Table\n";
+let st = new Ldb.symbolTable in
+
+let arg1sym = new Ldb.ldbSymbol "x"
+    (new Ldbtiger.tiger_int)
+    "main.tig" 1 1
+and arg2sym = new Ldb.ldbSymbol "y"
+    (new Ldbtiger.tiger_string)
+    "main.tig" 1 3
+in
+
+let proc = new Ldb.ldbProcedure "tiger_main"
+    arg2sym "INT"
+    "main.tig" 5 1 in
+st#addProc proc;
+st#addExported arg1sym;
+
+let trec = new Ldbtiger.tiger_record in
+trec#addField "name" (new Ldbtiger.tiger_string);
+trec#addField "age" (new Ldbtiger.tiger_int);
+let varsym = new Ldb.ldbSymbol "z"
+    (trec :> Ldb.ldbType)
+    "main.tig" 2 3
+in
+let vararr = new Ldbtiger.tiger_array (new Ldbtiger.tiger_string) 10
+in
+st#addPrivates (new Ldb.ldbSymbol 
+                  "array" vararr
+                  "main.tig" 10 10);
+st#addPrivates varsym;
+st#extern stdout

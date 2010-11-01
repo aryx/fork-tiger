@@ -1,0 +1,83 @@
+# ------------------------------------------------------------------
+# mkfile for ldb ocaml library
+# $Id: mkfile,v 1.2 2003-06-04 20:52:22 govereau Exp $
+# ------------------------------------------------------------------
+
+NAME    = ldb
+VERSION = `date +%Y.%m.%d`
+
+#
+# programs used in compilation
+#
+NOWEAVE   = noweave
+NOTANGLE  = notangle
+CPIF      = cpif
+OCAMLC    = ocamlc
+OCAMLO    = ocamlopt
+OCAMLDEP  = ocamldep
+
+#
+# misc. options
+#
+LINE     = '# %L "%F"%N'
+OCAML_OPTS = -g
+
+### Everything below this line should not need to be edited ###
+
+# ------------------------------------------------------------------
+# source files - in order
+# ------------------------------------------------------------------
+NW  = ldb.nw ldbtiger.nw test.nw
+ML  = ldb.ml ldbtiger.ml test.ml
+MLI = ldb.mli ldbtiger.mli
+CMO = ${ML:%.ml=%.cmo}
+CMX = ${ML:%.ml=%.cmx}
+
+# ------------------------------------------------------------------
+# rules
+# ------------------------------------------------------------------
+<../rules.mk
+
+all:V: test
+depend:V:   DEPEND
+
+test: dep-chk $NAME.cma test.ml
+    $OCAMLC $OCAML_OPTS -o $target $NAME.cma test.ml
+
+$NAME.cma: $CMO
+
+doc:V: ldb.dvi
+
+# ------------------------------------------------------------------
+# cleaning
+# ------------------------------------------------------------------
+clean.opt:V:
+            rm -f *.cmx *.o *.cmxa *.a
+
+clean:V:    clean.opt
+            rm -f *.cmi *.cmo *.cma
+
+clobber:V:  clean
+            rm -f test DEPEND
+            rm -f *.ml *.mli *~
+            rm -f *.inc *.dvi *.log *.aux
+            rm -f *.ps *.pdf *.html
+            rm -f *.tex *.toc
+
+# ------------------------------------------------------------------
+# dependencies
+# ------------------------------------------------------------------
+
+dep-chk:VQ:
+    if test DEPEND -nt mkfile; then true;
+    else
+      echo
+      echo "     You must run 'mk depend'"
+      echo 
+      exit 1
+    fi
+
+DEPEND:D: $MLI $ML test.ml mkfile
+    $OCAMLDEP $MLI $ML test.ml > DEPEND
+
+<DEPEND

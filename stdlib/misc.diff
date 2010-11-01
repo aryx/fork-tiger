@@ -1,0 +1,14 @@
+-    return strncmp((const char*)s->chars,
+-                   (const char*)t->chars, s->length);
++    return strncmp(s->chars, t->chars, s->length);
+ 
+-  i = strncmp((const char*)s->chars,
+-              (const char*)t->chars,
++  i = strncmp(s->chars, t->chars,
+               (s->length < t->length ? s->length : t->length));
+ 
+   if (i != 0) return i;
+   if (s->length < t->length) return -1;
+   return 1;
+ }
++# 237 "stdlib.nw"

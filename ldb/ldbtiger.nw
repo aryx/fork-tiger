@@ -1,0 +1,81 @@
+% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
+% $Id: ldbtiger.nw,v 1.2 2003-06-13 21:35:10 govereau Exp $
+% ---------------------------------------------------------------------------
+\section{Tiger Specific Types}
+% ---------------------------------------------------------------------------
+<<ldbtiger.mli>>=
+class tiger_type : string -> Ldb.ldbType
+
+class tiger_nil : tiger_type
+class tiger_int : tiger_type
+class tiger_string : tiger_type
+class tiger_unit : tiger_type
+
+class tiger_array : tiger_type -> int -> tiger_type
+
+class tiger_record :
+  object
+    inherit tiger_type
+    method addField : string -> tiger_type -> unit
+  end
+
+@ 
+<<ldbtiger.ml>>=
+class tiger_type name =
+  object
+    inherit Ldb.ldbType as super
+    initializer super#put "type" (new Ldb.PSInfo.ldbstring name)
+  end
+
+class tiger_nil =
+  object
+    inherit tiger_type "NIL" as super
+    initializer
+      super#put "decl" (new Ldb.PSInfo.ldbstring "nil");
+      super#put "printer" (new Ldb.PSInfo.ldbpscode "NIL")
+  end
+class tiger_int =
+  object
+    inherit tiger_type "INT" as super
+    initializer
+      super#put "decl" (new Ldb.PSInfo.ldbstring "%d");
+      super#put "printer" (new Ldb.PSInfo.ldbpscode "INT")
+  end
+class tiger_string =
+  object
+    inherit tiger_type "STRING" as super
+    initializer
+      super#put "decl" (new Ldb.PSInfo.ldbstring "%s");
+      super#put "printer" (new Ldb.PSInfo.ldbpscode "STRING")
+  end
+class tiger_unit =
+  object
+    inherit tiger_type "UNIT" as super
+    initializer
+      super#put "decl" (new Ldb.PSInfo.ldbstring "unit");
+      super#put "printer" (new Ldb.PSInfo.ldbpscode "UNIT")
+  end
+
+class tiger_array (base_type : tiger_type) (size : int) =
+  object
+    inherit tiger_type "ARRAY" as super
+    initializer
+      super#put "base_type" (base_type :> Ldb.PSInfo.t);
+      super#put "size" (new Ldb.PSInfo.ldbint size)
+  end
+
+class tiger_record =
+  object
+    inherit tiger_type "RECORD" as super
+    val names = new Ldb.PSInfo.ldbarray
+    val fields = new Ldb.PSInfo.ldbmutablearray "fields"
+
+    initializer
+      super#put "names"  (names :> Ldb.PSInfo.t);
+      super#put "fields" (fields :> Ldb.PSInfo.t);
+        
+    method addField (name : string) (type': tiger_type) =
+      names#put  (new Ldb.PSInfo.ldbstring name);
+      fields#put (type' :> Ldb.PSInfo.t)
+
+  end

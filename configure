@@ -1,0 +1,5 @@
+echo QCMM=/home/cminusminus/rsync/qc--linux-x86/src/qc--
+echo QCMMBIN=/home/cminusminus/rsync/qc--linux-x86/src
+echo QCMMINC=/home/cminusminus/rsync/qc--linux-x86/runtime
+echo QCMMLIB=/home/cminusminus/rsync/qc--linux-x86/runtime
+echo TIGERLIB=lib/who/cares
