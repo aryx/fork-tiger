@@ -1,8 +1,8 @@
-# 66 "frame.nw"
+(*s: frame.ml *)
 module S = Symbol
 module T = Tree
 module H = Hashtbl
-# 76 "frame.nw"
+(*x: frame.ml *)
 type frame = { name           : T.label
              ; level          : int
              ; mutable size   : int
@@ -13,11 +13,11 @@ type frame = { name           : T.label
 type access =
     Temp  of T.label
   | Stack of frame * int * bool
-# 92 "frame.nw"
+(*x: frame.ml *)
 let fp    frm = T.NAME (S.symbol "fp")
 let name  frm = frm.name
 let level frm = frm.level
-# 102 "frame.nw"
+(*x: frame.ml *)
 let base_frame = { name   = (S.symbol "frame0")
                  ; level  = 0
                  ; params = [(S.symbol "pfp", true)]
@@ -28,7 +28,7 @@ let base_frame = { name   = (S.symbol "frame0")
 let new_frame lbl parent = { base_frame with
                              name  = lbl;
                              level = parent.level + 1 }
-# 123 "frame.nw"
+(*x: frame.ml *)
 let stack_alloc frm ptr =
   let v = Stack(frm, frm.size, ptr) in
   frm.size <- frm.size + 1; v
@@ -40,25 +40,25 @@ let alloc_param frm name ptr =
 let alloc_local frm name ptr =
   frm.vars <- (name,ptr) :: frm.vars;
   stack_alloc frm ptr
-# 140 "frame.nw"
+(*x: frame.ml *)
 let alloc_temp frm name ptr =
   frm.temps <- (name,ptr) :: frm.temps;
   Temp name
-# 151 "frame.nw"
+(*x: frame.ml *)
 let strings = H.create 20
 let alloc_string s =
   try H.find strings s
   with Not_found ->
     let lbl = T.new_label "gbl" in
     (H.add strings s lbl; lbl)
-# 162 "frame.nw"
+(*x: frame.ml *)
 let pf           = Printf.printf
 let spf          = Printf.sprintf
 let join_map f l = String.concat "," (List.map f l)
 let iter_ndx f   = let n   = ref(-1) in
                    let g x = incr n; f !n x in
                    List.iter g
-# 175 "frame.nw"
+(*x: frame.ml *)
 let output_header frm =
   let param  (p,_) = spf "bits32 %s" (S.name p)
   and init n (p,_) = pf "  bits32[fp+%d] = %s;\n" (4*n) (S.name p)
@@ -69,7 +69,7 @@ let output_header frm =
   pf "  stackdata { align 4; fp : bits32[%d]; }\n" frm.size;
   iter_ndx  init frm.params;
   List.iter temp frm.temps
-# 191 "frame.nw"
+(*x: frame.ml *)
 let output_footer frm =
   let var_data vl =
     let int_of_var (_,p) = if p then 1 else 0 in
@@ -82,7 +82,7 @@ let output_footer frm =
   pf "   bits32[] { %s };\n" (var_data (frm.params @ List.rev frm.vars));
   pf "   bits32[] { %s };\n" (var_data (frm.params @ frm.temps));
   pf "}\n\n"
-# 207 "frame.nw"
+(*x: frame.ml *)
 (* output *)
 let output_strings() =
   let print_string str lbl =
@@ -94,3 +94,4 @@ let output_strings() =
   pf "section \"data\" { align 4;\n";
   H.iter print_string strings;
   pf "}\n\n"
+(*e: frame.ml *)
