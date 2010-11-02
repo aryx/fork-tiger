@@ -1,0 +1,15 @@
+/* src: http://www.st.cs.uni-saarland.de/~lindig/#quick-cmm */
+
+target byteorder little;
+
+import bits32 printf;
+export main, my_data;
+
+section "data" {
+  my_data: bits8 [] "hello, world!\n\0";
+}
+
+foreign "C" main("unsigned" bits32 iargc, "address" bits32 iargv) {
+  foreign "C" printf("address" my_data);
+  foreign "C" return(0);
+}
