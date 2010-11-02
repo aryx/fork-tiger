@@ -69,23 +69,25 @@ let ext_call cc name args =
 let ext_c_call   = ext_call (Some "C")
 let ext_gc_call  = ext_call  None (* (Some "gc") *)
 let ext_cmm_call = ext_call  None
-# 187 "translate.nw"
+(*e: function calls *)
+(*s: variables *)
 let simple_var frm = function
     F.Temp lbl                    -> T.NAME lbl
   | F.Stack(var_frm, offset, ptr) ->
       T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
-# 196 "translate.nw"
+(*x: variables *)
 let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
-# 204 "translate.nw"
+(*x: variables *)
 let subscript_var e1 e2 ptr pos =
   let check = ext_c_call "bounds_check"
                         [e1;e2;T.CONST(fst (Error.line_number pos))]
   and offset = (e2 <+> T.CONST 1) <*> T.CONST ws
   in
   eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
-# 213 "translate.nw"
+(*x: variables *)
 let assign v e = eseq nil [e => v]
-# 222 "translate.nw"
+(*e: variables *)
+(*s: operator expressions *)
 let arithmetic op ex1 ex2 =
   let oper = match op with
     A.PlusOp   -> T.PLUS
@@ -105,11 +107,12 @@ let compare_int op ex1 ex2 =
   | A.GeOp  -> T.GE
   | _       -> E.internal "binop used as relop"
   in T.RELOP(oper, ex1, ex2)
-# 247 "translate.nw"
+(*x: operator expressions *)
 let compare_str op ex1 ex2 =
   let result = ext_c_call "compare_str" [ex1;ex2] in
   compare_int op result (T.CONST 0)
-# 256 "translate.nw"
+(*e: operator expressions *)
+(*s: conditionals *)
 let ifexp test thn els ptr =
   let tmp  = temp ptr
   and tru  = T.new_label "ifTrue"
@@ -119,7 +122,8 @@ let ifexp test thn els ptr =
              T.LABEL tru; thn => tmp; goto end';
              T.LABEL fls; els => tmp;
              T.LABEL end']
-# 272 "translate.nw"
+(*e: conditionals *)
+(*s: loops *)
 let loop test body lend = 
   let lbeg = T.new_label "loop_start"
   and lbdy = T.new_label "loop_body" in
@@ -127,9 +131,10 @@ let loop test body lend =
              T.CJUMP(test, lbdy, lend);
              T.LABEL lbdy; T.EXP body; goto lbeg;
              T.LABEL lend ]
-# 284 "translate.nw"
+(*x: loops *)
 let break lbl = eseq nil [goto lbl]
-# 293 "translate.nw"
+(*e: loops *)
+(*s: records and arrays *)
 let alloc size =
   let size = (size <+> T.CONST 1) <*> T.CONST ws in
   let test = T.RELOP(T.GT, alloc_ptr <+> size, space_end)
@@ -144,7 +149,7 @@ let alloc size =
                 (alloc_ptr <+> size) => alloc_ptr
                 (* ; T.EXP (ext_gc_call "call_gc" []) *)
               ]
-# 315 "translate.nw"
+(*x: records and arrays *)
 let new_record init =
   let tmp  = temp true
   and size = T.CONST (List.length init) in
@@ -154,7 +159,7 @@ let new_record init =
                         :: initialize (offset+1) rest
   in
   eseq tmp ((alloc size => tmp) :: initialize 0 init)
-# 331 "translate.nw"
+(*x: records and arrays *)
 let new_array sizeEx initEx ptr = 
   let ary  = temp true
   and i    = temp false
@@ -169,22 +174,25 @@ let new_array sizeEx initEx ptr =
       i <+> T.CONST 1 => i;
       T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
       T.LABEL lend ]
-# 352 "translate.nw"
+(*e: records and arrays *)
+(*s: sequences *)
 let rec sequence = function
    []       -> nil
   | e :: [] -> e
   | e :: es -> T.ESEQ((T.EXP e), (sequence es))
-# 363 "translate.nw"
+(*e: sequences *)
+(*s: functions *)
 let func frm ex ptr =
   let tmp = temp ptr in
   eseq nil [ex => tmp; T.RET tmp]
-# 377 "translate.nw"
+(*e: functions *)
+(*s: exceptions *)
 let try_block exp exn_lbl hs =
   let cont l = function
       T.TEMP(t,_) -> T.CONT(l, [t])
     | _           -> E.internal "non temp in continuation node"
   in
-# 388 "translate.nw"
+(*x: exceptions *)
   let try_endl         = T.new_label "try_end"
   and tmp              = temp false in
   let handler (uid,ex) =
@@ -194,7 +202,7 @@ let try_block exp exn_lbl hs =
       T.LABEL hl; T.EXP ex; goto try_endl;
       T.LABEL sl ]
   in
-# 406 "translate.nw"
+(*x: exceptions *)
   let old            = temp false in
   let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
   and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
@@ -210,9 +218,12 @@ let try_block exp exn_lbl hs =
              not_unwind reset_handler;
              seq (List.flatten (List.map handler hs));
              T.LABEL try_endl ]
-# 425 "translate.nw"
+(*x: exceptions *)
 let raise_exn uid =
   let fn = if Option.use_unwind() then "unwind" else "raise" in
   ext_cmm_call fn [T.CONST uid]
-# 434 "translate.nw"
+(*e: exceptions *)
+(*s: threads *)
 let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
+(*e: threads *)
+(*e: translate.ml *)

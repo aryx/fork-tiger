@@ -214,30 +214,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           (T.assign var exp, UNIT)
     (*e: assignment *)
     (*s: operator expressions *)
-    let arithmetic op ex1 ex2 =
-      let oper = match op with
-        A.PlusOp   -> T.PLUS
-      | A.MinusOp  -> T.MINUS
-      | A.TimesOp  -> T.MUL
-      | A.DivideOp -> T.DIV
-      | _          -> E.internal "relop used as binop"
-      in T.BINOP(oper, ex1, ex2)
-
-    let compare_int op ex1 ex2 =
-      let oper = match op with
-        A.EqOp  -> T.EQ
-      | A.NeqOp -> T.NE
-      | A.LtOp  -> T.LT
-      | A.LeOp  -> T.LE
-      | A.GtOp  -> T.GT
-      | A.GeOp  -> T.GE
-      | _       -> E.internal "binop used as relop"
-      in T.RELOP(oper, ex1, ex2)
-    (*x: operator expressions *)
-    let compare_str op ex1 ex2 =
-      let result = ext_c_call "compare_str" [ex1;ex2] in
-      compare_int op result (T.CONST 0)
-    (*x: operator expressions *)
       | A.OpExp(left, oper, right, pos) ->
           let lexp,lty = trexp left
           and rexp,rty = trexp right in
@@ -259,33 +235,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           in (trans_fn oper lexp rexp, INT)
     (*e: operator expressions *)
     (*s: function calls *)
-    let call myfrm lbl cc frm args k ptr =
-      let args =
-        if F.level frm == 0 then args
-        else let pfp =
-          if (F.level frm) > (F.level myfrm) then F.fp frm
-          else T.MEM(getfp myfrm frm, true)
-        in pfp  :: args
-      in
-    (*x: function calls *)
-      match cc with
-        None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-      | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-      | Some _ ->
-          let tmp1      = temp ptr
-          and tmp2      = temp ptr
-          in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
-                         T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
-                         T.MOVE(tmp1, alloc_ptr) ]
-    (*x: function calls *)
-    let ext_call cc name args =
-      call F.base_frame (S.symbol name) cc
-           F.base_frame args None false
-
-    let ext_c_call   = ext_call (Some "C")
-    let ext_gc_call  = ext_call  None (* (Some "gc") *)
-    let ext_cmm_call = ext_call  None
-    (*x: function calls *)
       | A.CallExp(sym, arglist, pos) ->
           let chk_arg = check_type_eq pos
                         "Argument type (%s) does not match declaration (%s)"
@@ -305,16 +254,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           end
     (*e: function calls *)
     (*s: conditionals *)
-    let ifexp test thn els ptr =
-      let tmp  = temp ptr
-      and tru  = T.new_label "ifTrue"
-      and fls  = T.new_label "ifFalse"
-      and end' = T.new_label "ifEnd" in
-      eseq tmp [ T.CJUMP(test, tru, fls);
-                 T.LABEL tru; thn => tmp; goto end';
-                 T.LABEL fls; els => tmp;
-                 T.LABEL end']
-    (*x: conditionals *)
       | A.IfExp(if', then', else', pos) ->
           let iex,ity = trexp if'
           and tex,tty = trexp then'
@@ -329,16 +268,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           (T.ifexp iex tex eex (is_ptr typ), typ)
     (*e: conditionals *)
     (*s: loops *)
-    let loop test body lend = 
-      let lbeg = T.new_label "loop_start"
-      and lbdy = T.new_label "loop_body" in
-      eseq nil [ T.LABEL lbeg;
-                 T.CJUMP(test, lbdy, lend);
-                 T.LABEL lbdy; T.EXP body; goto lbeg;
-                 T.LABEL lend ]
-    (*x: loops *)
-    let break lbl = eseq nil [goto lbl]
-    (*x: loops *)
       | A.WhileExp(test, body, pos) ->
           let body_env = V.new_break_label env in
           let tex,tty = trexp test
@@ -372,11 +301,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           end
     (*e: loops *)
     (*s: sequences *)
-    let rec sequence = function
-       []       -> nil
-      | e :: [] -> e
-      | e :: es -> T.ESEQ((T.EXP e), (sequence es))
-    (*x: sequences *)
       | A.SeqExp ([],_) -> (T.nil, UNIT)
       | A.SeqExp (el,_) ->
           let exprs = List.rev_map trexp el in
@@ -392,42 +316,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           (T.sequence (decs @ [bex]), bty)
     (*e: let expressions *)
     (*s: exceptions *)
-    let try_block exp exn_lbl hs =
-      let cont l = function
-          T.TEMP(t,_) -> T.CONT(l, [t])
-        | _           -> E.internal "non temp in continuation node"
-      in
-    (*x: exceptions *)
-      let try_endl         = T.new_label "try_end"
-      and tmp              = temp false in
-      let handler (uid,ex) =
-        let hl = T.new_label "handle"
-        and sl = T.new_label "skip" in
-        [ T.CJUMP(T.RELOP(T.EQ, tmp, T.CONST uid), hl, sl);
-          T.LABEL hl; T.EXP ex; goto try_endl;
-          T.LABEL sl ]
-      in
-    (*x: exceptions *)
-      let old            = temp false in
-      let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
-      and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
-      and not_unwind stm = if Option.use_unwind() then T.EXP nil else stm
-      in
-      eseq tmp [ T.TRY exn_lbl;
-                 not_unwind set_handler;
-                 exp => tmp;
-                 not_unwind reset_handler;
-                 T.TRYEND exn_lbl;
-                 goto try_endl;
-                 cont exn_lbl tmp;
-                 not_unwind reset_handler;
-                 seq (List.flatten (List.map handler hs));
-                 T.LABEL try_endl ]
-    (*x: exceptions *)
-    let raise_exn uid =
-      let fn = if Option.use_unwind() then "unwind" else "raise" in
-      ext_cmm_call fn [T.CONST uid]
-    (*x: exceptions *)
       | A.TryExp(expr, handlers, pos) ->
           let new_env         = V.new_exn_label env in
           let tryex, tryty    = trans new_env (EXP expr) in
@@ -448,8 +336,6 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           (T.raise_exn exn_id, UNIT)
     (*e: exceptions *)
     (*s: threads *)
-    let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
-    (*x: threads *)
       | A.SpawnExp(sym, pos) ->
           begin match V.lookup_value env sym pos with
             V.FunEntry(lbl, cc, frm, dec_args, return_type) ->

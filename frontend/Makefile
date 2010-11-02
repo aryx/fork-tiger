@@ -42,11 +42,10 @@ clean::
 # Literate Programming rules
 ##############################################################################
 
-SRCNW=$(SRC:.ml=.nw)
-LPSRC=$(SRC) $(SRC:.ml=.mli)
+SRCBASE=$(SRC:.ml=)
 
 sync:
-	for i in $(LPSRC); do $(SYNCWEB) $(SRCNW) $$i || exit 1; done 
+	for i in $(SRCBASE); do $(SYNCWEB) $$i.nw $$i.ml; $(SYNCWEB) $$i.nw $$i.mli  || exit 1; done 
 
 lpdistclean::
 	rm -f $(LPSRC) .md5sum_*
