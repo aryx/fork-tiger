@@ -1,4 +1,4 @@
-# 12 "runtime.nw"
+/*s: runtime.c-- */
 target byteorder little;
 import tig_set_handler;
 import gc_init;
@@ -42,3 +42,4 @@ continuation k(rv):
   foreign "C" printf(exn_msg, rv);
   foreign "C" return(-1);
 }
+/*e: runtime.c-- */

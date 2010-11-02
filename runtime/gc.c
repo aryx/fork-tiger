@@ -1,4 +1,4 @@
-# 79 "gc.nw"
+/*s: gc.c */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -87,7 +87,7 @@ void gc_copy(void) {
   for (scan = to_space; scan < alloc_ptr; scan++)
     *scan = (unsigned)gc_forward((unsigned*)*scan, -1);
 }
-# 179 "gc.nw"
+/*x: gc.c */
 void* tig_gc(Cmm_Cont* k) {
   Cmm_Activation a;
   alloc_ptr = to_space;
@@ -136,3 +136,4 @@ void* tig_gc(Cmm_Cont* k) {
   flip();
   return alloc_ptr;
 }
+/*e: gc.c */

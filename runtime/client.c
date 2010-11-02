@@ -1,61 +1,4 @@
-% -*- mode: Noweb; noweb-code-mode: c-mode -*-
-% ---------------------------------------------------------------------------
-\section{Runtime Startup Code}
-\label{sec:runtime}
-
-The initial size of the heap is taken from the environment variable
-[[TIGER_HEAPSIZE]] if present; otherwise a default is used.
-
-% ---------------------------------------------------------------------------
-<<runtime.c-->>=
-target byteorder little;
-import tig_set_handler;
-import gc_init;
-import tiger_main;
-import printf;
-import getenv;
-import atoi;
-export main;
-
-const HEAP_SIZE = 8192;
-
-bits32 alloc_ptr;
-
-section "data" {
-  exn_msg           : bits8[] "unhandled exception %d\n\000";
-  tiger_heapsize    : bits8[] "TIGER_HEAPSIZE\0";
-  heapsize_msg      : bits8[] "heapsize %d\n\0";
-}
-
-foreign "C"
-main(bits32 argc, "address" bits32 argv)
-{
-  bits32 rv;
-  bits32 heapsize;
-  bits32 env;
-  
-  env = foreign "C" getenv("address" tiger_heapsize);
-  if (env != 0) {
-    heapsize = foreign "C" atoi("address" env);
-  } else {
-    heapsize = HEAP_SIZE;
-  }  
-  // foreign "C" printf("address" heapsize_msg, heapsize);
-  alloc_ptr = foreign "C" gc_init(heapsize);
-
-  tig_set_handler(k);
-  rv = tiger_main(0) also cuts to k;
-  foreign "C" return (rv);
-
-continuation k(rv):
-  foreign "C" printf(exn_msg, rv);
-  foreign "C" return(-1);
-}
-@ 
-% ---------------------------------------------------------------------------
-\subsection{Interpreter Startup}
-% ---------------------------------------------------------------------------
-<<client.c>>=
+/*s: client.c */
 #include <assert.h>
 #include <qc--interp.h>
 
@@ -157,4 +100,4 @@ int main(int argc, char *argv[])
   Cmm_close();
   return 0;
 }
-@ 
+/*e: client.c */

@@ -54,8 +54,6 @@ beforedepend:: parser.ml parser.mli
 # Literate Programming rules
 ##############################################################################
 
-SRCBASE=$(SRC:.ml=)
-
 sync:
 	$(SYNCWEB) -lang ocamlyacc parser.nw parser.mly
 	$(SYNCWEB) -lang ocaml parser.nw lexer.mll
