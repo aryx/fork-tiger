@@ -11,7 +11,9 @@ SYSLIBS=
 
 LIBS=
 
-INCLUDEDIRS=
+INCLUDEDIRS= \
+ $(TOP)/parsing \
+ $(TOP)/frontend \
 
 ##############################################################################
 # Generic variables
