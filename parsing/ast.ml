@@ -78,10 +78,10 @@ let print_tree expression =
           iprintf d "%s:%s\n" (S.name n) (S.name t)
         in
         let prfun d (name, params, type', body, _) =
-  	iprintf d "%s:\n" (S.name name);
+   iprintf d "%s:\n" (S.name name);
           List.iter (prfield (d+1)) params;
           print_opt_sym (d+1) type';
-  	exp (d+2) body
+   exp (d+2) body
         in
         iprintf d "FunctionDec:\n";
         List.iter (prfun (d+1)) functions
