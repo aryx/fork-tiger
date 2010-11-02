@@ -41,11 +41,12 @@ clean::
 # Literate Programming rules
 ##############################################################################
 
-SRCNW=frame.nw codegen.nw
-LPSRC=$(SRCNW:.nw=.ml) $(SRCNW:.nw=.mli)
-
 sync:
-	for i in $(LPSRC); do $(SYNCWEB) $(SRCNW) $$i || exit 1; done 
+	$(SYNCWEB) -lang ocaml frame.nw frame.ml 
+	$(SYNCWEB) -lang ocaml frame.nw frame.mli
+	$(SYNCWEB) -lang ocaml codegen.nw codegen.ml 
+	$(SYNCWEB) -lang ocaml codegen.nw codegen.mli
+
 
 lpdistclean::
-	rm -f $(LPSRC) .md5sum_*
+	rm -f *.ml *.mli .md5sum_*
