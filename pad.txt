@@ -10,5 +10,13 @@ modifs:
  - Integrate differents parts of the 3 sources above.
  - use syncweb for literate files so can modify ml files
 
+TODO:
+ - using qc-- is convenient but introduce some extra dependencies;
+   maybe could try to write a full mips backend!!
+
+
+related work:
+ - Tiger in Stratego targetin mips via spim
+   http://www.program-transformation.org/Tiger/WebHome
 
 
