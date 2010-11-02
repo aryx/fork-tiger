@@ -1,4 +1,4 @@
-# 29 "option.nw"
+(*s: option.ml *)
 let ast    = ref false
 let ext    = ref false
 let lext   = ref false
@@ -12,12 +12,12 @@ let print_lext() = !lext
 let use_unwind() = !unwind
 let filename()   = !file
 let channel()    = !inch
-# 46 "option.nw"
+(*x: option.ml *)
 let set_input s =
   try file := s; inch := open_in s
   with Sys_error err ->
     raise (Arg.Bad ("could not open file " ^ err))
-# 56 "option.nw"
+(*x: option.ml *)
 let rec usage() = Arg.usage options "Usage:";exit 0;
 and options = [
   "-ast",      Arg.Set ast,    "\t\tprint Abstract Syntax Tree";
@@ -27,3 +27,4 @@ and options = [
   "-help",     Arg.Unit usage, "\tprint this message";
 ]
 let parse_cmdline() = Arg.parse options set_input "Usage:"
+(*e: option.ml *)

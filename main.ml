@@ -1,33 +1,15 @@
-% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-% ---------------------------------------------------------------------------
-\section{Compiler Driver}
-\label{sec:driver}
-% ---------------------------------------------------------------------------
-The compiler driver has two jobs: to define the standard basis, and to
-call the compiler modules in the correct order.
-<<driver.ml>>=
+(*s: main.ml *)
 module S = Symbol
 module F = Frame
 module V = Environment
 module M = Semantics
-<<standard basis>>
-<<compiler driver>>
-@
-\paragraph{Standard Basis}
-The standard basis consist of a set of initial type definitions, a set
-of initial functions, and a set of imports. There are only two initial
-type definitions in the standard basis: integers and strings.
-<<standard basis>>=
+(*s: standard basis *)
 let base_tenv =
 (* name     type *)
 [ "int",    M.INT
 ; "string", M.STRING
 ]
-@
-The set of initial functions includes all of the functions in the
-Tiger standard library. For each function, we give the function name,
-the calling convention, and the argument and return types.
-<<standard basis>>=
+(*x: standard basis *)
 let base_venv = 
 (* name        cc        args                    return *)
 [ "print",     Some "C", [M.STRING],             M.UNIT
@@ -43,12 +25,7 @@ let base_venv =
 ; "not",       Some "C", [M.INT],                M.INT
 ; "exit",      Some "C", [M.INT],                M.UNIT
 ]
-@
-The set of imports includes all of the functions that may be called
-from compiled code. This includes the standard library functions as
-well as other internal functions such as the garbage collector and
-functions related to exceptions.
-<<standard basis>>=
+(*x: standard basis *)
 let imports =
   let internal = [ "alloc"
                  ; "call_gc"
@@ -61,13 +38,8 @@ let imports =
                  ]
   in
   List.map (fun(n,_,_,_) -> n) base_venv @ internal
-@
-\paragraph{Compiler Driver}
-The compiler driver is relatively simple. First, the command line
-options are parsed. Then, the input program is parsed, type checked,
-and converted to the intermediate representation. Finally, we iterate
-over the functions and output each one by calling [[emit_function]].
-<<compiler driver>>=
+(*e: standard basis *)
+(*s: compiler driver *)
 let emit_function (frm,ex) =
   if Option.print_ext()  then Tree.print_exp ex;
   let ltree = Canonical.linearize (Tree.EXP ex) in
@@ -94,4 +66,5 @@ let _ =
     compile (Option.channel())
   with Error.Error ex ->
     Error.handle_exception ex
-@
+(*e: compiler driver *)
+(*e: main.ml *)
