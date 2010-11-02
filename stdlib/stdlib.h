@@ -1,3 +1,4 @@
+/*s: stdlib.h */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,3 +21,4 @@ string*  tig_substring(string*, unsigned first, unsigned n);
 string*  tig_concat(string *a, string *b);
 int      tig_not(int i);
 void     tig_exit(int status);
+/*e: stdlib.h */

@@ -1,10 +1,10 @@
-# 44 "stdlib.nw"
+/*s: stdlib.c */
 #include <qc--runtime.h>
 #include "stdlib.h"
 #include "gc.h"
 #include <string.h>
 #include <assert.h>
-# 76 "stdlib.nw"
+/*s: C functions */
 unsigned tig_sizea(void* array) { return *((int*)array); }
 unsigned tig_size(string *s)    { return s->length;      }
 int      tig_not(int i)         { return !i;             }
@@ -12,7 +12,7 @@ void     tig_exit(int status)   { exit(status);          }
 void     tig_flush()            { fflush(stdout);        }
 void     tig_printi(int n)      { printf("%d", n);       }
 void     tig_print(string *s)   { printf("%s", s->chars);}
-# 123 "stdlib.nw"
+/*x: C functions */
 void tig_bounds_check(void *array, int index, int line) {
   int size = tig_sizea(array);
   if (index < 0 || index >= size) {
@@ -22,7 +22,7 @@ void tig_bounds_check(void *array, int index, int line) {
     exit(1);
   }
 }
-# 136 "stdlib.nw"
+/*x: C functions */
 int tig_ord(string *s) {
   if (s->length != 1) {
     fprintf(stderr, "Tiger program took ord of string of length %d\n",
@@ -31,7 +31,7 @@ int tig_ord(string *s) {
   }
   return s->chars[0];
 }
-# 148 "stdlib.nw"
+/*x: C functions */
 int tig_compare_str(string *s, string *t) {
   int i;
   assert(t);
@@ -48,7 +48,7 @@ int tig_compare_str(string *s, string *t) {
   if (s->length < t->length) return -1;
   return 1;
 }
-# 237 "stdlib.nw"
+/*x: C functions */
 void unwinder(Cmm_Cont* k, unsigned exn_id) {
   Cmm_Activation a = Cmm_YoungestActivation(k); 
   do {
@@ -60,3 +60,5 @@ void unwinder(Cmm_Cont* k, unsigned exn_id) {
   } while(Cmm_ChangeActivation(&a));
   assert(0);
 }
+/*e: C functions */
+/*e: stdlib.c */

@@ -1,3 +1,4 @@
+/*s: stdlibcmm.c-- */
 target byteorder little memsize 8 wordsize 32 pointersize 32;
 import bits32 tig_alloc;
 import bits32 unwinder;
@@ -26,12 +27,14 @@ new_string(bits32 size) {
   bits8[str_ptr + 4 + size] = 0 :: bits8;
   return(str_ptr);
 }
+/*x: C-- functions */
 tig_chr(bits32 ch) {
   bits32 str_ptr;
   str_ptr = new_string(1);
   bits8[str_ptr+4] = %lobits8(ch);
   return(str_ptr);
 }
+/*x: C-- functions */
 tig_getchar() {
   bits32 ch;
   bits32 p;
@@ -44,6 +47,7 @@ tig_getchar() {
   }
   return(p);
 }
+/*x: C-- functions */
 tig_substring("address" bits32 str_ptr, bits32 first, bits32 length) {
   bits32 new_str_ptr;
   bits32 ap;
@@ -61,6 +65,7 @@ Lerror:
   foreign "C" exit(1) never returns;
   return(0);
 }
+/*x: C-- functions */
 tig_concat("address" bits32 str_a, "address" bits32 str_b) {
   bits32 new_str;
   bits32 ap;
@@ -74,6 +79,7 @@ tig_concat("address" bits32 str_a, "address" bits32 str_b) {
   alloc_ptr = ap;
   return(new_str);
 }
+/*x: C-- functions */
 tig_set_handler(bits32 exn) {
   bits32 old_exn;
   old_exn = bits32[curr_exn];
@@ -84,13 +90,17 @@ tig_raise(bits32 exn_id) {
   cut to bits32[curr_exn](exn_id);
   return;
 }
+/*x: C-- functions */
 tig_unwind(bits32 exn_id) {
   foreign "C" unwinder(k, exn_id) also aborts also cuts to k;
   return;
 continuation k():
   return;
 }
+/*x: C-- functions */
 tig_spawn(bits32 lbl) {
   foreign "C" printf(spawn_msg, lbl);
   return(0);
 }
+/*e: C-- functions */
+/*e: stdlibcmm.c-- */

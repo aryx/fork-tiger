@@ -102,6 +102,8 @@ tig_chr(bits32 ch) {
   bits8[str_ptr+4] = %lobits8(ch);
   return(str_ptr);
 }
+@ 
+
 <<C-- functions>>=
 tig_getchar() {
   bits32 ch;
@@ -168,6 +170,8 @@ this pointer in the case of a garbage collection. Therefore, we
 implement this function in [[C--]].
 <<C-- data>>=
  substr_msg: bits8[] "substring: index (%d,%d) out of range of (0,%d)\n\000";
+@ 
+
 <<C-- functions>>=
 tig_substring("address" bits32 str_ptr, bits32 first, bits32 length) {
   bits32 new_str_ptr;
@@ -211,6 +215,7 @@ dynamically using the [[tig_set_handler]] function. Raising an
 exception can then be done with a [[C--]] cut to statement.
 <<C-- data>>=
  curr_exn : bits32;
+@ 
 <<C-- functions>>=
 tig_set_handler(bits32 exn) {
   bits32 old_exn;
@@ -232,6 +237,7 @@ tig_unwind(bits32 exn_id) {
 continuation k():
   return;
 }
+@ 
 <<C functions>>=
 void unwinder(Cmm_Cont* k, unsigned exn_id) {
   Cmm_Activation a = Cmm_YoungestActivation(k); 
@@ -247,6 +253,7 @@ void unwinder(Cmm_Cont* k, unsigned exn_id) {
 @
 <<C-- data>>=
  spawn_msg : bits8[] "spawning to %X\n\000";
+@ 
 <<C-- functions>>=
 tig_spawn(bits32 lbl) {
   foreign "C" printf(spawn_msg, lbl);
