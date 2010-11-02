@@ -18,7 +18,8 @@ LIBS= \
  frontend/lib.cma \
  backend/lib.cma \
 
-MAKESUBDIRS=parsing frontend backend
+MAKESUBDIRS=parsing frontend backend \
+  stdlib runtime
 
 INCLUDEDIRS=$(MAKESUBDIRS)
 
