@@ -9,12 +9,10 @@ use Pod::Usage;
 # Prelude
 ######################################################################
 
-# Yes I know about autoconf ... and autoconf sux.
+# yes I know about autoconf ... and autoconf sucks.
 
-# assume standard: binutils, gcc, as, ld, gnu toolchain
-# assume standard: make, sh?, perl?
-# assume standard: diffutils, fileutils, findutils, grep, patchutils, sh-utils
-## assume standard: diff, patch
+# assumes standard: binutils, gcc, as, ld, gnu toolchain
+# assumes standard: make, sh, perl (for this script)
 
 my $project = 
     "tigerc";
@@ -33,7 +31,7 @@ my $help = 0;
 # see http://perldoc.perl.org/Getopt/Long.html
 # coupling: if add options here, add an explanation at the bottom of this file
 # too. Later may also add something in the documentation latex file (or use
-# LP)
+# literate programming for that too)
 GetOptions (
     "prefix=s" => \$prefix,
 
@@ -48,7 +46,6 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 my $src="$prefix/share/$project";
 
 # dependencies
-
 
 ######################################################################
 # Side effects
@@ -119,6 +116,8 @@ We need  3.XX",
 #---------------------------------------------------------------------
 # More developers tools
 #---------------------------------------------------------------------
+
+#TODO qc-- binary in include file
 
 #---------------------------------------------------------------------
 # Librairies

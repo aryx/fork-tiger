@@ -85,6 +85,11 @@ purebytecode:
 	rm -f $(EXEC).opt $(EXEC)
 	$(MAKE) BYTECODE_STATIC="" $(EXEC)
 
+
+distclean:: clean
+	set -e; for i in $(MAKESUBDIRS); do $(MAKE) -C $$i $@; done
+	rm -f Makefile.config
+
 ##############################################################################
 # Build documentation
 ##############################################################################
