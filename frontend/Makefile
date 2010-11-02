@@ -5,14 +5,14 @@ TOP=..
 ##############################################################################
 TARGET=lib
 
-SRC=environment.ml tree.ml \
+SRC=frame.ml environment.ml tree.ml \
     canonical.ml translate.ml semantics.ml
 
 SYSLIBS=
 
 LIBS=
 
-INCLUDEDIRS=
+INCLUDEDIRS= $(TOP)/parsing
 
 ##############################################################################
 # Generic variables

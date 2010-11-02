@@ -5,7 +5,7 @@ TOP=..
 ##############################################################################
 TARGET=lib
 
-SRC=frame.ml codegen.ml
+SRC=codegen.ml
 
 SYSLIBS=
 
@@ -42,8 +42,6 @@ clean::
 ##############################################################################
 
 sync:
-	$(SYNCWEB) -lang ocaml frame.nw frame.ml 
-	$(SYNCWEB) -lang ocaml frame.nw frame.mli
 	$(SYNCWEB) -lang ocaml codegen.nw codegen.ml 
 	$(SYNCWEB) -lang ocaml codegen.nw codegen.mli
 
