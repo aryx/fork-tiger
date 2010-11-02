@@ -1,3 +1,4 @@
+/*(*s: parser.mly *)*/
 %{
 module E = Error
 module A = Ast
@@ -255,3 +256,4 @@ fun_dec:
 exn_dec:
    EXCEPTION id { mkException $2 }
 ;
+/*(*e: parser.mly *)*/

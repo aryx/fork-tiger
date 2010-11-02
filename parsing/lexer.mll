@@ -1,3 +1,4 @@
+(*s: lexer.mll *)
 {
 module E = Error
 module P = Parser
@@ -123,3 +124,4 @@ and string = parse
         string lexbuf }
   | eof
       { raise (E.Error(E.Unterminated_string, !string_start_pos)) }
+(*e: lexer.mll *)

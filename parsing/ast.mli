@@ -1,25 +1,26 @@
-# 25 "ast.nw"
+(*s: ast.mli *)
+(*s: types *)
 type pos    = int 
 and  symbol = Symbol.symbol
-# 32 "ast.nw"
+(*x: types *)
 type dec =
     FunctionDec  of (symbol * field list * symbol option * exp * pos) list
   | VarDec       of symbol * symbol option * exp * pos
   | TypeDec      of (symbol * ty * pos) list
   | ExceptionDec of symbol * pos
-# 41 "ast.nw"
+(*x: types *)
 and ty =
     NameTy   of symbol * pos
   | RecordTy of field list
   | ArrayTy  of symbol * pos
-# 50 "ast.nw"
+(*x: types *)
 and field = (symbol * symbol * pos)
-# 56 "ast.nw"
+(*x: types *)
 and var =
     SimpleVar    of symbol * pos
   | FieldVar     of var * symbol * pos
   | SubscriptVar of var * exp * pos
-# 66 "ast.nw"
+(*x: types *)
 and exp =
     NilExp
   | VarExp    of var
@@ -39,8 +40,9 @@ and exp =
   | TryExp    of exp * (symbol * exp * pos) list * pos
   | RaiseExp  of symbol * pos
   | SpawnExp  of symbol * pos
-# 89 "ast.nw"
+(*x: types *)
 and oper = PlusOp | MinusOp | TimesOp | DivideOp
          | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
-# 13 "ast.nw"
+(*e: types *)
 val print_tree : exp -> unit
+(*e: ast.mli *)

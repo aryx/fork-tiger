@@ -1,4 +1,5 @@
-# 12 "error.nw"
+(*s: error.ml *)
+(*s: types *)
 type error =
     Internal_error of string
   | Illegal_character of char
@@ -12,12 +13,13 @@ type error =
   | Illegal_break
 type ex = error * int
 exception Error of ex
-# 60 "error.nw"
+(*e: types *)
+(*x: error.ml *)
 type sm = { mutable sm: (int * int) list }
 let source_map = { sm = [(0,0)] }
 let add_source_mapping pos line =
   source_map.sm <- source_map.sm @ [(pos,line)]
-# 68 "error.nw"
+(*x: error.ml *)
 let line_number pos =
   let rec line ln last_p = function
       (p,l) :: rest ->
@@ -25,7 +27,7 @@ let line_number pos =
         else line l p rest
     | [] -> (ln + 1, pos - last_p)
   in line 0 0 source_map.sm
-# 80 "error.nw"
+(*x: error.ml *)
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
   if line > 0 then
@@ -35,7 +37,7 @@ let err_msg prefix pos msg =
     Printf.fprintf stderr "%s: %s\n" prefix msg
 
 let warning = err_msg "Warning"
-# 94 "error.nw"
+(*x: error.ml *)
 let handle_exception (ex,pos) =
   let msg = match ex with
     Internal_error s     -> "Compiler bug: " ^ s
@@ -51,7 +53,8 @@ let handle_exception (ex,pos) =
   in
   err_msg "Error" pos msg;
   exit 1
-# 112 "error.nw"
+(*x: error.ml *)
 let type_err  pos msg = raise(Error(Type_error msg, pos))
 let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
 let internal      msg = raise(Error(Internal_error msg, 0))
+(*e: error.ml *)

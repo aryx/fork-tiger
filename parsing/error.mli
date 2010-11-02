@@ -1,4 +1,5 @@
-# 12 "error.nw"
+(*s: error.mli *)
+(*s: types *)
 type error =
     Internal_error of string
   | Illegal_character of char
@@ -12,13 +13,14 @@ type error =
   | Illegal_break
 type ex = error * int
 exception Error of ex
-# 31 "error.nw"
+(*e: types *)
 val handle_exception : ex -> unit
-# 36 "error.nw"
+(*x: error.mli *)
 val warning   : int -> string -> unit
 val type_err  : int -> string -> 'a
 val undefined : int -> string -> 'a
 val internal  :        string -> 'a
-# 46 "error.nw"
+(*x: error.mli *)
 val add_source_mapping : int -> int -> unit
 val line_number : int -> int * int
+(*e: error.mli *)
