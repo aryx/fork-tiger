@@ -5,7 +5,7 @@ TOP=..
 ##############################################################################
 TARGET=lib
 
-SRC=environment.ml symbol.ml tree.ml \
+SRC=environment.ml tree.ml \
     canonical.ml translate.ml semantics.ml
 
 SYSLIBS=

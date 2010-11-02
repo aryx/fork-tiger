@@ -5,7 +5,9 @@ TOP=..
 ##############################################################################
 TARGET=lib
 
-SRC=ast.ml error.ml lexer.ml parser.ml
+SRC=symbol.ml ast.ml \
+  option.ml error.ml \
+  lexer.ml parser.ml
 
 SYSLIBS=
 
@@ -57,10 +59,14 @@ beforedepend:: parser.ml parser.mli
 sync:
 	$(SYNCWEB) -lang ocamlyacc parser.nw parser.mly
 	$(SYNCWEB) -lang ocaml parser.nw lexer.mll
+	$(SYNCWEB) -lang ocaml symbol.nw symbol.ml 
+	$(SYNCWEB) -lang ocaml symbol.nw symbol.mli
 	$(SYNCWEB) -lang ocaml ast.nw ast.ml 
 	$(SYNCWEB) -lang ocaml ast.nw ast.mli
 	$(SYNCWEB) -lang ocaml error.nw error.ml 
 	$(SYNCWEB) -lang ocaml error.nw error.mli
+	$(SYNCWEB) -lang ocaml option.nw option.ml
+	$(SYNCWEB) -lang ocaml option.nw option.mli
 
 
 lpdistclean::

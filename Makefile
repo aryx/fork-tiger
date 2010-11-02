@@ -19,8 +19,6 @@ TOP=.
 ##############################################################################
 
 sync:
-	$(SYNCWEB) -lang ocaml option.nw option.ml
-	$(SYNCWEB) -lang ocaml option.nw option.mli
 	$(SYNCWEB) -lang ocaml main.nw main.ml
 
 
