@@ -17,9 +17,16 @@ export tig_unwind;
 export tig_spawn;
 
 bits32 alloc_ptr;
-section "data" {  substr_msg: bits8[] "substring: index (%d,%d) out of range of (0,%d)\n\000";
-                  curr_exn : bits32;
-                  spawn_msg : bits8[] "spawning to %X\n\000"; }
+section "data" { 
+ /*s: C-- data */
+  substr_msg: bits8[] "substring: index (%d,%d) out of range of (0,%d)\n\000";
+ /*x: C-- data */
+  curr_exn : bits32;
+ /*x: C-- data */
+  spawn_msg : bits8[] "spawning to %X\n\000";
+ /*e: C-- data */
+}
+/*s: C-- functions */
 new_string(bits32 size) {
   bits32 str_ptr;
   str_ptr = tig_alloc(size + 4 + 1);
