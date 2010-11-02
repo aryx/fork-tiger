@@ -63,9 +63,8 @@ $(TARGET).top: $(LIBS) $(OBJS)
 	$(OCAMLMKTOP) -o $@ $(SYSLIBS) $^
 
 clean::
-	rm -f $(TARGET)
-clean:: 
-	rm -f $(TARGET).top
+	rm -f $(TARGET) $(TARGET).opt $(TARGET).top
+
 clean::
 	set -e; for i in $(MAKESUBDIRS); do $(MAKE) -C $$i clean; done 
 

@@ -22,7 +22,7 @@ all::
 	$(QC) -stop .o -o runtime.o runtime.c--
 
 clean::
-	rm *.o *.a
+	rm -f *.o *.a
 
 ##############################################################################
 # Literate Programming rules
