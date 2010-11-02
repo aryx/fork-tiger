@@ -3,3 +3,5 @@
 /parsing/parser.ml
 /parsing/parser.mli
 /parsing/parser.output
+/tiger
+/tiger.opt

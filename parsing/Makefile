@@ -7,7 +7,7 @@ TARGET=lib
 
 SRC=symbol.ml ast.ml \
   option.ml error.ml \
-  lexer.ml parser.ml
+  parser.ml lexer.ml 
 
 SYSLIBS=
 
