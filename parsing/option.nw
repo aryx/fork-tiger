@@ -54,9 +54,9 @@ consistency.
 <<option.ml>>=
 let rec usage() = Arg.usage options "Usage:";exit 0;
 and options = [
-  "-ast",      Arg.Set ast,    "\t\tprint Abstract Syntax Tree";
-  "-ext",      Arg.Set ext,    "\t\tprint Expression Trees";
-  "-lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
+  "-dump_ast",      Arg.Set ast,    "\tprint Abstract Syntax Tree";
+  "-dump_ext",      Arg.Set ext,    "\tprint Expression Trees";
+  "-dump_lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
   "-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
   "-help",     Arg.Unit usage, "\tprint this message";
 ]
