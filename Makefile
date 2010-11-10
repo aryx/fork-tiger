@@ -19,7 +19,9 @@ LIBS= \
  backend/lib.cma \
 
 MAKESUBDIRS=parsing frontend backend \
-  stdlib runtime
+
+#TODO
+#  stdlib runtime
 
 INCLUDEDIRS=$(MAKESUBDIRS)
 
@@ -101,6 +103,14 @@ distclean:: clean
 ##############################################################################
 # Developer rules
 ##############################################################################
+
+DIRS= $(filter-out commons stdlib runtime, $(MAKESUBDIRS))
+dotall:
+	ocamldoc $(INCLUDES) $(DIRS:=/*.ml) $(SRC)  -dot -dot-reduce 
+	dot -Tps ocamldoc.out > dot.ps
+	mv dot.ps Fig_graph_ml.ps
+	ps2pdf Fig_graph_ml.ps
+	rm -f Fig_graph_ml.ps
 
 ##############################################################################
 # Literate Programming rules
