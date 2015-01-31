@@ -1,7 +1,32 @@
-/PFFF_DB.db
+# ocaml object files
+
+*.o
+*.cm*
+*.annot
+.depend
+*.so
+*.a
+
+
+# pfff and tools
+/TAGS
+
+# yacc
 /parsing/lexer.ml
 /parsing/parser.ml
 /parsing/parser.mli
 /parsing/parser.output
+
+# syncweb
+.md5sum_*
+
+# binaries
 /tiger
 /tiger.opt
+
+
+# MISC/graph_code.marshall
+/graph_code.marshall
+/graph_code.marshall.opti
+/layer_graph_code.json
+/Fig_graph_ml.pdf
