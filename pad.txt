@@ -12,11 +12,9 @@ modifs:
 
 TODO:
  - using qc-- is convenient but introduce some extra dependencies;
-   maybe could try to write a full mips backend!!
+   maybe could try to write a full MIPS or ARM backend!!
 
 
 related work:
- - Tiger in Stratego targetin mips via spim
+ - Tiger in Stratego targeting mips via spim
    http://www.program-transformation.org/Tiger/WebHome
-
-
