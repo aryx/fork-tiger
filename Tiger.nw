@@ -192,15 +192,47 @@ License.
 
 \chapter{Core Data Structures}
 
+\section{Abstract syntax tree}
+
+\section{Symbol table}
+
+\section{Intermediate representation}
+
+\section{Stack frames}
+
 \chapter{[[main()]]}
 
+\chapter{Lexing}
 
+\chapter{Parsing}
+
+\chapter{Checking}
+
+\chapter{Intermediate Representation Generation}
+%IR generation
+
+\chapter{[[C--]] Generation}
+
+\chapter{Runtime}
+
+\section{Standard library}
+
+\section{Startup code}
+
+\section{Garbage collection}
+
+\section{Exceptions}
 
 \chapter{Advanced Topics}
 
 \chapter{Conclusion}
 
+
+
+
 \appendix
+
+\chapter{Error Managment}
 
 \chapter{Debugging}
 
