@@ -116,9 +116,40 @@ dotall:
 # Literate Programming rules
 ##############################################################################
 
-sync:
-	$(SYNCWEB) -lang ocaml main.nw main.ml
+#sync:
+#	$(SYNCWEB) -lang ocaml main.nw main.ml
+#lpdistclean::
+#	rm -f $(LPSRC) .md5sum_*
 
+include $(TOP)/docs/latex/Makefile.common
 
-lpdistclean::
-	rm -f $(LPSRC) .md5sum_*
+TEXMAIN=Tiger.nw
+TEX=Tiger.tex
+
+SRC_ORIG=Tiger.nw Tiger_extra.nw
+
+SRC_VIEWS= \
+ parsing/error.mli\
+ parsing/error.ml\
+ parsing/option.mli\
+ parsing/option.ml\
+ parsing/symbol.mli\
+ parsing/symbol.ml\
+ parsing/ast.mli\
+ parsing/ast.ml\
+ frontend/environment.mli\
+ frontend/environment.ml\
+ frontend/semantics.mli\
+ frontend/semantics.ml\
+ frontend/tree.mli\
+ frontend/tree.ml\
+ frontend/translate.mli\
+ frontend/translate.ml\
+ frontend/canonical.mli\
+ frontend/canonical.ml\
+ frontend/frame.mli\
+ frontend/frame.ml\
+ backend/codegen.mli\
+ backend/codegen.ml\
+ main.ml\
+
