@@ -153,3 +153,10 @@ SRC_VIEWS= \
  backend/codegen.ml\
  main.ml\
 
+# -lang C
+#alloc.c--
+#client.c
+#gc.c
+#gc.h
+#runtime.c--
+
