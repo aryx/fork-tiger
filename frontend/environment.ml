@@ -1,3 +1,4 @@
+(*s: frontend/environment.ml *)
 (*s: environment.ml *)
 module E = Error
 module S = Symbol
@@ -85,3 +86,4 @@ let exn_label     env = env.exn_label
 let new_exn_label env =
   { env with exn_label = Some(T.new_label "exn") }
 (*e: environment.ml *)
+(*e: frontend/environment.ml *)

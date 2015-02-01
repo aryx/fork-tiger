@@ -1,3 +1,4 @@
+(*s: frontend/environment.mli *)
 (*s: environment.mli *)
 (*s: enventry *)
 type 'a enventry =
@@ -39,3 +40,4 @@ val new_break_label : 'a t -> 'a t
 val exn_label     : 'a t -> Tree.label option
 val new_exn_label : 'a t -> 'a t
 (*e: environment.mli *)
+(*e: frontend/environment.mli *)

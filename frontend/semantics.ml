@@ -1,3 +1,4 @@
+(*s: frontend/semantics.ml *)
 (*s: semantics.ml *)
 module E = Error
 module A = Ast
@@ -213,7 +214,7 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
           (T.assign var exp, UNIT)
     (*e: assignment *)
-    (*s: operator expressions *)
+    (*s: operator expressions(semantics.nw) *)
       | A.OpExp(left, oper, right, pos) ->
           let lexp,lty = trexp left
           and rexp,rty = trexp right in
@@ -233,8 +234,8 @@ let rec trans (env : vartype V.t) (node : ast_node) =
                     E.type_err pos "Incomparable types"
                 end
           in (trans_fn oper lexp rexp, INT)
-    (*e: operator expressions *)
-    (*s: function calls *)
+    (*e: operator expressions(semantics.nw) *)
+    (*s: function calls(semantics.nw) *)
       | A.CallExp(sym, arglist, pos) ->
           let chk_arg = check_type_eq pos
                         "Argument type (%s) does not match declaration (%s)"
@@ -252,8 +253,8 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           | _ ->
               E.type_err pos (S.name sym ^ " is not a function")
           end
-    (*e: function calls *)
-    (*s: conditionals *)
+    (*e: function calls(semantics.nw) *)
+    (*s: conditionals(semantics.nw) *)
       | A.IfExp(if', then', else', pos) ->
           let iex,ity = trexp if'
           and tex,tty = trexp then'
@@ -266,8 +267,8 @@ let rec trans (env : vartype V.t) (node : ast_node) =
             "type of then expression (%s) does not match else (%s)" tty ety;
           let typ = base_type env tty in
           (T.ifexp iex tex eex (is_ptr typ), typ)
-    (*e: conditionals *)
-    (*s: loops *)
+    (*e: conditionals(semantics.nw) *)
+    (*s: loops(semantics.nw) *)
       | A.WhileExp(test, body, pos) ->
           let body_env = V.new_break_label env in
           let tex,tty = trexp test
@@ -275,7 +276,7 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           check_type_int pos "while condition" tty;
           check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
           (T.loop tex bex (V.break_label body_env), UNIT)
-    (*x: loops *)
+    (*x: loops(semantics.nw) *)
       | A.ForExp(sym, lo, hi, body, pos) ->
           let _,loty = trexp lo
           and _,hity = trexp hi in
@@ -293,21 +294,21 @@ let rec trans (env : vartype V.t) (node : ast_node) =
                                (A.AssignExp(v, v_plus_1, pos))], pos)),
                      pos)),
                  pos))
-    (*x: loops *)
+    (*x: loops(semantics.nw) *)
       | A.BreakExp pos ->
           begin
             try (T.break (V.break_label env), UNIT)
             with Not_found -> raise(E.Error(E.Illegal_break, pos))
           end
-    (*e: loops *)
-    (*s: sequences *)
+    (*e: loops(semantics.nw) *)
+    (*s: sequences(semantics.nw) *)
       | A.SeqExp ([],_) -> (T.nil, UNIT)
       | A.SeqExp (el,_) ->
           let exprs = List.rev_map trexp el in
           let _,typ = List.hd exprs in
           let exprs = List.rev_map fst exprs in
           (T.sequence exprs, typ)
-    (*e: sequences *)
+    (*e: sequences(semantics.nw) *)
     (*s: let expressions *)
       | A.LetExp(decls, body, _) ->
           let trns    = trans (V.new_scope env) in
@@ -315,7 +316,7 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           and bex,bty = trns (EXP body) in
           (T.sequence (decs @ [bex]), bty)
     (*e: let expressions *)
-    (*s: exceptions *)
+    (*s: exceptions(semantics.nw) *)
       | A.TryExp(expr, handlers, pos) ->
           let new_env         = V.new_exn_label env in
           let tryex, tryty    = trans new_env (EXP expr) in
@@ -330,12 +331,12 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           | Some lbl ->
               (T.try_block tryex lbl (List.map handler handlers), tryty)
           end
-    (*x: exceptions *)
+    (*x: exceptions(semantics.nw) *)
       | A.RaiseExp(sym, pos) ->
           let exn_id = V.lookup_exn env sym pos in
           (T.raise_exn exn_id, UNIT)
-    (*e: exceptions *)
-    (*s: threads *)
+    (*e: exceptions(semantics.nw) *)
+    (*s: threads(semantics.nw) *)
       | A.SpawnExp(sym, pos) ->
           begin match V.lookup_value env sym pos with
             V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
@@ -345,7 +346,7 @@ let rec trans (env : vartype V.t) (node : ast_node) =
           | _ ->
               E.type_err pos (S.name sym ^ " is not a function")
           end
-    (*e: threads *)
+    (*e: threads(semantics.nw) *)
   (*e: expression translator *)
 in match node with
   DEC d -> (trdec d, NIL)
@@ -363,3 +364,4 @@ let translate env ast =
   end
 (*e: entry point *)
 (*e: semantics.ml *)
+(*e: frontend/semantics.ml *)

@@ -1,3 +1,4 @@
+(*s: parsing/symbol.mli *)
 (*s: symbol.mli *)
 type symbol
 
@@ -18,3 +19,4 @@ val new_scope : 'a table -> 'a table
 val iter : (int -> symbol -> 'a -> unit) -> 'a table -> unit
 val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 (*e: symbol.mli *)
+(*e: parsing/symbol.mli *)

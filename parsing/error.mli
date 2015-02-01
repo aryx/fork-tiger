@@ -1,5 +1,6 @@
+(*s: parsing/error.mli *)
 (*s: error.mli *)
-(*s: types *)
+(*s: types(error.nw) *)
 type error =
     Internal_error of string
   | Illegal_character of char
@@ -13,7 +14,7 @@ type error =
   | Illegal_break
 type ex = error * int
 exception Error of ex
-(*e: types *)
+(*e: types(error.nw) *)
 val handle_exception : ex -> unit
 (*x: error.mli *)
 val warning   : int -> string -> unit
@@ -24,3 +25,4 @@ val internal  :        string -> 'a
 val add_source_mapping : int -> int -> unit
 val line_number : int -> int * int
 (*e: error.mli *)
+(*e: parsing/error.mli *)

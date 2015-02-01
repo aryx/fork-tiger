@@ -1,3 +1,4 @@
+(*s: frontend/frame.mli *)
 (*s: frame.mli *)
 type frame
 type access =
@@ -20,3 +21,4 @@ val output_header  : frame -> unit
 val output_footer  : frame -> unit
 val output_strings : unit  -> unit
 (*e: frame.mli *)
+(*e: frontend/frame.mli *)

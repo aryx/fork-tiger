@@ -1,3 +1,4 @@
+(*s: frontend/frame.ml *)
 (*s: frame.ml *)
 module S = Symbol
 module T = Tree
@@ -95,3 +96,4 @@ let output_strings() =
   H.iter print_string strings;
   pf "}\n\n"
 (*e: frame.ml *)
+(*e: frontend/frame.ml *)

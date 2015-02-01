@@ -1,9 +1,10 @@
+(*s: frontend/tree.ml *)
 (*s: tree.ml *)
 module S = Symbol
-(*s: types *)
+(*s: types(tree.nw) *)
 type label = Symbol.symbol
 and  temp  = Symbol.symbol
-(*x: types *)
+(*x: types(tree.nw) *)
 type stm =
     SEQ    of stm * stm
   | LABEL  of label
@@ -15,7 +16,7 @@ type stm =
   | TRY    of label
   | TRYEND of label
   | RET    of exp
-(*x: types *)
+(*x: types(tree.nw) *)
 and exp =
     BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
@@ -25,10 +26,10 @@ and exp =
   | NAME  of label
   | CONST of int
   | CALL  of exp * exp list * string option * label option * bool
-(*x: types *)
+(*x: types(tree.nw) *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE | LT | GT | LE | GE
-(*e: types *)
+(*e: types(tree.nw) *)
 (*x: tree.ml *)
 let new_label s = S.new_symbol ("L" ^ s)
 let new_temp () = S.new_symbol "temp"
@@ -129,3 +130,4 @@ let print_stm =
 (*x: tree.ml *)
 let print_exp e = print_stm (EXP e)
 (*e: tree.ml *)
+(*e: frontend/tree.ml *)

@@ -1,3 +1,4 @@
+(*s: frontend/translate.mli *)
 (*s: translate.mli *)
 type exp   = Tree.exp
 type label = Tree.label
@@ -26,3 +27,4 @@ val try_block     : exp -> label -> (int *exp) list -> exp
 val raise_exn     : int -> exp
 val spawn         : label -> exp
 (*e: translate.mli *)
+(*e: frontend/translate.mli *)

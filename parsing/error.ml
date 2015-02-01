@@ -1,5 +1,6 @@
+(*s: parsing/error.ml *)
 (*s: error.ml *)
-(*s: types *)
+(*s: types(error.nw) *)
 type error =
     Internal_error of string
   | Illegal_character of char
@@ -13,7 +14,7 @@ type error =
   | Illegal_break
 type ex = error * int
 exception Error of ex
-(*e: types *)
+(*e: types(error.nw) *)
 (*x: error.ml *)
 type sm = { mutable sm: (int * int) list }
 let source_map = { sm = [(0,0)] }
@@ -58,3 +59,4 @@ let type_err  pos msg = raise(Error(Type_error msg, pos))
 let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
 let internal      msg = raise(Error(Internal_error msg, 0))
 (*e: error.ml *)
+(*e: parsing/error.ml *)

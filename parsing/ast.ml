@@ -1,26 +1,27 @@
+(*s: parsing/ast.ml *)
 (*s: ast.ml *)
-(*s: types *)
+(*s: types(ast.nw) *)
 type pos    = int 
 and  symbol = Symbol.symbol
-(*x: types *)
+(*x: types(ast.nw) *)
 type dec =
     FunctionDec  of (symbol * field list * symbol option * exp * pos) list
   | VarDec       of symbol * symbol option * exp * pos
   | TypeDec      of (symbol * ty * pos) list
   | ExceptionDec of symbol * pos
-(*x: types *)
+(*x: types(ast.nw) *)
 and ty =
     NameTy   of symbol * pos
   | RecordTy of field list
   | ArrayTy  of symbol * pos
-(*x: types *)
+(*x: types(ast.nw) *)
 and field = (symbol * symbol * pos)
-(*x: types *)
+(*x: types(ast.nw) *)
 and var =
     SimpleVar    of symbol * pos
   | FieldVar     of var * symbol * pos
   | SubscriptVar of var * exp * pos
-(*x: types *)
+(*x: types(ast.nw) *)
 and exp =
     NilExp
   | VarExp    of var
@@ -40,10 +41,10 @@ and exp =
   | TryExp    of exp * (symbol * exp * pos) list * pos
   | RaiseExp  of symbol * pos
   | SpawnExp  of symbol * pos
-(*x: types *)
+(*x: types(ast.nw) *)
 and oper = PlusOp | MinusOp | TimesOp | DivideOp
          | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
-(*e: types *)
+(*e: types(ast.nw) *)
 (*s: tree printer *)
 module S = Symbol
 
@@ -186,3 +187,4 @@ let print_tree expression =
 in exp 0 expression
 (*e: tree printer *)
 (*e: ast.ml *)
+(*e: parsing/ast.ml *)

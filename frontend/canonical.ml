@@ -1,3 +1,4 @@
+(*s: frontend/canonical.ml *)
 (*s: canonical.ml *)
 module T = Tree
 module S = Symbol
@@ -103,3 +104,4 @@ let linearize stm0 =
  in (* body of linearize *)
     linear(do_stm stm0, [])
 (*e: canonical.ml *)
+(*e: frontend/canonical.ml *)

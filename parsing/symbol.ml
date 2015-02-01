@@ -1,3 +1,4 @@
+(*s: parsing/symbol.ml *)
 (*s: symbol.ml *)
 type symbol = string * int
 
@@ -60,3 +61,4 @@ let rec fold f env init =
     None -> result
   | Some e -> fold f e result
 (*e: symbol.ml *)
+(*e: parsing/symbol.ml *)

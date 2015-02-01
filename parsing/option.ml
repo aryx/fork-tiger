@@ -1,3 +1,4 @@
+(*s: parsing/option.ml *)
 (*s: option.ml *)
 let ast    = ref false
 let ext    = ref false
@@ -28,3 +29,4 @@ and options = [
 ]
 let parse_cmdline() = Arg.parse options set_input "Usage:"
 (*e: option.ml *)
+(*e: parsing/option.ml *)

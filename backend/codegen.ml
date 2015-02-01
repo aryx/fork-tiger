@@ -1,3 +1,4 @@
+(*s: backend/codegen.ml *)
 (*s: codegen.ml *)
 module E = Error
 module S = Symbol
@@ -65,3 +66,4 @@ let emit exl =
   let code = List.map stm exl in
   List.iter (fun x -> pf "  %s\n" x) code
 (*e: codegen.ml *)
+(*e: backend/codegen.ml *)
