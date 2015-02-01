@@ -1,24 +1,24 @@
-./parsing/error.nw
-./parsing/option.nw
+parsing/error.nw
+parsing/option.nw
 
-./parsing/symbol.nw
-./parsing/ast.nw
-./parsing/parser.nw
+parsing/symbol.nw
+parsing/ast.nw
+parsing/parser.nw
 
-./frontend/environment.nw
-./frontend/semantics.nw
+frontend/environment.nw
+frontend/semantics.nw
 
-./frontend/tree.nw
-./frontend/translate.nw
+frontend/tree.nw
+frontend/translate.nw
 
-./frontend/canonical.nw
+frontend/canonical.nw
 
-./frontend/frame.nw
-./backend/codegen.nw
+frontend/frame.nw
+backend/codegen.nw
 
-./runtime/gc.nw
-./runtime/runtime.nw
+runtime/gc.nw
+runtime/runtime.nw
 
-./stdlib/stdlib.nw
+stdlib/stdlib.nw
 
-./main.nw
+main.nw
