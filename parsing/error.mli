@@ -1,6 +1,7 @@
 (*s: parsing/error.mli *)
 (*s: error.mli *)
 (*s: types(error.nw) *)
+(*s: type Error.error *)
 type error =
     Internal_error of string
   | Illegal_character of char
@@ -12,12 +13,19 @@ type error =
   | Undefined_symbol of string
   | Duplicate_symbol of string
   | Illegal_break
+(*e: type Error.error *)
+(*s: type Error.ex *)
 type ex = error * int
+(*e: type Error.ex *)
+(*s: exception Error.Error *)
 exception Error of ex
+(*e: exception Error.Error *)
 (*e: types(error.nw) *)
+
 val handle_exception : ex -> unit
 (*x: error.mli *)
 val warning   : int -> string -> unit
+
 val type_err  : int -> string -> 'a
 val undefined : int -> string -> 'a
 val internal  :        string -> 'a

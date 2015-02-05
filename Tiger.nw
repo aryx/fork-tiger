@@ -194,7 +194,136 @@ License.
 
 \section{Abstract syntax tree}
 
+<<type Ast.pos>>=
+type pos = int 
+@
+% for error reporting, = charpos, see Error appendix
+% and the charpos -> line thing
+
+<<type Ast.symbol>>=
+type symbol = Symbol.symbol
+@
+% see below, =~ unique string?
+
+% for identifiers and also type names
+%less: same namespace?
+
+
+<<type Ast.dec>>=
+type dec =
+<<type Ast.dec cases>>
+@
+<<type Ast.ty>>=
+and ty =
+<<type Ast.ty cases>>
+@
+<<type Ast.exp>>=
+and exp =
+<<type Ast.exp cases>>
+@
+% also include stmt, expression language!
+
 \section{Symbol table}
+
+<<type Symbol.symbol>>=
+type symbol = string * int
+@
+
+<<global Symbol.nextsym>>=
+let nextsym = ref 0
+@
+
+<<global Symbol.hashtable>>=
+let hashtable = Hashtbl.create 128
+@
+
+<<function Symbol.name>>=
+let name = fst
+@
+<<function Symbol.uid>>=
+let uid  = snd
+@
+
+% both a constructor and accessor
+<<function Symbol.symbol>>=
+let symbol name =
+  try let uid = Hashtbl.find hashtable name in (name,uid)
+  with Not_found ->
+    incr nextsym; 
+    Hashtbl.add hashtable name !nextsym;
+    (name, !nextsym)
+@
+
+%\section{Scope table}
+
+% nested scope so have a parent
+<<type Symbol.table>>=
+type 'a table = {
+    level  : int;
+    tbl    : (symbol, 'a) Hashtbl.t;
+    parent : 'a table option
+  }
+@
+
+<<function Symbol.enter>>=
+let enter env s v =
+  if Hashtbl.mem env.tbl s
+  then failwith "Compiler error: symbol table duplicate entry"
+  else Hashtbl.add env.tbl s v
+@
+
+<<function Symbol.look>>=
+let rec look env s =
+  try Hashtbl.find env.tbl s
+  with Not_found -> match env.parent with
+    None -> raise Not_found
+  | Some e -> look e s
+@
+
+<<function Symbol.mem>>=
+let mem env = Hashtbl.mem env.tbl
+@
+<<constructor Symbol.create>>=
+let create l =
+  let env = {
+    level = 0;
+    tbl = Hashtbl.create 20;
+    parent = None
+  } in
+  List.iter (fun (key, data) -> enter env (symbol key) data) l;
+  env
+@
+
+<<constructor Symbol.new_scope>>=
+let new_scope env = { level = env.level + 1;
+                      tbl = Hashtbl.create 20;
+                      parent = Some env }
+@
+
+\section{Token}
+
+% can see different concepts already
+
+% parser.mly
+<<token declarations>>=
+%token <string> ID
+%token <int> INT
+%token <string> STRING
+%token IF THEN ELSE END  WHILE DO FOR TO BREAK
+%token EXCEPTION TRY RAISE HANDLE
+%token PLUS MINUS TIMES DIVIDE
+%token AND OR
+%token EQ NEQ  LT LE GT GE
+%token FUNCTION VAR LET IN
+%token TYPE OF ARRAY
+%token ASSIGN COLON COMMA DOT SEMICOLON 
+%token LPAREN RPAREN LBRACE RBRACE LBRACK RBRACK
+%token SPAWN
+%token NIL
+%token EOF         
+@
+
+
 
 \section{Intermediate representation}
 
@@ -202,9 +331,810 @@ License.
 
 \chapter{[[main()]]}
 
+\section{[[compile()]]}
+
+<<function Main.compile>>=
+let compile ch =
+  let base_env = V.new_env base_tenv base_venv in
+
+  let lexbuf = Lexing.from_channel ch in
+  let ast = Parser.program Lexer.token lexbuf in
+  <<[[Main.compile()]] if dump AST option>>
+
+  let exl = Semantics.translate base_env ast in
+  Codegen.output_file_header imports;
+  Frame.output_strings();
+  List.iter emit_function exl
+@
+
 \chapter{Lexing}
 
+% Lexer.token
+
+\section{Overview}
+
+<<lexer.mll>>=
+{
+module E = Error
+module P = Parser
+
+<<global Lexer.keyword_table>>
+<<function Lexer.escape>>
+<<Lexer globals>>
+}
+
+<<Lexer aliases>>
+
+<<rule token>>
+<<rule comment>>
+<<rule string>>
+@
+
+
+<<rule token>>=
+rule token = parse
+  <<rule token cases>>
+  | eof  { P.EOF }
+  | _
+      { raise (E.Error(E.Illegal_character (Lexing.lexeme_char lexbuf 0),
+                       Lexing.lexeme_start lexbuf)) }
+@
+
+\section{Spaces and newlines}
+
+<<Lexer aliases>>=
+let nl = ['\010' '\013']
+let blank = [' ' '\009' '\012']
+@
+
+<<Lexer globals>>=
+let line_num = ref 0
+@
+
+<<rule token cases>>=
+|  nl   { incr line_num;
+         E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
+         token lexbuf }
+| blank + { token lexbuf }
+@
+
+% important for error reporting, see appendix
+
+\section{Comments}
+
+<<rule token cases>>=
+| "/*" { comment lexbuf; token lexbuf }
+@
+% call back original rule
+
+<<Lexer globals>>=
+let comment_pos = Stack.create()
+@
+
+% nested comment handling, but not single line comment :(
+<<rule comment>>=
+and comment = parse
+    "/*" { Stack.push (Lexing.lexeme_start lexbuf) comment_pos;
+           comment lexbuf; }
+  | "*/" { try (ignore(Stack.pop comment_pos); comment lexbuf)
+           with Stack.Empty -> () }
+  | nl   { incr line_num;
+           E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
+           comment lexbuf }
+  | eof  { let st = Stack.top comment_pos in
+           raise (E.Error(E.Unterminated_comment, st)) }
+  | _    { comment lexbuf }
+@
+
+\section{Identifiers and keywords}
+
+<<Lexer aliases>>=
+let letter = ['A'-'Z' 'a'-'z']
+let identchar = ['A'-'Z' 'a'-'z' '_' '0'-'9']
+@
+
+<<rule token cases>>=
+| letter identchar *
+    { let s = Lexing.lexeme lexbuf in
+      try
+        Hashtbl.find keyword_table s
+      with Not_found ->
+        P.ID s }
+@
+
+
+<<global Lexer.keyword_table>>=
+(* The table of keywords *)
+let keyword_table = Hashtbl.create 22;;
+List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
+  [
+   "if",        P.IF;
+   "then",      P.THEN;
+   "else",      P.ELSE;
+   "while",     P.WHILE;
+   "do",        P.DO;
+   "for",       P.FOR;
+   "to",        P.TO;
+   "end",       P.END;
+   "break",     P.BREAK;
+
+   "function",  P.FUNCTION;
+   "var",       P.VAR;
+   "let",       P.LET;
+   "in",        P.IN;
+   "exception", P.EXCEPTION;
+
+   "type",      P.TYPE;
+   "of",        P.OF;
+   "array",     P.ARRAY;
+
+   "and",       P.AND;
+   "or",        P.OR;
+
+   "try",       P.TRY;
+   "handle",    P.HANDLE;
+   "raise",     P.RAISE;
+
+   "spawn",     P.SPAWN;
+
+   "nil",       P.NIL;
+ ];;
+@
+% no pointers, no class, no ADTs, very basic indeed.
+
+\section{Operators}
+
+<<rule token cases>>=
+| "+"  { P.PLUS }
+| "-"  { P.MINUS }
+| "*"  { P.TIMES }
+| "/"  { P.DIVIDE }
+
+| "&"  { P.AND }
+| "|"  { P.OR }
+
+| "="  { P.EQ }
+| "<>" { P.NEQ }
+| ">"  { P.GT }
+| "<"  { P.LT }
+| ">=" { P.GE }
+| "<=" { P.LE }
+@
+% no negation?
+
+
+\section{Punctuation}
+
+<<rule token cases>>=
+| ":=" { P.ASSIGN }
+| ":"  { P.COLON }
+| ","  { P.COMMA }
+| "."  { P.DOT }
+| ";"  { P.SEMICOLON }
+
+| "{"  { P.LBRACE } | "}"  { P.RBRACE }
+| "["  { P.LBRACK } | "]"  { P.RBRACK }
+| "("  { P.LPAREN } | ")"  { P.RPAREN }
+@
+
+\section{Numbers}
+
+% no float ?
+
+<<Lexer aliases>>=
+let number = ['0'-'9']
+@
+
+<<rule token cases>>=
+| number +
+    { P.INT (int_of_string(Lexing.lexeme lexbuf)) }
+@
+
+
+\section{Strings}
+
+% no chars? no unicode?
+
+<<rule token cases>>=
+| "\"" 
+    { string_start_pos := Lexing.lexeme_start lexbuf;
+      P.STRING (string lexbuf) }
+@
+
+<<Lexer globals>>=
+let string_start_pos = ref 0
+let buffer = Buffer.create 30
+@
+
+
+<<rule string>>=
+and string = parse
+    '"'
+      { let s = Buffer.contents buffer in
+        (Buffer.clear buffer; s) }
+  | '\\' ['\\' '\'' '"' 'n' 't' 'b' 'r']
+      { Buffer.add_char buffer (escape (Lexing.lexeme_char lexbuf 1));
+        string lexbuf }
+  | [^ '"' '\\'] +
+      { Buffer.add_string buffer (Lexing.lexeme lexbuf);
+        string lexbuf }
+  | eof
+      { raise (E.Error(E.Unterminated_string, !string_start_pos)) }
+@
+
+<<function Lexer.escape>>=
+(* To buffer string literals *)
+let escape c = 
+  match c with
+  | 'n' -> '\n'
+  | 'r' -> '\r'
+  | 'b' -> '\b'
+  | 't' -> '\t'
+  | _ -> c
+@
+
+
+
+
+
+
+
 \chapter{Parsing}
+
+% Parser.program
+
+\section{Overview}
+
+<<parser.mly>>=
+%{
+module E = Error
+module A = Ast
+module S = Symbol
+
+<<parser helper functions>>
+<<AST mk wrappers>>
+%}
+
+/* Tokens */
+<<token declarations>>
+/* Precedences and associativities.
+   The precedences must be listed from low to high. */
+<<token priorities>>
+
+/* start symbols */
+%start program
+<<rule type declarations>>
+
+/* %expect 63 */
+
+%%
+<<grammar>>
+@ 
+%$
+% 63 conflicts???
+
+
+<<token priorities>>=
+%nonassoc ASSIGN
+%left AND OR
+%nonassoc EQ NEQ GT LT GE LE
+%left PLUS MINUS
+%left TIMES DIVIDE
+%nonassoc UMINUS
+@
+
+
+<<grammar>>
+<<rule program>>
+
+<<rule expr>>
+<<rule lvalue>>
+<<subrules for expr>>
+<<subrules for stmt>>=
+
+/* Declarations */
+<<rule decs>>
+<<subrules for decs>>
+
+<<rule ty>>
+<<subrules for ty>>
+
+<<rule id>>
+@
+
+
+<<parser helper functions>>=
+let getpos = Parsing.symbol_start
+@
+
+<<parser helper functions>>=
+let parse_error s =
+  let pos = getpos() in
+  raise (E.Error(E.Syntax_error, pos))
+@
+
+
+
+<<rule type declarations>>=
+%type <Ast.exp> program
+%type <Ast.exp> expr
+%type <Ast.var> lvalue
+%type <Ast.dec list> decs
+@
+% Parser.program, it's here!
+
+
+
+
+
+<<rule program>>=
+program:
+  expr EOF { $1 }
+@
+%$
+
+<<rule expr>>=
+expr:
+  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
+@
+
+\section{Declarations}
+
+<<rule decs>>=
+/* recursive declarations in tiger.
+   My interpretation of the tiger language spec is that
+   mutally recursive types and functions are valid if they
+   are declared together in a sequence. That is:
+   type a = {b:int c:d} type d = a
+   is valid where as 
+   type a = {b:int c:d} var x := 1 type d = a
+   is not.
+*/
+decs:
+   dec { $1 :: [] }
+ | dec decs { $1 :: $2 }
+@
+%$
+
+<<subrules for decs>>=
+<<rule dec>>
+<<rule var_dec>>
+<<rule type_decs>>
+<<rule fun_decs>>
+<<rule exn_dec>>
+@
+
+<<rule dec>>=
+dec:
+   var_dec   { $1 }
+ | type_decs { mkTypeDec $1 }
+ | fun_decs  { mkFunctionDec $1 }
+ | exn_dec   { $1 }
+@
+
+
+
+\subsection{Variables}
+
+<<type Ast.dec cases>>=
+| VarDec       of symbol * symbol option * exp * pos
+@
+
+<<rule var_dec>>=
+var_dec:
+   VAR id ASSIGN expr          { mkVarDec $2 None $4 }
+ | VAR id COLON id ASSIGN expr { mkVarDec $2 (Some $4) $6 }
+@
+%$
+
+\subsection{Types}
+
+<<type Ast.dec cases>>=
+| TypeDec      of (symbol * ty * pos) list
+@
+% list so can have mutually recursive things
+
+<<rule type_decs>>=
+type_decs:
+   type_dec           { $1 :: [] }
+ | type_dec type_decs { $1 :: $2 }
+;
+type_dec:
+   TYPE id EQ ty { mkTyDec $2 $4 }
+;
+@
+%$
+
+
+\subsection{Functions}
+
+<<type Ast.dec cases>>=
+| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
+@
+% list again for mutually recursive possibilities
+% symbol option cos can be a procedure that returns nothing
+
+<<rule fun_decs>>=
+fun_decs:
+   fun_dec          { $1 :: [] }
+ | fun_dec fun_decs { $1 :: $2 }
+
+fun_dec:
+   FUNCTION id LPAREN ty_fields RPAREN EQ expr
+     { mkFunDec $2 $4 None $7 }
+ | FUNCTION id LPAREN ty_fields RPAREN COLON id EQ expr
+     { mkFunDec $2 $4 (Some $7) $9 }
+@
+
+\subsection{Exceptions}
+
+<<type Ast.dec cases>>=
+| ExceptionDec of symbol * pos
+@
+
+<<rule exn_dec>>=
+exn_dec:
+   EXCEPTION id { mkException $2 }
+@
+%$
+
+
+\section{Expressions}
+
+<<rule expr>>=
+ | lvalue                    { mkVarExp $1 }
+ | literal                   { $1 }
+ | function_call             { $1 }
+ | arithmetic                { $1 }
+ | comparison                { $1 }
+ | boolean                   { $1 }
+ | construction              { $1 }
+@
+%$
+
+% no pointer!
+
+\subsection{Entity uses}
+
+<<rule id>>=
+/* Symbols are created in this rule only */
+id: ID { S.symbol $1 };
+@
+%$
+
+\subsection{Local entity definitions}
+
+%expr:
+%  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
+% saw Let in in overview section
+
+<<type Ast.exp cases>>=
+| LetExp    of dec list * exp * pos
+@
+
+\subsection{Lvalue, array and field accesses}
+
+<<type Ast.exp cases>>=
+| VarExp    of var
+@
+
+% =~ lvalue
+<<type Ast.var>>=
+and var =
+    SimpleVar    of symbol * pos
+  | FieldVar     of var * symbol * pos
+  | SubscriptVar of var * exp * pos
+@
+
+
+<<rule lvalue>>=
+/* Variables (L-values) 
+   This rule is overly explicit to avoid conflicts with 
+   the construction rule below */
+lvalue:
+ | id                        { mkSimpleVar $1 }
+ | id DOT id                 { mkFieldVar (mkSimpleVar $1) $3 }
+ | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
+
+ | lvalue DOT id             { mkFieldVar $1 $3 }
+ | lvalue LBRACK expr RBRACK { mkSubscriptVar $1 $3 }
+@
+%$
+
+\subsection{Literals}
+
+<<type Ast.exp cases>>=
+| NilExp
+| IntExp    of int
+| StringExp of string * pos
+@
+
+<<subrules for expr>>=
+/* Literals */
+literal:
+   NIL    { mkNilExp }
+ | INT    { mkIntExp $1 }
+ | STRING { mkStringExp $1 }
+@
+
+
+\subsection{Arithmetic}
+
+<<type Ast.exp cases>>=
+| OpExp     of exp * oper * exp * pos
+@
+
+<<type Ast.oper>>=
+and oper =
+<<type Ast.oper cases>>
+@
+
+<<type Ast.oper cases>>=
+| PlusOp | MinusOp | TimesOp | DivideOp
+@
+
+<<subrules for expr>>=
+/* Simple Arithmetic */
+arithmetic:
+   MINUS expr %prec UMINUS { mkOpExp (mkIntExp 0) $2 A.MinusOp }
+ | expr PLUS expr          { mkOpExp $1 $3 A.PlusOp    }
+ | expr MINUS expr         { mkOpExp $1 $3 A.MinusOp  }
+ | expr TIMES expr         { mkOpExp $1 $3 A.TimesOp  }
+ | expr DIVIDE expr        { mkOpExp $1 $3 A.DivideOp }
+@
+
+\subsection{Comparison}
+
+<<type Ast.oper cases>>=
+| EqOp | NeqOp   
+| LtOp | LeOp | GtOp | GeOp
+@
+
+<<subrules for expr>>=
+/* Comparison */
+comparison:
+   expr EQ expr  { mkOpExp $1 $3 A.EqOp  }
+ | expr NEQ expr { mkOpExp $1 $3 A.NeqOp }
+ | expr GT expr  { mkOpExp $1 $3 A.GtOp  }
+ | expr LT expr  { mkOpExp $1 $3 A.LtOp  }
+ | expr GE expr  { mkOpExp $1 $3 A.GeOp  }
+ | expr LE expr  { mkOpExp $1 $3 A.LeOp  }
+@
+
+\subsection{Boolean}
+
+<<subrules for expr>>=
+/* Boolean operators */
+boolean:
+   expr AND expr { mkIfExp $1 $3 (Some(mkIntExp 0)) }
+ | expr OR expr  { mkIfExp $1 (mkIntExp 1) (Some $3) }
+@
+
+% ! short circuiting operators actually!
+% abuse int for booleans :( ugly
+
+\subsection{Function calls}
+
+<<type Ast.exp cases>>=
+| CallExp   of symbol * exp list * pos
+@
+% no dynamic funcall! fixed symbol
+
+<<subrules for expr>>=
+/* function call */
+function_call:
+   id LPAREN fun_args RPAREN { mkCallExp $1 $3 }
+
+fun_args:
+   /* empty */         { [] }
+ | expr                { $1 :: [] }
+ | expr COMMA fun_args { $1 :: $3 }
+@
+%$
+
+
+\subsection{Construction}
+
+<<type Ast.exp cases>>=
+| RecordExp of symbol * (symbol * exp * pos) list * pos
+| ArrayExp  of symbol * exp * exp * pos
+@
+% why symbol? for type name? =~ new? bot for arrays?
+
+<<subrules for expr>>=
+/* Record and array construction */
+construction:
+   id LBRACE ctor_list RBRACE    { mkRecExp $1 $3 }
+ | id LBRACK expr RBRACK OF expr { mkArrayExp $1 $3 $6 }
+
+ctor_list:
+   id EQ expr                 { (mkRecFld $1 $3) :: [] }
+ | id EQ expr COMMA ctor_list { (mkRecFld $1 $3) :: $5 }
+@
+
+
+\section{Statements}
+
+<<rule expr>>=
+ | sequence                  { mkSeqExp $1 }
+ | if_statement              { $1 }
+ | loop_statement            { $1 }
+@
+%$
+
+
+\subsection{Sequence}
+
+<<type Ast.exp cases>>=
+| SeqExp    of exp list * pos
+@
+
+<<subrules for stmt>>=
+/* Sequence expression */
+sequence:
+   LPAREN RPAREN           { [] }
+ | LPAREN expr_list RPAREN { $2 }
+@
+%$
+
+<<subrules for stmt>>=
+expr_list:
+   expr                     { $1 :: [] }
+ | expr SEMICOLON expr_list { $1 :: $3 }
+@
+%$
+
+\subsection{Assignments}
+
+<<type Ast.exp cases>>=
+| AssignExp of var * exp * pos
+@
+
+<<rule expr>>=
+ | lvalue ASSIGN expr        { mkAssignExp $1 $3 }
+@
+
+\subsection{Conditionals}
+
+<<type Ast.exp cases>>=
+| IfExp     of exp * exp * exp option * pos
+@
+
+<<subrules for stmt>>=
+/* If statements */
+if_statement:
+   IF expr THEN expr           { mkIfExp $2 $4 None }
+ | IF expr THEN expr ELSE expr { mkIfExp $2 $4 (Some $6) }
+@
+%$
+
+\subsection{Loops}
+
+<<type Ast.exp cases>>=
+| WhileExp  of exp * exp * pos
+| ForExp    of symbol * exp * exp * exp * pos
+
+| BreakExp  of pos
+@
+
+<<subrules for stmt>>=
+/* Loop statements */
+loop_statement:
+   WHILE expr DO expr                 { mkWhileExp $2 $4 }
+ | FOR id ASSIGN expr TO expr DO expr { mkForExp $2 $4 $6 $8 }
+ | BREAK                              { mkBreakExp }
+@
+%$
+
+\subsection{Exceptions}
+
+<<type Ast.exp cases>>=
+| TryExp    of exp * (symbol * exp * pos) list * pos
+| RaiseExp  of symbol * pos
+@
+
+<<rule expr>>=
+ | TRY expr handlers         { mkTryExp $2 (List.rev $3) }
+ | RAISE id                  { mkRaise $2 }
+@
+%$
+
+<<subrules for stmt>>=
+/* exception handlers */
+handler:
+   HANDLE id expr END         { mkHandler $2 $3 }
+
+handlers:
+   handler          { $1 :: [] }
+ | handler handlers { $1 :: $2 }
+@
+%$
+
+\subsection{Misc}
+
+<<type Ast.exp cases>>=
+| SpawnExp  of symbol * pos
+@
+
+<<rule expr>>=
+ | SPAWN id                  { mkSpawn $2 }
+@
+%$
+
+
+
+\section{Types}
+
+<<type Ast.ty cases>>=
+| NameTy   of symbol * pos
+| RecordTy of field list
+| ArrayTy  of symbol * pos
+@
+% namety can be also builtin types!
+% no size in ArrayTy, lose information when type
+
+<<type Ast.field>>=
+and field = (symbol * symbol * pos)
+@
+
+<<rule ty>>=
+ty:
+   id                      { mkNameTy $1 }
+ | LBRACE ty_fields RBRACE { mkRecordTy $2 }
+ | ARRAY OF id             { mkArrayTy $3 }
+
+ty_fields:
+   /* empty */                 { [] }
+ | id COLON id                 { (mkField $1 $3) :: [] }
+ | id COLON id COMMA ty_fields { (mkField $1 $3) :: $5 }
+@
+%$
+
+\ifallcode
+\section{Helpers}
+
+%less: could delete, inline
+<<AST mk wrappers>>=
+let mkField n t           = (n, t, getpos())
+
+let mkSimpleVar v         = A.SimpleVar(v, getpos())
+let mkFieldVar v t        = A.FieldVar(v, t, getpos())
+let mkSubscriptVar v e    = A.SubscriptVar(v, e, getpos())
+
+let mkNilExp              = A.NilExp
+let mkVarExp v            = A.VarExp(v)
+let mkIntExp i            = A.IntExp(i)
+let mkStringExp s         = A.StringExp(s, getpos())
+let mkCallExp f a         = A.CallExp(f, a, getpos())
+let mkOpExp l r op        = A.OpExp(l, op, r, getpos())
+let mkRecFld n e          = (n, e, getpos())
+let mkRecExp n f          = A.RecordExp(n, f, getpos())
+let mkSeqExp el           = A.SeqExp(el, getpos())
+let mkAssignExp v e       = A.AssignExp(v, e, getpos())
+let mkIfExp tst t e       = A.IfExp(tst, t, e, getpos())
+let mkWhileExp tst b      = A.WhileExp(tst, b, getpos())
+let mkForExp v lo hi body = A.ForExp(v, lo, hi, body, getpos())
+let mkBreakExp            = A.BreakExp(getpos())
+let mkLetExp decs body    = A.LetExp(decs, body, getpos())
+let mkArrayExp v s init   = A.ArrayExp(v, s, init, getpos())
+
+let mkHandler name exp    = (name, exp, getpos())
+let mkTryExp exp handlers = A.TryExp(exp, handlers, getpos())
+let mkRaise id            = A.RaiseExp(id, getpos())
+
+let mkSpawn id            = A.SpawnExp(id, getpos())
+
+let mkFunDec n f t b      = (n, f, t, b, getpos())
+let mkFunctionDec l       = A.FunctionDec(l)
+let mkVarDec n t i        = A.VarDec(n, t, i, getpos())
+let mkTyDec n t           = (n, t, getpos())
+let mkTypeDec l           = A.TypeDec(l)
+let mkNameTy n            = A.NameTy(n, getpos())
+let mkRecordTy l          = A.RecordTy(l)
+let mkArrayTy n           = A.ArrayTy(n, getpos())
+let mkException s         = A.ExceptionDec(s, getpos())
+@
+\fi
 
 \chapter{Checking}
 
@@ -234,7 +1164,266 @@ License.
 
 \chapter{Error Managment}
 
+<<type Error.error>>=
+type error =
+    Internal_error of string
+  | Illegal_character of char
+  | Illegal_escape of string
+  | Unterminated_comment
+  | Unterminated_string
+  | Syntax_error
+  | Type_error of string
+  | Undefined_symbol of string
+  | Duplicate_symbol of string
+  | Illegal_break
+@
+
+<<type Error.ex>>=
+type ex = error * int
+@
+
+<<exception Error.Error>>=
+exception Error of ex
+@
+
+<<function Error.handle_exception>>=
+let handle_exception (ex,pos) =
+  let msg = match ex with
+    Internal_error s     -> "Compiler bug: " ^ s
+  | Illegal_character ch -> Printf.sprintf "illegal character '%c'" ch
+  | Illegal_escape str   -> Printf.sprintf "illegal escape %s" str
+  | Unterminated_comment -> "unterminated comment"
+  | Unterminated_string  -> "unterminated string"
+  | Syntax_error         -> "syntax error"
+  | Type_error str       -> str
+  | Undefined_symbol str -> "undefined symbol: " ^ str
+  | Duplicate_symbol str -> "duplcate definition of: " ^ str
+  | Illegal_break        -> "Illegal break statement"
+  in
+  err_msg "Error" pos msg;
+  exit 1
+@
+
+<<function Error.err_msg>>=
+let err_msg prefix pos msg =
+  let (line,col) = line_number pos in
+  if line > 0 then
+    Printf.fprintf stderr
+      "%s:%d,%d: %s\n" (Option.filename()) line col msg
+  else
+    Printf.fprintf stderr "%s: %s\n" prefix msg
+@
+
+<<function Error.warning>>=
+let warning = err_msg "Warning"
+@
+
+%\subsection{Line position}
+
+% source map
+<<type Error.sm>>=
+type sm = { mutable sm: (int * int) list }
+@
+
+<<global Error.source_map>>=
+let source_map = { sm = [(0,0)] }
+@
+
+% should be called by the lexer
+<<function Error.add_source_mapping>>=
+let add_source_mapping pos line =
+  source_map.sm <- source_map.sm @ [(pos,line)]
+@
+
+<<function Error.line_number>>=
+let line_number pos =
+  let rec line ln last_p = function
+      (p,l) :: rest ->
+        if p > pos then (l, pos - last_p)
+        else line l p rest
+    | [] -> (ln + 1, pos - last_p)
+  in line 0 0 source_map.sm
+@
+
 \chapter{Debugging}
+
+\section{[[tiger -dump_ast]]}
+
+<<command line options>>=
+"-dump_ast",      Arg.Set ast,    "\tprint Abstract Syntax Tree";
+@
+
+<<command line flags>>=
+let ast    = ref false
+@
+
+<<[[Main.compile()]] if dump AST option>>=
+if Option.print_ast() then Ast.print_tree ast;
+@
+
+
+<<function iprintf>>=
+let iprintf d fmt =
+  let rec indent = function
+      0 -> ()
+    | i -> (print_string "  "; indent(i-1))
+  in (indent d; Printf.printf fmt)
+@
+
+<<function Ast.opname>>=
+let opname = function
+    PlusOp   -> "PlusOp"
+  | MinusOp  -> "MinusOp"
+  | TimesOp  -> "TimesOp"
+  | DivideOp -> "DivideOp"
+  | EqOp     -> "EqOp"
+  | NeqOp    -> "NeqOp"
+  | LtOp     -> "LtOp"
+  | LeOp     -> "LeOp"
+  | GtOp     -> "GtOp"
+  | GeOp     -> "GeOp"
+@
+
+<<function Ast.print_tree>>=
+let print_tree expression =
+  <<declaration printer>>
+  <<type printer>>
+  <<variable printer>>
+  <<expression printer>>
+in exp 0 expression
+@
+
+
+<<declaration printer>>=
+let rec dec d =
+  let print_opt_sym d = function
+      None   -> iprintf (d+1) ": NONE\n"
+    | Some s -> iprintf (d+1) ": SOME(%s)\n" (S.name s)
+  in
+  function
+    FunctionDec functions ->
+      let prfield d (n,t,_) =
+        iprintf d "%s:%s\n" (S.name n) (S.name t)
+      in
+      let prfun d (name, params, type', body, _) =
+ iprintf d "%s:\n" (S.name name);
+        List.iter (prfield (d+1)) params;
+        print_opt_sym (d+1) type';
+ exp (d+2) body
+      in
+      iprintf d "FunctionDec:\n";
+      List.iter (prfun (d+1)) functions
+  | VarDec(name, type', init,_) ->
+      iprintf d "VarDec: %s\n" (S.name name);
+      print_opt_sym (d+1) type';
+      exp (d+1) init
+  | TypeDec types ->
+      let prtdec d (name, type',_) =
+        iprintf d "%s:\n" (S.name name); ty (d+1) type'
+      in
+      iprintf d "TypeDec:\n";
+      List.iter (prtdec (d+1)) types
+  | ExceptionDec(s,_) ->
+      iprintf d "ExceptionDec:%s\n" (S.name s)
+@
+<<type printer>>=
+and ty d = function
+    NameTy(s,_)     -> iprintf d "NameTy : %s\n" (S.name s)
+  | ArrayTy(s,_)    -> iprintf d "ArrayTy: %s\n" (S.name s)
+  | RecordTy fields ->
+      let f d (n,t,_) =
+        iprintf d "%s:%s\n" (S.name n) (S.name t)
+      in
+      iprintf d "RecordTy:\n";
+      List.iter (f (d+1)) fields
+@
+<<variable printer>>=
+and var d = function
+    SimpleVar(s,_)      -> iprintf d "SimpleVar: %s\n" (S.name s)
+  | FieldVar(v,s,_)     -> iprintf d "FieldVar:\n";
+                           var (d+1) v;
+                           iprintf (d+1) "%s\n" (S.name s)
+  | SubscriptVar(v,e,_) -> iprintf d "SubscriptVar:\n";
+                           var (d+1) v;
+                           exp (d+1) e
+@
+<<expression printer>>=
+and exp d = function
+    VarExp v       -> var d v
+  | NilExp         -> iprintf d "NilExp\n"
+  | IntExp i       -> iprintf d "IntExp: %d\n" i
+  | StringExp(s,_) -> iprintf d "StringExp:%s\n" (String.escaped s)
+  | RecordExp(name, fields, _) ->
+      let f d (n,e,_) =
+        (iprintf d "%s:\n" (S.name n); exp (d+1) e)
+      in
+      iprintf d "RecordExp: %s\n" (S.name name);
+      List.iter (f (d+1)) fields
+  | ArrayExp(v, size, init, p) ->
+      iprintf d "ArrayExp: %s\n" (S.name v);
+      exp (d+1) size;
+      exp (d+1) init
+  | AssignExp(v, e, _) ->
+      iprintf d "AssignExp:\n";
+      var (d+1) v;
+      exp (d+1) e
+  | OpExp(left, oper, right, _) -> 
+      iprintf d "OpExp:%s\n" (opname oper);
+      exp (d+1) left;
+      exp (d+1) right
+  | CallExp(name, args, _) ->
+      iprintf d "CallExp: %s\n" (S.name name);
+      List.iter (exp (d+1)) args
+  | IfExp(if', then', else', _) ->
+      iprintf d "IfExp:\n";
+      exp (d+1) if';
+      exp (d+1) then';
+      begin match else' with
+        None   -> ()
+      | Some a -> exp (d+1) a
+      end
+  | WhileExp(test, body, _) ->
+      iprintf d "WhileExp:\n";
+      exp (d+1) test;
+      exp (d+1) body
+  | ForExp(var, lo, hi, body, _) ->
+      iprintf d "ForExp: %s\n" (S.name var);
+      exp (d+1) lo;
+      exp (d+1) hi;
+      exp (d+1) body
+  | BreakExp _ ->
+      iprintf d "BreakExp\n"
+  | SeqExp(l, _) ->
+      iprintf d "SeqExp:\n"; List.iter (exp (d+1)) l
+  | LetExp(decs, body, _) ->
+      iprintf d "LetExp:\n";
+      List.iter (dec (d+1)) decs;
+      iprintf d "IN:\n";
+      exp (d+2) body
+  | TryExp(expr, handlers, _) ->
+      iprintf d "TryExp:\n";
+      exp (d+1) expr;
+      List.iter
+        (fun (n,h,_) -> iprintf (d+2) "%s:\n" (S.name n); exp (d+2) h)
+        handlers
+  | RaiseExp(name,_) ->
+      iprintf d "RaiseExp %s\n" (S.name name)
+  | SpawnExp(name,_) ->
+      iprintf d "SpawnExp %s\n" (S.name name)
+@ 
+
+
+\section{[[tiger -dump_ext]]}
+
+<<command line options>>=
+"-dump_ext",      Arg.Set ext,    "\tprint Expression Trees";
+@
+
+\section{[[tiger -dump_lext]]}
+
+<<command line options>>=
+"-dump_lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
+@
 
 \chapter{Profiling}
 

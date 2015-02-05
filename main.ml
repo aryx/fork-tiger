@@ -50,15 +50,21 @@ let emit_function (frm,ex) =
   Codegen.emit ltree;
   Frame.output_footer frm
 
+(*s: function Main.compile *)
 let compile ch =
   let base_env = V.new_env base_tenv base_venv in
+
   let lexbuf = Lexing.from_channel ch in
   let ast = Parser.program Lexer.token lexbuf in
-  let exl = Semantics.translate base_env ast in
+  (*s: [[Main.compile()]] if dump AST option *)
   if Option.print_ast() then Ast.print_tree ast;
+  (*e: [[Main.compile()]] if dump AST option *)
+
+  let exl = Semantics.translate base_env ast in
   Codegen.output_file_header imports;
   Frame.output_strings();
   List.iter emit_function exl
+(*e: function Main.compile *)
 
 let _ =
   try

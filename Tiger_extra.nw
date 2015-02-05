@@ -10,41 +10,31 @@
 <<error.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
 \section{Error Handling}
 %%\label{sec:errors}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Error]] module handles error reporting for the tiger compiler.
 %%Other modules can raise exceptions defined in this module to signal
 %%unrecoverable errors. The set of errors that can be raised is listed
 %%below.
 <<types(error.nw)>>=
-type error =
-    Internal_error of string
-  | Illegal_character of char
-  | Illegal_escape of string
-  | Unterminated_comment
-  | Unterminated_string
-  | Syntax_error
-  | Type_error of string
-  | Undefined_symbol of string
-  | Duplicate_symbol of string
-  | Illegal_break
-type ex = error * int
-exception Error of ex
+<<type Error.error>>
+<<type Error.ex>>
+<<exception Error.Error>>
 @
 %%When an exception is raised, the compiler driver will use this module
 %%to report the error. The [[handle_exception]] function will print a
 %%source line number and an error message, and then exit.
 <<error.mli>>=
 <<types(error.nw)>>
+
 val handle_exception : ex -> unit
 @
 %%A few functions are defined for reporting warnings and raising common
 %%errors.
 <<error.mli>>=
 val warning   : int -> string -> unit
+
 val type_err  : int -> string -> 'a
 val undefined : int -> string -> 'a
 val internal  :        string -> 'a
@@ -57,9 +47,9 @@ val internal  :        string -> 'a
 val add_source_mapping : int -> int -> unit
 val line_number : int -> int * int
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Error Implementation}
-%%% ---------------------------------------------------------------------------
+
 <<error.ml>>=
 <<types(error.nw)>>
 @
@@ -68,55 +58,28 @@ val line_number : int -> int * int
 %%position. In effect, the scanner records the position and line number
 %%of each newline character.
 <<error.ml>>=
-type sm = { mutable sm: (int * int) list }
-let source_map = { sm = [(0,0)] }
-let add_source_mapping pos line =
-  source_map.sm <- source_map.sm @ [(pos,line)]
+<<type Error.sm>>
+<<global Error.source_map>>
+<<function Error.add_source_mapping>>
 @
 %%To compute the line number of a source position, we do a linear search
 %%through the pairs of integers.
 <<error.ml>>=
-let line_number pos =
-  let rec line ln last_p = function
-      (p,l) :: rest ->
-        if p > pos then (l, pos - last_p)
-        else line l p rest
-    | [] -> (ln + 1, pos - last_p)
-  in line 0 0 source_map.sm
+<<function Error.line_number>>
 @
 %%Errors are printed with a prefix that indicates the type of error. If
 %%the source line number can be computed, then it is also printed along
 %%with the error message.
 <<error.ml>>=
-let err_msg prefix pos msg =
-  let (line,col) = line_number pos in
-  if line > 0 then
-    Printf.fprintf stderr
-      "%s:%d,%d: %s\n" (Option.filename()) line col msg
-  else
-    Printf.fprintf stderr "%s: %s\n" prefix msg
+<<function Error.err_msg>>
 
-let warning = err_msg "Warning"
+<<function Error.warning>>
 @
 %%The exception handler is used by the compiler driver
 %%(Section~\ref{sec:driver}) to print error messages and exit in the
 %%case of errors.
 <<error.ml>>=
-let handle_exception (ex,pos) =
-  let msg = match ex with
-    Internal_error s     -> "Compiler bug: " ^ s
-  | Illegal_character ch -> Printf.sprintf "illegal character '%c'" ch
-  | Illegal_escape str   -> Printf.sprintf "illegal escape %s" str
-  | Unterminated_comment -> "unterminated comment"
-  | Unterminated_string  -> "unterminated string"
-  | Syntax_error         -> "syntax error"
-  | Type_error str       -> str
-  | Undefined_symbol str -> "undefined symbol: " ^ str
-  | Duplicate_symbol str -> "duplcate definition of: " ^ str
-  | Illegal_break        -> "Illegal break statement"
-  in
-  err_msg "Error" pos msg;
-  exit 1
+<<function Error.handle_exception>>
 @
 %%Finally, here is the definition of the error raising functions.
 <<error.ml>>=
@@ -124,6 +87,8 @@ let type_err  pos msg = raise(Error(Type_error msg, pos))
 let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
 let internal      msg = raise(Error(Internal_error msg, 0))
 @ 
+
+
 \section{[[parsing/option.nw]]}
 <<parsing/option.ml>>=
 <<option.ml>>
@@ -133,13 +98,11 @@ let internal      msg = raise(Error(Internal_error msg, 0))
 <<option.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
 \section{Command Line Options}
 %%\label{sec:options}
-%%
-%%% ---------------------------------------------------------------------------
+
 \subsection{Options}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Option]] module provides command line parsing and access to
 %%option settings. On startup, the [[parse_cmdline]] function parses the
 %%command line and stores the state of all user settable options. Other
@@ -147,32 +110,41 @@ let internal      msg = raise(Error(Internal_error msg, 0))
 %%functions.
 <<option.mli>>=
 val parse_cmdline : unit -> unit
+
 val print_ast     : unit -> bool
 val print_ext     : unit -> bool
 val print_lext    : unit -> bool
+
 val use_unwind    : unit -> bool
 val filename      : unit -> string
 val channel       : unit -> in_channel
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Option Implementation}
-%%% ---------------------------------------------------------------------------
-%%Each parameter is kept in a private variable, and the accessor
-%%functions simply return the values of these variables.
-<<option.ml>>=
+
+<<command line flags>>=
 let ast    = ref false
 let ext    = ref false
 let lext   = ref false
 let unwind = ref false
 let file   = ref ""
 let inch   = ref stdin
+@
 
+<<command line flags wrappers>>=
 let print_ast()  = !ast
 let print_ext()  = !ext
 let print_lext() = !lext
 let use_unwind() = !unwind
 let filename()   = !file
 let channel()    = !inch
+@
+
+%%Each parameter is kept in a private variable, and the accessor
+%%functions simply return the values of these variables.
+<<option.ml>>=
+<<command line flags>>
+<<command line flags wrappers>>
 @
 %%When an input file is specified by the user, the [[set_input]]
 %%function is called.
@@ -189,14 +161,19 @@ let set_input s =
 <<option.ml>>=
 let rec usage() = Arg.usage options "Usage:";exit 0;
 and options = [
-  "-dump_ast",      Arg.Set ast,    "\tprint Abstract Syntax Tree";
-  "-dump_ext",      Arg.Set ext,    "\tprint Expression Trees";
-  "-dump_lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
-  "-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
-  "-help",     Arg.Unit usage, "\tprint this message";
+  <<command line options>>
 ]
 let parse_cmdline() = Arg.parse options set_input "Usage:"
 @ 
+
+<<command line options>>=
+"-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
+"-help",     Arg.Unit usage, "\tprint this message";
+@
+
+
+
+
 \section{[[parsing/symbol.nw]]}
 <<parsing/symbol.ml>>=
 <<symbol.ml>>
@@ -206,16 +183,15 @@ let parse_cmdline() = Arg.parse options set_input "Usage:"
 <<symbol.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
 \section{Symbols}
 %%\label{sec:symbols}
 %%The [[Symbol]] module provides the representation of symbols and an
 %%implementation of symbol tables.
 %%
-%%% ---------------------------------------------------------------------------
+
 \subsection{Basic Symbols}
-%%% ---------------------------------------------------------------------------
+
 %%Symbols are created from strings found in the source program. The
 %%interface to symbols is given below. A new symbol can be created from
 %%a string. The [[new_symbol]] function ensures that the newly created
@@ -233,25 +209,22 @@ val new_symbol : string -> symbol
 %%symbols are held in a hash-table implemented by the standard library
 %%[[Hashtbl]] module.
 <<symbol.ml>>=
-type symbol = string * int
+<<type Symbol.symbol>>
 
-let nextsym = ref 0
-let hashtable = Hashtbl.create 128
+<<global Symbol.nextsym>>
 
-let name = fst
-let uid  = snd
+<<global Symbol.hashtable>>
 
-let symbol name =
-  try let s = Hashtbl.find hashtable name in (name,s)
-  with Not_found ->
-    incr nextsym; Hashtbl.add hashtable name !nextsym;
-    (name, !nextsym)
+<<function Symbol.name>>
+<<function Symbol.uid>>
+
+<<function Symbol.symbol>>
 
 let new_symbol s = symbol (Printf.sprintf "%s_%d" s !nextsym)
 @ 
-%%% ---------------------------------------------------------------------------
+
 \subsection{Symbol Tables}
-%%% ---------------------------------------------------------------------------
+
 %%A symbol table is a mapping from symbols to values. In addition,
 %%symbol tables support ``scoping'' in that each table has a parent
 %%table. If a symbol is not found in the a table, then the parent table
@@ -283,48 +256,28 @@ val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 %%Symbol tables are implemented using the standard library [[Hashtbl]]
 %%module. Duplicate entries in the same table are disallowed.
 <<symbol.ml>>=
-type 'a table = {
-    level  : int;
-    tbl    : (symbol, 'a) Hashtbl.t;
-    parent : 'a table option
-  }
+<<type Symbol.table>>
 
-let enter env s v =
-  if Hashtbl.mem env.tbl s
-  then failwith "Compiler error: symbol table duplicate entry"
-  else Hashtbl.add env.tbl s v
+<<function Symbol.enter>>
 @
 %%If a symbol is not found in a given symbol table, then its parent
 %%table is checked. If there is no parent table, then [[Not_found]] is
 %%raised.
 <<symbol.ml>>=
-let rec look env s =
-  try Hashtbl.find env.tbl s
-  with Not_found -> match env.parent with
-    None -> raise Not_found
-  | Some e -> look e s
+<<function Symbol.look>>
 @
 %%The [[mem]] function can be used to determine if a symbol is defined
 %%in the current nesting level.
 <<symbol.ml>>=
-let mem env = Hashtbl.mem env.tbl
+<<function Symbol.mem>>
 @
 %%Symbol tables are created from a list of initial mappings. All symbol
 %%tables are created with an initial nesting level of zero. As new
 %%nested scopes are created the level increases by one for each level.
 <<symbol.ml>>=
-let create l =
-  let env = {
-    level = 0;
-    tbl = Hashtbl.create 20;
-    parent = None
-  } in
-  List.iter (fun (key, data) -> enter env (symbol key) data) l;
-  env
+<<constructor Symbol.create>>
 
-let new_scope env = { level = env.level + 1;
-                      tbl = Hashtbl.create 20;
-                      parent = Some env }
+<<constructor Symbol.new_scope>>
 @
 %%Both [[iter]] and [[fold]] are implemented by lifting the
 %%corresponding [[Hashtbl]] functions up to our representation of symbol
@@ -353,101 +306,74 @@ let rec fold f env init =
 <<ast.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Abstract Syntax}
 %%\label{sec:ast}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Ast]] module describes the types used to represent the abstract
 %%syntax of a Tiger program. The [[print_tree]] function will print a
 %%string representation of an abstract syntax tree for debugging
 %%purposes.
 <<ast.mli>>=
 <<types(ast.nw)>>
+
 val print_tree : exp -> unit
 @ 
 %%
 <<ast.ml>>=
 <<types(ast.nw)>>
+
 <<tree printer>>
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Ast Types}
-%%% ---------------------------------------------------------------------------
+
 %%Symbols are defined in the [[Symbol]] module
 %%(Section~\ref{sec:symbols}), and positions within the source file are
 %%integers representing a byte offset.
 <<types(ast.nw)>>=
-type pos    = int 
-and  symbol = Symbol.symbol
+<<type Ast.pos>>
+<<type Ast.symbol>>
 @
 %%The Tiger language allows declarations of functions, types, and
 %%variables. A function declaration may have a return type, but it is
 %%optional. Variable declaration also have an optional type.
 <<types(ast.nw)>>=
-type dec =
-    FunctionDec  of (symbol * field list * symbol option * exp * pos) list
-  | VarDec       of symbol * symbol option * exp * pos
-  | TypeDec      of (symbol * ty * pos) list
-  | ExceptionDec of symbol * pos
+<<type Ast.dec>>
 @
 %%A type declaration may be either an alias (reference to a previously
 %%declared type), a record declaration, or an array declaration.
 <<types(ast.nw)>>=
-and ty =
-    NameTy   of symbol * pos
-  | RecordTy of field list
-  | ArrayTy  of symbol * pos
+<<type Ast.ty>>
 @
 %%Record and function definitions both take parameters of the form
 %%[[name : type]] where both [[name]] and [[type]] are symbols. These
 %%[[name]]-[[type]] pairs are represented by the Ocaml type [[field]].
 <<types(ast.nw)>>=
-and field = (symbol * symbol * pos)
+<<type Ast.field>>
 @
 %%A variable expressions is either a simple variable name, a field
 %%variable for referencing members of a record type, or a subscript
 %%variable for accessing the elements of an array.
 <<types(ast.nw)>>=
-and var =
-    SimpleVar    of symbol * pos
-  | FieldVar     of var * symbol * pos
-  | SubscriptVar of var * exp * pos
+<<type Ast.var>>
 @
 %%Expressions in Tiger are described by the [[exp]] type below. The
 %%[[ArrayExp]] and [[RecordExp]] types are used for anonymous arrays and
 %%records respectively. The first element of both the [[ArrayExp]] and
 %%[[RecordExp]] types is a reference to an already existing type.
 <<types(ast.nw)>>=
-and exp =
-    NilExp
-  | VarExp    of var
-  | IntExp    of int
-  | StringExp of string * pos
-  | RecordExp of symbol * (symbol * exp * pos) list * pos
-  | ArrayExp  of symbol * exp * exp * pos
-  | AssignExp of var * exp * pos
-  | OpExp     of exp * oper * exp * pos
-  | CallExp   of symbol * exp list * pos
-  | IfExp     of exp * exp * exp option * pos
-  | WhileExp  of exp * exp * pos
-  | ForExp    of symbol * exp * exp * exp * pos
-  | BreakExp  of pos
-  | SeqExp    of exp list * pos
-  | LetExp    of dec list * exp * pos
-  | TryExp    of exp * (symbol * exp * pos) list * pos
-  | RaiseExp  of symbol * pos
-  | SpawnExp  of symbol * pos
+<<type Ast.exp>>
 @
 %%Finally, the valid operators in the Tiger language are
 %%[[+,-,*,/,=,<>,<,<=,>,]] and [[>=]].
 <<types(ast.nw)>>=
-and oper = PlusOp | MinusOp | TimesOp | DivideOp
-         | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
+<<type Ast.oper>>
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Abstract Syntax Tree Printer}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Ast]] module provides a tree printing function for debugging
 %%purposes. The abstract syntax tree can be printed by specifying the
 %%appropriate command line arguments (see the [[Driver]] module in
@@ -460,553 +386,35 @@ and oper = PlusOp | MinusOp | TimesOp | DivideOp
 <<tree printer>>=
 module S = Symbol
 
-let iprintf d fmt =
-  let rec indent = function
-      0 -> ()
-    | i -> (print_string "  "; indent(i-1))
-  in (indent d; Printf.printf fmt)
+<<function iprintf>>
 
-let opname = function
-    PlusOp   -> "PlusOp"
-  | MinusOp  -> "MinusOp"
-  | TimesOp  -> "TimesOp"
-  | DivideOp -> "DivideOp"
-  | EqOp     -> "EqOp"
-  | NeqOp    -> "NeqOp"
-  | LtOp     -> "LtOp"
-  | LeOp     -> "LeOp"
-  | GtOp     -> "GtOp"
-  | GeOp     -> "GeOp"
+<<function Ast.opname>>
 @
 %%The tree printer itself consists of four functions for printing
 %%declarations, types, variables, and expressions. Each Tiger program is
 %%an expression, and an outer function starts the process by calling the
 %%expression printer with an initial indenting level of 0.
 <<tree printer>>=
-let print_tree expression =
-  <<declaration printer>>
-  <<type printer>>
-  <<variable printer>>
-  <<expression printer>>
-in exp 0 expression
+<<function Ast.print_tree>>
 @
-<<declaration printer>>=
-let rec dec d =
-  let print_opt_sym d = function
-      None   -> iprintf (d+1) ": NONE\n"
-    | Some s -> iprintf (d+1) ": SOME(%s)\n" (S.name s)
-  in
-  function
-    FunctionDec functions ->
-      let prfield d (n,t,_) =
-        iprintf d "%s:%s\n" (S.name n) (S.name t)
-      in
-      let prfun d (name, params, type', body, _) =
- iprintf d "%s:\n" (S.name name);
-        List.iter (prfield (d+1)) params;
-        print_opt_sym (d+1) type';
- exp (d+2) body
-      in
-      iprintf d "FunctionDec:\n";
-      List.iter (prfun (d+1)) functions
-  | VarDec(name, type', init,_) ->
-      iprintf d "VarDec: %s\n" (S.name name);
-      print_opt_sym (d+1) type';
-      exp (d+1) init
-  | TypeDec types ->
-      let prtdec d (name, type',_) =
-        iprintf d "%s:\n" (S.name name); ty (d+1) type'
-      in
-      iprintf d "TypeDec:\n";
-      List.iter (prtdec (d+1)) types
-  | ExceptionDec(s,_) ->
-      iprintf d "ExceptionDec:%s\n" (S.name s)
-@
-<<type printer>>=
-and ty d = function
-    NameTy(s,_)     -> iprintf d "NameTy : %s\n" (S.name s)
-  | ArrayTy(s,_)    -> iprintf d "ArrayTy: %s\n" (S.name s)
-  | RecordTy fields ->
-      let f d (n,t,_) =
-        iprintf d "%s:%s\n" (S.name n) (S.name t)
-      in
-      iprintf d "RecordTy:\n";
-      List.iter (f (d+1)) fields
-@
-<<variable printer>>=
-and var d = function
-    SimpleVar(s,_)      -> iprintf d "SimpleVar: %s\n" (S.name s)
-  | FieldVar(v,s,_)     -> iprintf d "FieldVar:\n";
-                           var (d+1) v;
-                           iprintf (d+1) "%s\n" (S.name s)
-  | SubscriptVar(v,e,_) -> iprintf d "SubscriptVar:\n";
-                           var (d+1) v;
-                           exp (d+1) e
-@
-<<expression printer>>=
-and exp d = function
-    VarExp v       -> var d v
-  | NilExp         -> iprintf d "NilExp\n"
-  | IntExp i       -> iprintf d "IntExp: %d\n" i
-  | StringExp(s,_) -> iprintf d "StringExp:%s\n" (String.escaped s)
-  | RecordExp(name, fields, _) ->
-      let f d (n,e,_) =
-        (iprintf d "%s:\n" (S.name n); exp (d+1) e)
-      in
-      iprintf d "RecordExp: %s\n" (S.name name);
-      List.iter (f (d+1)) fields
-  | ArrayExp(v, size, init, p) ->
-      iprintf d "ArrayExp: %s\n" (S.name v);
-      exp (d+1) size;
-      exp (d+1) init
-  | AssignExp(v, e, _) ->
-      iprintf d "AssignExp:\n";
-      var (d+1) v;
-      exp (d+1) e
-  | OpExp(left, oper, right, _) -> 
-      iprintf d "OpExp:%s\n" (opname oper);
-      exp (d+1) left;
-      exp (d+1) right
-  | CallExp(name, args, _) ->
-      iprintf d "CallExp: %s\n" (S.name name);
-      List.iter (exp (d+1)) args
-  | IfExp(if', then', else', _) ->
-      iprintf d "IfExp:\n";
-      exp (d+1) if';
-      exp (d+1) then';
-      begin match else' with
-        None   -> ()
-      | Some a -> exp (d+1) a
-      end
-  | WhileExp(test, body, _) ->
-      iprintf d "WhileExp:\n";
-      exp (d+1) test;
-      exp (d+1) body
-  | ForExp(var, lo, hi, body, _) ->
-      iprintf d "ForExp: %s\n" (S.name var);
-      exp (d+1) lo;
-      exp (d+1) hi;
-      exp (d+1) body
-  | BreakExp _ ->
-      iprintf d "BreakExp\n"
-  | SeqExp(l, _) ->
-      iprintf d "SeqExp:\n"; List.iter (exp (d+1)) l
-  | LetExp(decs, body, _) ->
-      iprintf d "LetExp:\n";
-      List.iter (dec (d+1)) decs;
-      iprintf d "IN:\n";
-      exp (d+2) body
-  | TryExp(expr, handlers, _) ->
-      iprintf d "TryExp:\n";
-      exp (d+1) expr;
-      List.iter
-        (fun (n,h,_) -> iprintf (d+2) "%s:\n" (S.name n); exp (d+2) h)
-        handlers
-  | RaiseExp(name,_) ->
-      iprintf d "RaiseExp %s\n" (S.name name)
-  | SpawnExp(name,_) ->
-      iprintf d "SpawnExp %s\n" (S.name name)
-@ 
+
 \section{[[parsing/parser.nw]]}
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Scanner}
 %%\label{sec:scanner}
-%%% ---------------------------------------------------------------------------
+
 <<lexer.mli>>=
 val token : Lexing.lexbuf -> Parser.token
 @
-<<lexer.mll>>=
-{
-module E = Error
-module P = Parser
 
-(* The table of keywords *)
-let keyword_table = Hashtbl.create 22;;
-List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
-  [
-   "and",       P.AND;
-   "array",     P.ARRAY;
-   "break",     P.BREAK;
-   "do",        P.DO;
-   "else",      P.ELSE;
-   "end",       P.END;
-   "exception", P.EXCEPTION;
-   "for",       P.FOR;
-   "function",  P.FUNCTION;
-   "handle",    P.HANDLE;
-   "if",        P.IF;
-   "in",        P.IN;
-   "let",       P.LET;
-   "nil",       P.NIL;
-   "of",        P.OF;
-   "or",        P.OR;
-   "raise",     P.RAISE;
-   "spawn",     P.SPAWN;
-   "then",      P.THEN;
-   "to",        P.TO;
-   "try",       P.TRY;
-   "type",      P.TYPE;
-   "var",       P.VAR;
-   "while",     P.WHILE;
- ];;
-  
-(* To buffer string literals *)
 
-let escape c = 
-  match c with
-  | 'n' -> '\n'
-  | 'r' -> '\r'
-  | 'b' -> '\b'
-  | 't' -> '\t'
-  | _ -> c
-
-let line_num = ref 0
-let string_start_pos = ref 0
-let buffer = Buffer.create 30
-let comment_pos = Stack.create()
-}
-
-let nl = ['\010' '\013']
-let blank = [' ' '\009' '\012']
-let letter = ['A'-'Z' 'a'-'z']
-let number = ['0'-'9']
-let identchar = ['A'-'Z' 'a'-'z' '_' '0'-'9']
-
-rule token = parse
-    nl   { incr line_num;
-           E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
-           token lexbuf }
-  | blank + { token lexbuf }
-  | letter identchar *
-      { let s = Lexing.lexeme lexbuf in
-        try
-          Hashtbl.find keyword_table s
-        with Not_found ->
-          P.ID s }
-  | number +
-      { P.INT (int_of_string(Lexing.lexeme lexbuf)) }
-  | "\"" 
-      { string_start_pos := Lexing.lexeme_start lexbuf;
-        P.STRING (string lexbuf) }
-  | "/*" { comment lexbuf; token lexbuf }
-  | "&"  { P.AND }
-  | ":=" { P.ASSIGN }
-  | ":"  { P.COLON }
-  | ","  { P.COMMA }
-  | "/"  { P.DIVIDE }
-  | "."  { P.DOT }
-  | "="  { P.EQ }
-  | ">=" { P.GE }
-  | ">"  { P.GT }
-  | "{"  { P.LBRACE }
-  | "["  { P.LBRACK }
-  | "<=" { P.LE }
-  | "("  { P.LPAREN }
-  | "<"  { P.LT }
-  | "-"  { P.MINUS }
-  | "<>" { P.NEQ }
-  | "|"  { P.OR }
-  | "+"  { P.PLUS }
-  | "}"  { P.RBRACE }
-  | "]"  { P.RBRACK }
-  | ")"  { P.RPAREN }
-  | ";"  { P.SEMICOLON }
-  | "*"  { P.TIMES }
-  | eof  { P.EOF }
-  | _
-      { raise (E.Error(E.Illegal_character (Lexing.lexeme_char lexbuf 0),
-                       Lexing.lexeme_start lexbuf)) }
-
-and comment = parse
-    "/*" { Stack.push (Lexing.lexeme_start lexbuf) comment_pos;
-           comment lexbuf; }
-  | "*/" { try (ignore(Stack.pop comment_pos); comment lexbuf)
-           with Stack.Empty -> () }
-  | nl   { incr line_num;
-           E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
-           comment lexbuf }
-  | eof  { let st = Stack.top comment_pos in
-           raise (E.Error(E.Unterminated_comment, st)) }
-  | _    { comment lexbuf }
-
-and string = parse
-    '"'
-      { let s = Buffer.contents buffer in
-        (Buffer.clear buffer; s) }
-  | '\\' ['\\' '\'' '"' 'n' 't' 'b' 'r']
-      { Buffer.add_char buffer (escape (Lexing.lexeme_char lexbuf 1));
-        string lexbuf }
-  | [^ '"' '\\'] +
-      { Buffer.add_string buffer (Lexing.lexeme lexbuf);
-        string lexbuf }
-  | eof
-      { raise (E.Error(E.Unterminated_string, !string_start_pos)) }
-@
-%%% ---------------------------------------------------------------------------
 \section{Parser}
 %%\label{sec:parser}
-%%% ---------------------------------------------------------------------------
-<<parser.mly>>=
-%{
-module E = Error
-module A = Ast
-module S = Symbol
 
-let getpos = Parsing.symbol_start
-let parse_error s =
-  let pos = getpos() in
-  raise (E.Error(E.Syntax_error, pos))
 
-(* record creation functions *)
-let mkField n t           = (n, t, getpos())
 
-let mkSimpleVar v         = A.SimpleVar(v, getpos())
-let mkFieldVar v t        = A.FieldVar(v, t, getpos())
-let mkSubscriptVar v e    = A.SubscriptVar(v, e, getpos())
 
-let mkNilExp              = A.NilExp
-let mkVarExp v            = A.VarExp(v)
-let mkIntExp i            = A.IntExp(i)
-let mkStringExp s         = A.StringExp(s, getpos())
-let mkCallExp f a         = A.CallExp(f, a, getpos())
-let mkOpExp l r op        = A.OpExp(l, op, r, getpos())
-let mkRecFld n e          = (n, e, getpos())
-let mkRecExp n f          = A.RecordExp(n, f, getpos())
-let mkSeqExp el           = A.SeqExp(el, getpos())
-let mkAssignExp v e       = A.AssignExp(v, e, getpos())
-let mkIfExp tst t e       = A.IfExp(tst, t, e, getpos())
-let mkWhileExp tst b      = A.WhileExp(tst, b, getpos())
-let mkForExp v lo hi body = A.ForExp(v, lo, hi, body, getpos())
-let mkBreakExp            = A.BreakExp(getpos())
-let mkLetExp decs body    = A.LetExp(decs, body, getpos())
-let mkArrayExp v s init   = A.ArrayExp(v, s, init, getpos())
-
-let mkHandler name exp    = (name, exp, getpos())
-let mkTryExp exp handlers = A.TryExp(exp, handlers, getpos())
-let mkRaise id            = A.RaiseExp(id, getpos())
-
-let mkSpawn id            = A.SpawnExp(id, getpos())
-
-let mkFunDec n f t b      = (n, f, t, b, getpos())
-let mkFunctionDec l       = A.FunctionDec(l)
-let mkVarDec n t i        = A.VarDec(n, t, i, getpos())
-let mkTyDec n t           = (n, t, getpos())
-let mkTypeDec l           = A.TypeDec(l)
-let mkNameTy n            = A.NameTy(n, getpos())
-let mkRecordTy l          = A.RecordTy(l)
-let mkArrayTy n           = A.ArrayTy(n, getpos())
-let mkException s         = A.ExceptionDec(s, getpos())
-%}
-
-/* Tokens */
-
-%token AND ARRAY ASSIGN BREAK COLON COMMA DIVIDE DO DOT
-%token ELSE END EOF EQ EXCEPTION FOR FUNCTION GE GT HANDLE IF IN
-%token LBRACE LBRACK LE LET LPAREN LT MINUS NEQ NIL
-%token OF OR PLUS RAISE RBRACE RBRACK RPAREN SEMICOLON SPAWN
-%token TIMES THEN TO TRY TYPE VAR WHILE
-%token <int> INT
-%token <string> ID STRING
-
-/* Precedences and associativities.
-   The precedences must be listed from low to high. */
-
-%nonassoc ASSIGN
-%left AND OR
-%nonassoc EQ NEQ GT LT GE LE
-%left PLUS MINUS
-%left TIMES DIVIDE
-%nonassoc UMINUS
-
-/* start symbols */
-
-%start program
-%type <Ast.exp> program
-%type <Ast.exp> expr
-%type <Ast.var> lvalue
-%type <Ast.dec list> decs
-
-/* %expect 63 */
-
-%%
-
-program:
-  expr EOF { $1 }
-;
-expr:
-   lvalue                    { mkVarExp $1 }
- | sequence                  { mkSeqExp $1 }
- | literal                   { $1 }
- | function_call             { $1 }
- | arithmetic                { $1 }
- | comparison                { $1 }
- | boolean                   { $1 }
- | construction              { $1 }
- | lvalue ASSIGN expr        { mkAssignExp $1 $3 }
- | if_statement              { $1 }
- | loop_statement            { $1 }
- | LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
- | TRY expr handlers         { mkTryExp $2 (List.rev $3) }
- | RAISE id                  { mkRaise $2 }
- | SPAWN id                  { mkSpawn $2 }
-;
-
-/* Symbols are created in this rule only */
-id: ID { S.symbol $1 };
-
-/* Variables (L-values) 
-   This rule is overly explicit to avoid conflicts with 
-   the construction rule below */
-lvalue:
- | id                        { mkSimpleVar $1 }
- | id DOT id                 { mkFieldVar (mkSimpleVar $1) $3 }
- | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
- | lvalue DOT id             { mkFieldVar $1 $3 }
- | lvalue LBRACK expr RBRACK { mkSubscriptVar $1 $3 }
-;
-
-/* Sequence expression */
-sequence:
-   LPAREN RPAREN           { [] }
- | LPAREN expr_list RPAREN { $2 }
-;
-expr_list:
-   expr                     { $1 :: [] }
- | expr SEMICOLON expr_list { $1 :: $3 }
-;
-
-/* Literals */
-literal:
-   NIL    { mkNilExp }
- | INT    { mkIntExp $1 }
- | STRING { mkStringExp $1 }
-;
-
-/* function call */
-function_call:
-   id LPAREN fun_args RPAREN { mkCallExp $1 $3 }
-;
-fun_args:
-   /* empty */         { [] }
- | expr                { $1 :: [] }
- | expr COMMA fun_args { $1 :: $3 }
-;
-
-/* Simple Arithmetic */
-arithmetic:
-   MINUS expr %prec UMINUS { mkOpExp (mkIntExp 0) $2 A.MinusOp }
- | expr PLUS expr          { mkOpExp $1 $3 A.PlusOp    }
- | expr MINUS expr         { mkOpExp $1 $3 A.MinusOp  }
- | expr TIMES expr         { mkOpExp $1 $3 A.TimesOp  }
- | expr DIVIDE expr        { mkOpExp $1 $3 A.DivideOp }
-;
-
-/* Comparison */
-comparison:
-   expr EQ expr  { mkOpExp $1 $3 A.EqOp  }
- | expr NEQ expr { mkOpExp $1 $3 A.NeqOp }
- | expr GT expr  { mkOpExp $1 $3 A.GtOp  }
- | expr LT expr  { mkOpExp $1 $3 A.LtOp  }
- | expr GE expr  { mkOpExp $1 $3 A.GeOp  }
- | expr LE expr  { mkOpExp $1 $3 A.LeOp  }
-;
-
-/* Boolean operators */
-boolean:
-   expr AND expr { mkIfExp $1 $3 (Some(mkIntExp 0)) }
- | expr OR expr  { mkIfExp $1 (mkIntExp 1) (Some $3) }
-;
-
-/* Record and array construction */
-construction:
-   id LBRACE ctor_list RBRACE    { mkRecExp $1 $3 }
- | id LBRACK expr RBRACK OF expr { mkArrayExp $1 $3 $6 }
-;
-ctor_list:
-   id EQ expr                 { (mkRecFld $1 $3) :: [] }
- | id EQ expr COMMA ctor_list { (mkRecFld $1 $3) :: $5 }
-;
-
-/* If statements */
-if_statement:
-   IF expr THEN expr           { mkIfExp $2 $4 None }
- | IF expr THEN expr ELSE expr { mkIfExp $2 $4 (Some $6) }
-;
-
-/* Loop statements */
-loop_statement:
-   WHILE expr DO expr                 { mkWhileExp $2 $4 }
- | FOR id ASSIGN expr TO expr DO expr { mkForExp $2 $4 $6 $8 }
- | BREAK                              { mkBreakExp }
-;
-
-/* exception handlers */
-handler:
-   HANDLE id expr END         { mkHandler $2 $3 }
-;
-handlers:
-   handler          { $1 :: [] }
- | handler handlers { $1 :: $2 }
-;
-
-/* Declarations */
-
-/* recursive declarations in tiger.
-   My interpretation of the tiger language spec is that
-   mutally recursive types and functions are valid if they
-   are declared together in a sequence. That is:
-   type a = {b:int c:d} type d = a
-   is valid where as 
-   type a = {b:int c:d} var x := 1 type d = a
-   is not.
-*/
-decs:
-   dec { $1 :: [] }
- | dec decs { $1 :: $2 }
-;
-dec:
-   var_dec   { $1 }
- | type_decs { mkTypeDec $1 }
- | fun_decs  { mkFunctionDec $1 }
- | exn_dec   { $1 }
-;
-var_dec:
-   VAR id ASSIGN expr          { mkVarDec $2 None $4 }
- | VAR id COLON id ASSIGN expr { mkVarDec $2 (Some $4) $6 }
-;
-type_decs:
-   type_dec           { $1 :: [] }
- | type_dec type_decs { $1 :: $2 }
-;
-type_dec:
-   TYPE id EQ ty { mkTyDec $2 $4 }
-;
-ty:
-   id                      { mkNameTy $1 }
- | LBRACE ty_fields RBRACE { mkRecordTy $2 }
- | ARRAY OF id             { mkArrayTy $3 }
-;
-ty_fields:
-   /* empty */                 { [] }
- | id COLON id                 { (mkField $1 $3) :: [] }
- | id COLON id COMMA ty_fields { (mkField $1 $3) :: $5 }
-;
-fun_decs:
-   fun_dec          { $1 :: [] }
- | fun_dec fun_decs { $1 :: $2 }
-;
-fun_dec:
-   FUNCTION id LPAREN ty_fields RPAREN EQ expr
-     { mkFunDec $2 $4 None $7 }
- | FUNCTION id LPAREN ty_fields RPAREN COLON id EQ expr
-     { mkFunDec $2 $4 (Some $7) $9 }
-;
-exn_dec:
-   EXCEPTION id { mkException $2 }
-;
-@ 
-%$
 
 \chapter{[[frontend]]}
 
@@ -1019,11 +427,11 @@ exn_dec:
 <<environment.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Environments}
 %%\label{sec:environments}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Environment]] module provides the environment structure that is
 %%used during type checking (Section~\ref{sec:semantics}). For each
 %%Tiger function, there is an associated environment containing variable
@@ -1057,9 +465,9 @@ type 'a enventry =
     VarEntry of (Frame.access * 'a)
   | FunEntry of (Symbol.symbol * string option * Frame.frame * 'a list * 'a)
 @ 
-%%% ---------------------------------------------------------------------------
+
 \subsection{Interface to the Environment}
-%%% ---------------------------------------------------------------------------
+
 %%The environment is a mostly functional data structure. However, the
 %%symbol tables representing type definitions and variable types are
 %%mutated in place. Therefore, most operations return a new environment,
@@ -1124,9 +532,9 @@ val new_break_label : 'a t -> 'a t
 val exn_label     : 'a t -> Tree.label option
 val new_exn_label : 'a t -> 'a t
 @ 
-%%% ---------------------------------------------------------------------------
+
 \subsection{Implementation of Environments}
-%%% ---------------------------------------------------------------------------
+
 <<environment.ml>>=
 module E = Error
 module S = Symbol
@@ -1253,11 +661,11 @@ let new_exn_label env =
 <<semantics.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Semantic Analysis}
 %%\label{sec:semantics}
-%%% ---------------------------------------------------------------------------
+
 %%The Tiger compiler performs type-checking and translation to
 %%intermediate representation in a single pass. The [[Semantics]] module
 %%type checks each Tiger expressions and the passes each one to the
@@ -1291,10 +699,10 @@ module T = Translate
 <<translators>>
 <<entry point>>
 @
-%%% ----------------------------------------------------------------------------
+-
 \subsection{Type System}
 %%\label{sec:types}
-%%% ----------------------------------------------------------------------------
+-
 %%The set of types used internally by the compiler is given below. The
 %%[[NAME]] type is an alias to another defined type. The [[ANY]] type
 %%can be used as a type variable when constructing polymorphic types.
@@ -1389,9 +797,9 @@ let check_type_eq pos msg t1 t2 =
   in if check && t1 <> t2 then
     E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
 @
-%%% ----------------------------------------------------------------------------
+-
 \subsection{The [[translate]] Entry Point}
-%%% ----------------------------------------------------------------------------
+-
 %%The [[translate]] function returns a list of function bodies and their
 %%associated frames. The functions are held in a mutable reference to a
 %%list. When a new expression is added to the list, we first call the
@@ -1430,9 +838,9 @@ let translate env ast =
     get_functions()
   end
 @
-%%% ----------------------------------------------------------------------------
+-
 \subsection{Declarations}
-%%% ----------------------------------------------------------------------------
+-
 %%The [[trdec]] function translates declarations of functions,
 %%variables, and types.
 <<declaration translator>>=
@@ -1538,9 +946,9 @@ let rec trdec = function
 <<exception declarations>>=
   | A.ExceptionDec(sym,_) -> V.enter_exn env sym; T.nil
 @ 
-%%% ----------------------------------------------------------------------------
+-
 \subsection{Variables}
-%%% ----------------------------------------------------------------------------
+-
 %%The variable translator checks and translates simple variables, field
 %%variables which refer to record elements, and subscript variables
 %%which refer to array elements.
@@ -1599,9 +1007,9 @@ and trvar = function
           E.type_err pos "attempt to dereference a non-array type"
       end
 @
-%%% ----------------------------------------------------------------------------
+-
 \subsection{Expressions}
-%%% ----------------------------------------------------------------------------
+-
 %%Expressions are translated by the [[trexp]] function.
 <<expression translator>>=
 and trexp = function
@@ -1893,11 +1301,11 @@ and trexp = function
 <<tree.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Intermediate Representation}
 %%\label{sec:tree}
-%%% ---------------------------------------------------------------------------
+
 %%The intermediate representation used by the Tiger compiler is a
 %%variant of the ``Tree Language'' described in \cite{appel}. The
 %%abstract syntax for the intermediate representation ``trees'' is show
@@ -1950,9 +1358,9 @@ and exp =
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE | LT | GT | LE | GE
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Interface to the IR}
-%%% ---------------------------------------------------------------------------
+
 %%In addition to defining the abstract syntax of the IR, the [[Tree]]
 %%module also defines a number of utility functions for manipulating the
 %%IR.
@@ -1993,9 +1401,9 @@ val find_temps : stm list -> (temp * bool) list
 val print_stm : stm -> unit
 val print_exp : exp -> unit
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Implementation of IR Utilities}
-%%% ---------------------------------------------------------------------------
+
 <<tree.ml>>=
 module S = Symbol
 <<types(tree.nw)>>
@@ -2132,11 +1540,11 @@ let print_exp e = print_stm (EXP e)
 <<translate.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Translation to Intermediate Representation}
 %%\label{sec:translate}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Translate]] module transforms an abstract syntax tree
 %%(Section~\ref{sec:ast}) into the compiler's intermediate
 %%representation---a ``tree language'' expression
@@ -2173,9 +1581,9 @@ val try_block     : exp -> label -> (int *exp) list -> exp
 val raise_exn     : int -> exp
 val spawn         : label -> exp
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Translation Implementation}
-%%% ---------------------------------------------------------------------------
+
 <<translate.ml>>=
 module E = Error
 module A = Ast
@@ -2575,11 +1983,11 @@ let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 <<canonical.mli>>
 @
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
+
 \section{Canonical Trees}
 %%\label{sec:canonical}
-%%% ---------------------------------------------------------------------------
+
 %%This module reduces a [[Tree]] to canonical form. Currently there are
 %%only two requirements for a tree in canonical form:
 %%\begin{itemize}
@@ -2709,10 +2117,10 @@ let linearize stm0 =
 <<frame.mli>>
 @
 
-%%% ---------------------------------------------------------------------------
+
 \section{Stack Frames}
 %%\label{sec:frame}
-%%% ---------------------------------------------------------------------------
+
 %%The [[Frame]] module manages the stack frames of generated functions.
 %%Since we are generating [[C--]] code, we do not have access to the
 %%real stack frame, but we still need to track function parameters,
@@ -2768,9 +2176,9 @@ val output_header  : frame -> unit
 val output_footer  : frame -> unit
 val output_strings : unit  -> unit
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Stack Frame Implementation}
-%%% ---------------------------------------------------------------------------
+
 <<frame.ml>>=
 module S = Symbol
 module T = Tree
@@ -2937,10 +2345,10 @@ let output_strings() =
 <<codegen.mli>>
 @
 
-%%% ---------------------------------------------------------------------------
+
 \section{Code Generation}
 %%\label{sec:codegen}
-%%% ---------------------------------------------------------------------------
+
 %%This module has two interface functions: one for generating the
 %%[[C--]] file header, and one for generating the bodies of [[C--]]
 %%functions. The compiler driver will call the first function to generate
@@ -3051,14 +2459,14 @@ let emit exl =
 
 \section{[[runtime/gc.nw]]}
 %%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
-%%% ---------------------------------------------------------------------------
+
 \section{Allocation and Garbage Collection}
 %%\label{sec:gc}
-%%% ---------------------------------------------------------------------------
+
 %%
-%%% ---------------------------------------------------------------------------
+
 \subsection{Memory Allocator}
-%%% ---------------------------------------------------------------------------
+
 %%The memory allocator is written in [[C--]], however {\em this
 %%allocator is not called by compiled Tiger code.} The Tiger compiler
 %%generate in-line allocations, which may call the [[call_gc]] function,
@@ -3113,9 +2521,9 @@ tig_alloc(bits32 size) {
   return(p);
 }
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Garbage Collector Implementation}
-%%% ---------------------------------------------------------------------------
+
 %%The garbage collector exports two functions for initializing the
 %%collector, and performing garbage collection. Both functions return
 %%the value of the allocation pointer.
@@ -3216,9 +2624,9 @@ void gc_copy(void) {
     *scan = (unsigned)gc_forward((unsigned*)*scan, -1);
 }
 @ 
-%%% ---------------------------------------------------------------------------
+
 \subsection{Garbage Collector Main Loop}
-%%% ---------------------------------------------------------------------------
+
 %%The Tiger compiler outputs GC data for each procedure in the form of
 %%user spans. The span data indicates the type of each variable in the
 %%procedure; pointer or not-pointer. There is a list of types for stack
@@ -3278,14 +2686,14 @@ void* tig_gc(Cmm_Cont* k) {
 @
 \section{[[runtime/runtime.nw]]}
 %%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
-%%% ---------------------------------------------------------------------------
+
 \section{Runtime Startup Code}
 %%\label{sec:runtime}
 %%
 %%The initial size of the heap is taken from the environment variable
 %%[[TIGER_HEAPSIZE]] if present; otherwise a default is used.
 %%
-%%% ---------------------------------------------------------------------------
+
 <<runtime.c-->>=
 target byteorder little;
 import tig_set_handler;
@@ -3331,9 +2739,9 @@ continuation k(rv):
   foreign "C" return(-1);
 }
 @ 
-%%% ---------------------------------------------------------------------------
+
 \subsection{Interpreter Startup}
-%%% ---------------------------------------------------------------------------
+
 <<client.c>>=
 #include <assert.h>
 #include <qc--interp.h>
@@ -3442,10 +2850,10 @@ int main(int argc, char *argv[])
 
 \section{[[stdlib/stdlib.nw]]}
 %%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
-%%% ---------------------------------------------------------------------------
+
 \section{Tiger Standard Library}
 %%\label{sec:stdlib}
-%%% ---------------------------------------------------------------------------
+
 <<stdlib.h>>=
 #include <stdio.h>
 #include <stdlib.h>
@@ -3470,9 +2878,9 @@ string*  tig_concat(string *a, string *b);
 int      tig_not(int i);
 void     tig_exit(int status);
 @
-%%% ---------------------------------------------------------------------------
+
 \subsection{Standard Library Implementation}
-%%% ---------------------------------------------------------------------------
+
 %%The standard library is implemented in C and C--. Whenever we cross
 %%over to [[C]] we must save and restore the allocation pointer because
 %%it is held in a [[C--]] global variable which may be a register. Any
@@ -3710,11 +3118,10 @@ tig_spawn(bits32 lbl) {
 
 \section{[[main.nw]]}
 
-%%% -*- mode: Noweb; noweb-code-mode: caml-mode -*-
-%%% ---------------------------------------------------------------------------
+
 \section{Compiler Driver}
 %%\label{sec:driver}
-%%% ---------------------------------------------------------------------------
+
 %%The compiler driver has two jobs: to define the standard basis, and to
 %%call the compiler modules in the correct order.
 <<main.ml>>=
@@ -3790,15 +3197,7 @@ let emit_function (frm,ex) =
   Codegen.emit ltree;
   Frame.output_footer frm
 
-let compile ch =
-  let base_env = V.new_env base_tenv base_venv in
-  let lexbuf = Lexing.from_channel ch in
-  let ast = Parser.program Lexer.token lexbuf in
-  let exl = Semantics.translate base_env ast in
-  if Option.print_ast() then Ast.print_tree ast;
-  Codegen.output_file_header imports;
-  Frame.output_strings();
-  List.iter emit_function exl
+<<function Main.compile>>
 
 let _ =
   try
