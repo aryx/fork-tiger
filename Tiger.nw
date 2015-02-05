@@ -180,9 +180,9 @@ License.
 
 \section{[[helloworld.tig]]}
 
-\section{Input tiger language}
+\section{Input Tiger language}
 
-\section{Output [[C--]] language}
+\section{Output C-- language}
 
 \section{Code organization}
 
@@ -503,7 +503,7 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
 % no negation?
 
 
-\section{Punctuation}
+\section{Punctuations}
 
 <<rule token cases>>=
 | ":=" { P.ASSIGN }
@@ -1429,7 +1429,7 @@ and exp d = function
 
 \chapter{Error Managment}
 
-\chapter{Libc}
+\chapter{Mini stdlib}
 
 \chapter{Extra Code}
 
