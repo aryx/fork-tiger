@@ -624,13 +624,13 @@ module S = Symbol
 @
 
 
-<<grammar>>
+<<grammar>>=
 <<rule program>>
 
 <<rule expr>>
 <<rule lvalue>>
 <<subrules for expr>>
-<<subrules for stmt>>=
+<<subrules for stmt>>
 
 /* Declarations */
 <<rule decs>>
