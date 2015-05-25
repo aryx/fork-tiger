@@ -1,23 +1,28 @@
 (*s: frontend/environment.mli *)
 (*s: environment.mli *)
-(*s: enventry *)
-type 'a enventry =
-    VarEntry of (Frame.access * 'a)
-  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'a list * 'a)
-(*e: enventry *)
-(*s: envtype *)
-type 'a t = {
-    tenv        : 'a Symbol.table;
-    venv        : 'a enventry Symbol.table;
+(*s: type Environment.enventry *)
+type 'ty enventry =
+    VarEntry of (Frame.access * 'ty)
+  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
+(*e: type Environment.enventry *)
+(*s: type Environment.t *)
+type 'ty t = {
+    (* type definitions *)
+    tenv        : 'ty Symbol.table;
+    (* value definitions *)
+    venv        : 'ty enventry Symbol.table;
+
     xenv        : int Symbol.table;
+
     frame       : Frame.frame;
+
     break_label : Tree.label option;
     exn_label   : Tree.label option
   }
-(*e: envtype *)
+(*e: type Environment.t *)
 (*x: environment.mli *)
-val new_env : (string * 'a) list ->
-              (string * string option * 'a list * 'a) list -> 'a t
+val new_env : (string * 'ty) list ->
+              (string * string option * 'ty list * 'ty) list -> 'ty t
 (*x: environment.mli *)
 val new_scope : 'a t -> 'a t
 val frame     : 'a t -> Frame.frame

@@ -11,7 +11,11 @@
 %history: 
 %------------------------------------------------------------------------------
 
-%thx to LP, changed for the better a few things:
+%thx to LP, changed for the better a few things? I actually I re-lpized
+%this document so here is what I think is better:
+% - AST is put closer to grammar
+% - get a breath overview of the core DS first
+% - LP split things (environment.t, Ast, ...)
 
 %thx to codemap/codegraph/scheck:
 % - TODO use cg to reduce backward deps, introduce globals.c, utils.c,
@@ -151,6 +155,8 @@ Why? Because I think it makes you a better programmer if
 you fully understand how things work under the hood.
 
 % choose tiger because? simple.
+% vs original tigerc.pdf manual? no module boundaries, so
+% can present AST closer to grammar rule for instance.
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}
@@ -182,6 +188,14 @@ License.
 \section{Compiler frontend principles}
 
 \section{[[tigerc]] services}
+
+<<function Option.usage>>=
+let rec usage() = 
+  Arg.usage options "Usage:";
+  exit 0;
+@
+% tigerc [options] <inputfile> > <c--file> where options are:
+% or even tigerc < inputfile > outputfile
 
 \section{[[helloworld.tig]]}
 
@@ -219,31 +233,38 @@ type dec =
 <<[[Ast.dec]] cases>>
 @
 
-<<type Ast.ty>>=
-and ty =
-<<[[Ast.ty]] cases>>
-@
-
 <<type Ast.exp>>=
 and exp =
 <<[[Ast.exp]] cases>>
 @
 % also include stmt, expression language!
 
+<<type Ast.ty>>=
+and ty =
+<<[[Ast.ty]] cases>>
+@
+
+
+\section{Types}
+% and the environment?
+
 \section{Symbol table}
+
+% for use/def checking, lookup attributes, etc. classic.
 
 <<type Symbol.symbol>>=
 type symbol = string * int
 @
-% int? pos? or for ambiguities?
+% int? a stamp to make sure things are unique
 
 <<global Symbol.nextsym>>=
 let nextsym = ref 0
 @
 
 <<global Symbol.hashtable>>=
-let hashtable = Hashtbl.create 128
+let (hashtable: (string, int) Hashtbl.t) = Hashtbl.create 128
 @
+% get the current stamp given a symbol name
 
 <<function Symbol.name>>=
 let name = fst
@@ -251,17 +272,20 @@ let name = fst
 <<function Symbol.uid>>=
 let uid  = snd
 @
-%uid??
+%uid? unique id
 
 % both a constructor and accessor
 <<function Symbol.symbol>>=
 let symbol name =
-  try let uid = Hashtbl.find hashtable name in (name,uid)
+  try 
+    let uid = Hashtbl.find hashtable name in 
+    (name,uid)
   with Not_found ->
     incr nextsym; 
     Hashtbl.add hashtable name !nextsym;
     (name, !nextsym)
 @
+
 
 %\section{Scope table}
 
@@ -273,6 +297,8 @@ type 'a table = {
     parent : 'a table option
   }
 @
+% usually Ast.ty table; or Ast.ty Env.enventry table.
+
 
 <<function Symbol.enter>>=
 let enter env s v =
@@ -311,31 +337,6 @@ let new_scope env = { level = env.level + 1;
                       parent = Some env }
 @
 
-\section{Token}
-
-% can see different concepts already
-
-% parser.mly
-<<token declarations>>=
-%token <string> ID
-%token <int> INT
-%token <string> STRING
-%token IF THEN ELSE END  WHILE DO FOR TO BREAK
-%token EXCEPTION TRY RAISE HANDLE
-%token PLUS MINUS TIMES DIVIDE
-%token AND OR
-%token EQ NEQ  LT LE GT GE
-%token FUNCTION VAR LET IN
-%token TYPE OF ARRAY
-%token ASSIGN COLON COMMA DOT SEMICOLON 
-%token LPAREN RPAREN  LBRACE RBRACE  LBRACK RBRACK
-%token SPAWN
-%token NIL
-%token EOF
-@
-
-
-
 \section{Intermediate representation}
 
 % ???
@@ -354,6 +355,56 @@ let new_scope env = { level = env.level + 1;
 
 \chapter{[[main()]]}
 
+<<function Main.main>>=
+let main () =
+  try
+    Option.parse_cmdline();
+    compile !Option.inch
+  with Error.Error ex ->
+    Error.handle_exception ex
+@
+% see handle_exception in Error appendix
+
+<<toplevel Main._>>=
+let _ = 
+  main ()
+@
+
+<<command line flags>>=
+let inch   = ref stdin
+@
+
+\section{Command line processing}
+
+<<constant Option.options>>=
+and options = [
+  <<command line options>>
+  "-help",     Arg.Unit usage, "\tprint this message";
+]
+@
+
+% main -> <>
+<<function Option.parse_cmdline>>=
+let parse_cmdline() = 
+  Arg.parse options set_input "Usage:"
+@
+
+<<command line flags>>=
+let file   = ref ""
+@
+
+% main -> parse_cmdline -> Arg.parse -> set_input (as x <- parse_cmdline)
+<<function Option.set_input>>=
+let set_input s =
+  try 
+    file := s; 
+    inch := open_in s
+  with Sys_error err ->
+    raise (Arg.Bad ("could not open file " ^ err))
+@
+
+
+
 \section{[[compile()]]}
 
 <<function Main.compile>>=
@@ -365,8 +416,10 @@ let compile ch =
   <<[[Main.compile()]] if dump AST option>>
 
   let exl = Semantics.translate base_env ast in
+
   Codegen.output_file_header imports;
   Frame.output_strings();
+
   List.iter emit_function exl
 @
 
@@ -402,6 +455,32 @@ rule token = parse
       { raise (E.Error(E.Illegal_character (Lexing.lexeme_char lexbuf 0),
                        Lexing.lexeme_start lexbuf)) }
 @
+
+
+%\section{Token}
+% can see different concepts already
+% in parser.mly but really related to lexing
+<<token declarations>>=
+%token <string> ID
+%token <int> INT
+%token <string> STRING
+%token IF THEN ELSE END  WHILE DO FOR TO BREAK
+%token EXCEPTION TRY RAISE HANDLE
+%token PLUS MINUS TIMES DIVIDE
+%token AND OR
+%token EQ NEQ  LT LE GT GE
+%token FUNCTION VAR LET IN
+%token TYPE OF ARRAY
+%token ASSIGN COLON COMMA DOT SEMICOLON 
+%token LPAREN RPAREN  LBRACE RBRACE  LBRACK RBRACK
+%token SPAWN
+%token NIL
+%token EOF
+@
+
+% no position information here, no use of Lexing.lexeme_char()
+% but instead use Parsing.symbol_start()
+
 
 \section{Spaces and newlines}
 
@@ -643,6 +722,7 @@ module S = Symbol
 <<grammar>>=
 <<rule program>>
 
+/* Expressions */
 <<rule expr>>
 <<rule lvalue>>
 <<subrules for expr>>
@@ -652,9 +732,11 @@ module S = Symbol
 <<rule decs>>
 <<subrules for decs>>
 
+/* Types */
 <<rule ty>>
 <<subrules for ty>>
 
+/* Names */
 <<rule id>>
 @
 
@@ -688,19 +770,7 @@ expr:
 
 
 
-<<parser helper functions>>=
-let getpos = Parsing.symbol_start
-@
 
-
-<<token priorities>>=
-%nonassoc ASSIGN
-%left AND OR
-%nonassoc EQ NEQ GT LT GE LE
-%left PLUS MINUS
-%left TIMES DIVIDE
-%nonassoc UMINUS
-@
 
 \section{Declarations}
 
@@ -884,6 +954,16 @@ literal:
 % no float
 
 \subsection{Arithmetic}
+
+<<token priorities>>=
+%nonassoc ASSIGN
+%left AND OR
+%nonassoc EQ NEQ GT LT GE LE
+%left PLUS MINUS
+%left TIMES DIVIDE
+%nonassoc UMINUS
+@
+
 
 <<[[Ast.exp]] cases>>=
 | OpExp     of exp * oper * exp * pos
@@ -1120,6 +1200,10 @@ ty_fields:
 \ifallcode
 \section{Helpers}
 
+<<parser helper functions>>=
+let getpos = Parsing.symbol_start
+@
+
 %less: could delete, inline
 <<AST mk wrappers>>=
 let mkField n t           = (n, t, getpos())
@@ -1165,8 +1249,46 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 \chapter{Checking}
 
+\section{The environment}
+
+
+<<type Environment.t>>=
+type 'ty t = {
+    (* type definitions *)
+    tenv        : 'ty Symbol.table;
+    (* value definitions *)
+    venv        : 'ty enventry Symbol.table;
+
+    xenv        : int Symbol.table;
+
+    frame       : Frame.frame;
+
+    break_label : Tree.label option;
+    exn_label   : Tree.label option
+  }
+@
+%todo: LP split
+%old: was 'a but clearer I think to put 'ty or even to directly
+% reference Ast.ty
+
+<<type Environment.enventry>>=
+type 'ty enventry =
+    VarEntry of (Frame.access * 'ty)
+  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
+@ 
+
 \chapter{Intermediate Representation Generation}
 %IR generation
+
+\section{Exceptions}
+
+<<command line flags>>=
+let unwind = ref false
+@
+<<command line options>>=
+"-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
+@
+
 
 \chapter{[[C--]] Generation}
 
@@ -1207,13 +1329,35 @@ type error =
   | Duplicate_symbol of string
   | Illegal_break
 @
+%less: rename error_kind
 
 <<type Error.ex>>=
 type ex = error * int
 @
+%less: rename just error, because ex means?
 
 <<exception Error.Error>>=
 exception Error of ex
+@
+
+%ex:
+<<parser helper functions>>=
+let parse_error s =
+  let pos = getpos() in
+  raise (E.Error(E.Syntax_error, pos))
+@
+
+<<function Error.type_err>>=
+let type_err  pos msg = 
+  raise(Error(Type_error msg, pos))
+@
+<<function Error.undefined>>=
+let undefined pos msg = 
+  raise(Error(Undefined_symbol msg, pos))
+@
+<<function Error.internal>>=
+let internal      msg = 
+  raise(Error(Internal_error msg, 0))
 @
 
 <<function Error.handle_exception>>=
@@ -1237,9 +1381,10 @@ let handle_exception (ex,pos) =
 <<function Error.err_msg>>=
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
-  if line > 0 then
+  if line > 0 
+  then
     Printf.fprintf stderr
-      "%s:%d,%d: %s\n" (Option.filename()) line col msg
+      "%s:%d,%d: %s\n" !Option.file line col msg
   else
     Printf.fprintf stderr "%s: %s\n" prefix msg
 @
@@ -1247,6 +1392,7 @@ let err_msg prefix pos msg =
 <<function Error.warning>>=
 let warning = err_msg "Warning"
 @
+
 
 %\subsection{Line position}
 
@@ -1278,25 +1424,20 @@ let line_number pos =
 
 
 
-<<parser helper functions>>=
-let parse_error s =
-  let pos = getpos() in
-  raise (E.Error(E.Syntax_error, pos))
-@
 
 \chapter{Debugging}
 
 \section{[[tiger -dump_ast]]}
 
 <<command line flags>>=
-let ast    = ref false
+let dump_ast    = ref false
 @
 <<command line options>>=
-"-dump_ast",      Arg.Set ast,    "\tprint Abstract Syntax Tree";
+"-dump_ast",      Arg.Set dump_ast,    "\tprint Abstract Syntax Tree";
 @
 
 <<[[Main.compile()]] if dump AST option>>=
-if Option.print_ast() 
+if !Option.dump_ast
 then Ast.print_tree ast;
 @
 
@@ -1454,14 +1595,20 @@ and exp d = function
 
 \section{[[tiger -dump_ext]]}
 
+<<command line flags>>=
+let dump_ext    = ref false
+@
 <<command line options>>=
-"-dump_ext",      Arg.Set ext,    "\tprint Expression Trees";
+"-dump_ext",      Arg.Set dump_ext,    "\tprint Expression Trees";
 @
 
 \section{[[tiger -dump_lext]]}
 
+<<command line flags>>=
+let dump_lext   = ref false
+@
 <<command line options>>=
-"-dump_lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
+"-dump_lext",     Arg.Set dump_lext,   "\tprint Linearized Expression Trees";
 @
 
 \chapter{Mini stdlib}

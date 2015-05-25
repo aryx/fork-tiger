@@ -1,7 +1,17 @@
 
+%note:
+% Tiger was already a literate program, but using different conventions
+% than I usually use, so I re-lpized it. Below are sections of
+% the original literate program. Each time
+% there is a [[dir/foo.nw]] section and below the corresponding original
+% latex section in the original literate document.
+% Note that syncweb requires a single toplevel chunkname hence
+% the introduction of a few extra boilerplate chunknames.
+
 \chapter{[[parsing]]}
 
 \section{[[parsing/error.nw]]}
+
 <<parsing/error.ml>>=
 <<error.ml>>
 @
@@ -83,9 +93,9 @@ val line_number : int -> int * int
 @
 %%Finally, here is the definition of the error raising functions.
 <<error.ml>>=
-let type_err  pos msg = raise(Error(Type_error msg, pos))
-let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
-let internal      msg = raise(Error(Internal_error msg, 0))
+<<function Error.type_err>>
+<<function Error.undefined>>
+<<function Error.internal>>
 @ 
 
 
@@ -111,67 +121,60 @@ let internal      msg = raise(Error(Internal_error msg, 0))
 <<option.mli>>=
 val parse_cmdline : unit -> unit
 
-val print_ast     : unit -> bool
-val print_ext     : unit -> bool
-val print_lext    : unit -> bool
+val dump_ast     : bool ref
+val dump_ext     : bool ref
+val dump_lext    : bool ref
 
-val use_unwind    : unit -> bool
-val filename      : unit -> string
-val channel       : unit -> in_channel
+val unwind    : bool ref
+val file      : string ref
+val inch      : in_channel ref
 @
+%old:
+%val print_ast     : unit -> bool
+%val print_ext     : unit -> bool
+%val print_lext    : unit -> bool
+%
+%val use_unwind    : unit -> bool
+%val filename      : unit -> string
+%val channel       : unit -> in_channel
+%stupid useless getters that I removed
 
 \subsection{Option Implementation}
 
-<<command line flags>>=
-let ast    = ref false
-let ext    = ref false
-let lext   = ref false
-let unwind = ref false
-let file   = ref ""
-let inch   = ref stdin
-@
 
-<<command line flags wrappers>>=
-let print_ast()  = !ast
-let print_ext()  = !ext
-let print_lext() = !lext
-let use_unwind() = !unwind
-let filename()   = !file
-let channel()    = !inch
-@
+%<<command line flags wrappers>>=
+%let print_ast()  = !ast
+%let print_ext()  = !ext
+%let print_lext() = !lext
+%let use_unwind() = !unwind
+%let filename()   = !file
+%let channel()    = !inch
+%@
+%old: need those wrappers? stupid getters no? yes!
 
 %%Each parameter is kept in a private variable, and the accessor
 %%functions simply return the values of these variables.
 <<option.ml>>=
 <<command line flags>>
-<<command line flags wrappers>>
 @
+%old: <<command line flags wrappers>>
+
 %%When an input file is specified by the user, the [[set_input]]
 %%function is called.
 <<option.ml>>=
-let set_input s =
-  try file := s; inch := open_in s
-  with Sys_error err ->
-    raise (Arg.Bad ("could not open file " ^ err))
+<<function Option.set_input>>
 @
+
+
 %%The command line is processed using the [[Arg]] module from the Ocaml
 %%standard library. First we define a set of option specs, and then call
 %%the [[Arg]] module. After processing, we check the options for
 %%consistency.
 <<option.ml>>=
-let rec usage() = Arg.usage options "Usage:";exit 0;
-and options = [
-  <<command line options>>
-]
-let parse_cmdline() = Arg.parse options set_input "Usage:"
+<<function Option.usage>>
+<<constant Option.options>>
+<<function Option.parse_cmdline>>
 @ 
-
-<<command line options>>=
-"-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
-"-help",     Arg.Unit usage, "\tprint this message";
-@
-
-
 
 
 \section{[[parsing/symbol.nw]]}
@@ -220,7 +223,7 @@ val new_symbol : string -> symbol
 
 <<function Symbol.symbol>>
 
-let new_symbol s = symbol (Printf.sprintf "%s_%d" s !nextsym)
+<<function Symbol.new_symbol>>
 @ 
 
 \subsection{Symbol Tables}
@@ -440,16 +443,8 @@ val token : Lexing.lexbuf -> Parser.token
 %%variable names and their defined types, the list of defined
 %%exceptions, the current procedure stack frame, the current break
 %%label, and the current exception handler label.
-<<envtype>>=
-type 'a t = {
-    tenv        : 'a Symbol.table;
-    venv        : 'a enventry Symbol.table;
-    xenv        : int Symbol.table;
-    frame       : Frame.frame;
-    break_label : Tree.label option;
-    exn_label   : Tree.label option
-  }
-@
+%<<envtype>>
+
 %%The environment type [['a t]] is polymorphic---any Ocaml~type can be
 %%used to represent Tiger types. The type variable [['a]] is
 %%instantiated with the representation of Tiger types defined in
@@ -460,11 +455,7 @@ type 'a t = {
 %%the current stack frame and the type. For functions, we keep the
 %%function name, an optional calling convention, the stack frame, the
 %%parameter types, and the return type.
-<<enventry>>=
-type 'a enventry =
-    VarEntry of (Frame.access * 'a)
-  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'a list * 'a)
-@ 
+%<<enventry>>
 
 \subsection{Interface to the Environment}
 
@@ -475,16 +466,16 @@ type 'a enventry =
 %%
 %%The environment types are exposed in the interface.
 <<environment.mli>>=
-<<enventry>>
-<<envtype>>
+<<type Environment.enventry>>
+<<type Environment.t>>
 @ 
 %%An initial environment can be generated using the [[new_env]]
 %%function. The new environment will be populated with an initial set of
 %%type definitions and functions. All new environments are automatically
 %%given a new stack frame.
 <<environment.mli>>=
-val new_env : (string * 'a) list ->
-              (string * string option * 'a list * 'a) list -> 'a t
+val new_env : (string * 'ty) list ->
+              (string * string option * 'ty list * 'ty) list -> 'ty t
 @ 
 %%There are three functions for manipulating the variable scope and the
 %%current stack frame. Creating a new stack frame automatically creates
@@ -518,6 +509,9 @@ val enter_fun   : 'a t -> Symbol.symbol -> string option ->
 val enter_param : 'a t -> Symbol.symbol -> 'a -> bool -> unit
 val enter_local : 'a t -> Symbol.symbol -> 'a -> bool -> Frame.access
 @ 
+
+
+
 %%The environment is used to track the current break label for exiting
 %%from loops. The [[break_label]] function will raise [[Not_Found]] if
 %%there is no current break label.
@@ -525,6 +519,8 @@ val enter_local : 'a t -> Symbol.symbol -> 'a -> bool -> Frame.access
 val break_label     : 'a t -> Tree.label
 val new_break_label : 'a t -> 'a t
 @ 
+
+
 %%Similar to the break label, the environment also tracks the current
 %%exception label. The exception label can be [[None]] indicating that
 %%there is no current exception handler.
@@ -540,8 +536,8 @@ module E = Error
 module S = Symbol
 module F = Frame
 module T = Tree
-<<enventry>>
-<<envtype>>
+<<type Environment.enventry>>
+<<type Environment.t>>
 @ 
 %%To create a new environment, we construct a record that contains the
 %%initial types and functions, and a base frame.
@@ -550,10 +546,12 @@ let new_env types funs =
   let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
   in { tenv        = Symbol.create types;
        venv        = Symbol.create (List.map mkfe funs);
+
        xenv        = Symbol.create [];
        frame       = F.new_frame (S.symbol "tiger_main") F.base_frame;
        break_label = None;
-       exn_label   = None }
+       exn_label   = None 
+     }
 @ 
 %%To create a new variable scope, we update the symbol tables.
 <<environment.ml>>=
@@ -614,6 +612,12 @@ let enter_fun env sym cc args result =
   enter env.venv sym fe;
   fenv
 @ 
+
+<<function Symbol.new_symbol>>=
+let new_symbol s = 
+  symbol (Printf.sprintf "%s_%d" s !nextsym)
+@
+
 %%When a formal function parameter is entered in to the environment, a
 %%new slot is allocated in the current frame to hold the parameter.
 <<environment.ml>>=
@@ -668,7 +672,7 @@ let new_exn_label env =
 
 %%The Tiger compiler performs type-checking and translation to
 %%intermediate representation in a single pass. The [[Semantics]] module
-%%type checks each Tiger expressions and the passes each one to the
+%%type checks each Tiger expressions and then passes each one to the
 %%[[Translate]] module (Section~\ref{sec:translate}) where it is
 %%translated to the intermediate representation.
 %%
@@ -681,6 +685,7 @@ let new_exn_label env =
 %%function body.
 <<semantics.mli>>=
 <<variable types>>
+
 val translate : vartype Environment.t -> Ast.exp ->
                (Frame.frame * Translate.exp) list
 @
@@ -1947,7 +1952,7 @@ let try_block exp exn_lbl hs =
   let old            = temp false in
   let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
   and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
-  and not_unwind stm = if Option.use_unwind() then T.EXP nil else stm
+  and not_unwind stm = if !Option.unwind then T.EXP nil else stm
   in
   eseq tmp [ T.TRY exn_lbl;
              not_unwind set_handler;
@@ -1964,7 +1969,7 @@ let try_block exp exn_lbl hs =
 %%or the [[unwind]] function depending on how the compiler was called.
 <<exceptions(translate.nw)>>=
 let raise_exn uid =
-  let fn = if Option.use_unwind() then "unwind" else "raise" in
+  let fn = if !Option.unwind then "unwind" else "raise" in
   ext_cmm_call fn [T.CONST uid]
 @
 %%\paragraph{Threads}
@@ -2440,7 +2445,7 @@ let emit exl =
         and k  = match k with
                    None   -> ""
                  | Some l -> spf "also %s to %s"
-                    (if Option.use_unwind() then "unwinds" else "cuts")
+                    (if !Option.unwind then "unwinds" else "cuts")
                     (S.name l)
         in
         spf "%s %s(%s) also aborts %s"
@@ -3188,9 +3193,9 @@ let imports =
 %%over the functions and output each one by calling [[emit_function]].
 <<compiler driver>>=
 let emit_function (frm,ex) =
-  if Option.print_ext()  then Tree.print_exp ex;
+  if !Option.dump_ext  then Tree.print_exp ex;
   let ltree = Canonical.linearize (Tree.EXP ex) in
-  if Option.print_lext() then List.iter Tree.print_stm ltree;
+  if !Option.dump_lext then List.iter Tree.print_stm ltree;
   List.iter (fun (x,p) -> ignore(Frame.alloc_temp frm x p))
             (Tree.find_temps ltree);
   Frame.output_header frm;
@@ -3199,10 +3204,8 @@ let emit_function (frm,ex) =
 
 <<function Main.compile>>
 
-let _ =
-  try
-    Option.parse_cmdline();
-    compile (Option.channel())
-  with Error.Error ex ->
-    Error.handle_exception ex
+<<function Main.main>>
+
+<<toplevel Main._>>
+
 @

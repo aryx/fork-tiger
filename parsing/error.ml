@@ -49,9 +49,10 @@ let line_number pos =
 (*s: function Error.err_msg *)
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
-  if line > 0 then
+  if line > 0 
+  then
     Printf.fprintf stderr
-      "%s:%d,%d: %s\n" (Option.filename()) line col msg
+      "%s:%d,%d: %s\n" !Option.file line col msg
   else
     Printf.fprintf stderr "%s: %s\n" prefix msg
 (*e: function Error.err_msg *)
@@ -78,8 +79,17 @@ let handle_exception (ex,pos) =
   exit 1
 (*e: function Error.handle_exception *)
 (*x: error.ml *)
-let type_err  pos msg = raise(Error(Type_error msg, pos))
-let undefined pos msg = raise(Error(Undefined_symbol msg, pos))
-let internal      msg = raise(Error(Internal_error msg, 0))
+(*s: function Error.type_err *)
+let type_err  pos msg = 
+  raise(Error(Type_error msg, pos))
+(*e: function Error.type_err *)
+(*s: function Error.undefined *)
+let undefined pos msg = 
+  raise(Error(Undefined_symbol msg, pos))
+(*e: function Error.undefined *)
+(*s: function Error.internal *)
+let internal      msg = 
+  raise(Error(Internal_error msg, 0))
+(*e: function Error.internal *)
 (*e: error.ml *)
 (*e: parsing/error.ml *)

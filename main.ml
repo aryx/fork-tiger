@@ -41,9 +41,9 @@ let imports =
 (*e: standard basis *)
 (*s: compiler driver *)
 let emit_function (frm,ex) =
-  if Option.print_ext()  then Tree.print_exp ex;
+  if !Option.dump_ext  then Tree.print_exp ex;
   let ltree = Canonical.linearize (Tree.EXP ex) in
-  if Option.print_lext() then List.iter Tree.print_stm ltree;
+  if !Option.dump_lext then List.iter Tree.print_stm ltree;
   List.iter (fun (x,p) -> ignore(Frame.alloc_temp frm x p))
             (Tree.find_temps ltree);
   Frame.output_header frm;
@@ -57,21 +57,31 @@ let compile ch =
   let lexbuf = Lexing.from_channel ch in
   let ast = Parser.program Lexer.token lexbuf in
   (*s: [[Main.compile()]] if dump AST option *)
-  if Option.print_ast() 
+  if !Option.dump_ast
   then Ast.print_tree ast;
   (*e: [[Main.compile()]] if dump AST option *)
 
   let exl = Semantics.translate base_env ast in
+
   Codegen.output_file_header imports;
   Frame.output_strings();
+
   List.iter emit_function exl
 (*e: function Main.compile *)
 
-let _ =
+(*s: function Main.main *)
+let main () =
   try
     Option.parse_cmdline();
-    compile (Option.channel())
+    compile !Option.inch
   with Error.Error ex ->
     Error.handle_exception ex
+(*e: function Main.main *)
+
+(*s: toplevel Main._ *)
+let _ = 
+  main ()
+(*e: toplevel Main._ *)
+
 (*e: compiler driver *)
 (*e: main.ml *)

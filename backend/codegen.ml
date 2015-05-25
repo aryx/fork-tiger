@@ -48,7 +48,7 @@ let emit exl =
           and k  = match k with
                      None   -> ""
                    | Some l -> spf "also %s to %s"
-                      (if Option.use_unwind() then "unwinds" else "cuts")
+                      (if !Option.unwind then "unwinds" else "cuts")
                       (S.name l)
           in
           spf "%s %s(%s) also aborts %s"

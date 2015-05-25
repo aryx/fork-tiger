@@ -4,30 +4,37 @@ module E = Error
 module S = Symbol
 module F = Frame
 module T = Tree
-(*s: enventry *)
-type 'a enventry =
-    VarEntry of (Frame.access * 'a)
-  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'a list * 'a)
-(*e: enventry *)
-(*s: envtype *)
-type 'a t = {
-    tenv        : 'a Symbol.table;
-    venv        : 'a enventry Symbol.table;
+(*s: type Environment.enventry *)
+type 'ty enventry =
+    VarEntry of (Frame.access * 'ty)
+  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
+(*e: type Environment.enventry *)
+(*s: type Environment.t *)
+type 'ty t = {
+    (* type definitions *)
+    tenv        : 'ty Symbol.table;
+    (* value definitions *)
+    venv        : 'ty enventry Symbol.table;
+
     xenv        : int Symbol.table;
+
     frame       : Frame.frame;
+
     break_label : Tree.label option;
     exn_label   : Tree.label option
   }
-(*e: envtype *)
+(*e: type Environment.t *)
 (*x: environment.ml *)
 let new_env types funs =
   let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
   in { tenv        = Symbol.create types;
        venv        = Symbol.create (List.map mkfe funs);
+
        xenv        = Symbol.create [];
        frame       = F.new_frame (S.symbol "tiger_main") F.base_frame;
        break_label = None;
-       exn_label   = None }
+       exn_label   = None 
+     }
 (*x: environment.ml *)
 let new_scope env = { env with
                       tenv = S.new_scope env.tenv;

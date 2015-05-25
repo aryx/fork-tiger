@@ -9,7 +9,7 @@ let nextsym = ref 0
 (*e: global Symbol.nextsym *)
 
 (*s: global Symbol.hashtable *)
-let hashtable = Hashtbl.create 128
+let (hashtable: (string, int) Hashtbl.t) = Hashtbl.create 128
 (*e: global Symbol.hashtable *)
 
 (*s: function Symbol.name *)
@@ -21,14 +21,19 @@ let uid  = snd
 
 (*s: function Symbol.symbol *)
 let symbol name =
-  try let uid = Hashtbl.find hashtable name in (name,uid)
+  try 
+    let uid = Hashtbl.find hashtable name in 
+    (name,uid)
   with Not_found ->
     incr nextsym; 
     Hashtbl.add hashtable name !nextsym;
     (name, !nextsym)
 (*e: function Symbol.symbol *)
 
-let new_symbol s = symbol (Printf.sprintf "%s_%d" s !nextsym)
+(*s: function Symbol.new_symbol *)
+let new_symbol s = 
+  symbol (Printf.sprintf "%s_%d" s !nextsym)
+(*e: function Symbol.new_symbol *)
 (*x: symbol.ml *)
 (*s: type Symbol.table *)
 type 'a table = {

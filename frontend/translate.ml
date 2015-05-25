@@ -207,7 +207,7 @@ let try_block exp exn_lbl hs =
   let old            = temp false in
   let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
   and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
-  and not_unwind stm = if Option.use_unwind() then T.EXP nil else stm
+  and not_unwind stm = if !Option.unwind then T.EXP nil else stm
   in
   eseq tmp [ T.TRY exn_lbl;
              not_unwind set_handler;
@@ -221,7 +221,7 @@ let try_block exp exn_lbl hs =
              T.LABEL try_endl ]
 (*x: exceptions(translate.nw) *)
 let raise_exn uid =
-  let fn = if Option.use_unwind() then "unwind" else "raise" in
+  let fn = if !Option.unwind then "unwind" else "raise" in
   ext_cmm_call fn [T.CONST uid]
 (*e: exceptions(translate.nw) *)
 (*s: threads(translate.nw) *)

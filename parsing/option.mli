@@ -2,12 +2,12 @@
 (*s: option.mli *)
 val parse_cmdline : unit -> unit
 
-val print_ast     : unit -> bool
-val print_ext     : unit -> bool
-val print_lext    : unit -> bool
+val dump_ast     : bool ref
+val dump_ext     : bool ref
+val dump_lext    : bool ref
 
-val use_unwind    : unit -> bool
-val filename      : unit -> string
-val channel       : unit -> in_channel
+val unwind    : bool ref
+val file      : string ref
+val inch      : in_channel ref
 (*e: option.mli *)
 (*e: parsing/option.mli *)
