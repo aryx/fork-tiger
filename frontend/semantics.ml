@@ -228,8 +228,8 @@ let rec trans (env : vartype V.t) (node : ast_node) =
                 begin match lty with
                   INT | NIL                                 -> T.compare_int
                 | STRING                                    -> T.compare_str
-                | ARRAY  _ when oper=A.EqOp or oper=A.NeqOp -> T.compare_int
-                | RECORD _ when oper=A.EqOp or oper=A.NeqOp -> T.compare_int
+                | ARRAY  _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
+                | RECORD _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
                 | _ ->
                     E.type_err pos "Incomparable types"
                 end

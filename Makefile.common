@@ -28,7 +28,7 @@ OPTOBJS?= $(SRC:.ml=.cmx)
 ##############################################################################
 
 #dont use -custom, it makes the bytecode unportable.
-OCAMLCFLAGS?=-g -dtypes -bin-annot -thread # -w A
+OCAMLCFLAGS?=-g -dtypes -bin-annot -thread -absname # -w A
 
 # This flag is also used in subdirectories so don't change its name here.
 OPTFLAGS?=-thread

@@ -48,9 +48,11 @@ let enter env s v =
 (*s: function Symbol.look *)
 let rec look env s =
   try Hashtbl.find env.tbl s
-  with Not_found -> match env.parent with
-    None -> raise Not_found
-  | Some e -> look e s
+  with Not_found -> 
+    (match env.parent with
+    | None -> raise Not_found
+    | Some e -> look e s
+    )
 (*e: function Symbol.look *)
 (*x: symbol.ml *)
 (*s: function Symbol.mem *)
@@ -64,7 +66,7 @@ let create l =
     tbl = Hashtbl.create 20;
     parent = None
   } in
-  List.iter (fun (key, data) -> enter env (symbol key) data) l;
+  l |> List.iter (fun (key, data) -> enter env (symbol key) data);
   env
 (*e: constructor Symbol.create *)
 

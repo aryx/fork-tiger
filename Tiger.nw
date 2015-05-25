@@ -5,8 +5,7 @@
 %******************************************************************************
 \newif\iffinal
 \newif\ifverbose
-\finaltrue\verbosefalse
-% see also other newif in Macros.tex
+\finaltrue\verbosefalse % see also other newif in Macros.tex
 
 %------------------------------------------------------------------------------
 %history: 
@@ -24,7 +23,7 @@
 %   relevant file (or even function), better cluster the code
 %   (harder to understand non functional code using lots of globals)
 
-%thx to this manual, better understand XXX?:
+%thx to this manual, better understand compilers:
 
 %history LP-ization:
 % - skeleton, mostly copy paste of Template.nw skeleton
@@ -88,8 +87,7 @@
 % Config
 %------------------------------------------------------------------------------
 \allcodefalse
-% used for forward decl, pragmas, func decl, extern decl, stats, #ifdef,
-% debugging macros
+% used for ?
 
 %\setcounter{tocdepth}{1}
 
@@ -101,14 +99,17 @@
 
 \title{
 {\Huge 
-Principia Softwarica: The Tiger Compiler frontend [[tigerc]]
+Principia Softwarica: The Tiger Compiler Frontend [[tigerc]]
 }\\
 {version 0.1}
 }
 
 \author{
 Yoann Padioleau\\
-\texttt{yoann.padioleau@gmail.com}
+\texttt{yoann.padioleau@gmail.com}\\
+\\
+with code from\\
+Paul Govereau
 }
 
 \maketitle 
@@ -144,9 +145,12 @@ Yoann Padioleau\\
 \section{Motivations}
 
 The goal of this book is to present in full details the source code of
-a compiler frontend.
+a compiler.
+% frontend
 Why? Because I think it makes you a better programmer if
 you fully understand how things work under the hood.
+
+% choose tiger because? simple.
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}
@@ -154,6 +158,7 @@ Here are other candidates that were considered but ultimately discarded:
 \item clang
 \end{itemize}
 
+% blue? also a toy language for learning
 
 \section{Getting started}
 
@@ -211,15 +216,17 @@ type symbol = Symbol.symbol
 
 <<type Ast.dec>>=
 type dec =
-<<type Ast.dec cases>>
+<<[[Ast.dec]] cases>>
 @
+
 <<type Ast.ty>>=
 and ty =
-<<type Ast.ty cases>>
+<<[[Ast.ty]] cases>>
 @
+
 <<type Ast.exp>>=
 and exp =
-<<type Ast.exp cases>>
+<<[[Ast.exp]] cases>>
 @
 % also include stmt, expression language!
 
@@ -228,6 +235,7 @@ and exp =
 <<type Symbol.symbol>>=
 type symbol = string * int
 @
+% int? pos? or for ambiguities?
 
 <<global Symbol.nextsym>>=
 let nextsym = ref 0
@@ -243,6 +251,7 @@ let name = fst
 <<function Symbol.uid>>=
 let uid  = snd
 @
+%uid??
 
 % both a constructor and accessor
 <<function Symbol.symbol>>=
@@ -275,9 +284,11 @@ let enter env s v =
 <<function Symbol.look>>=
 let rec look env s =
   try Hashtbl.find env.tbl s
-  with Not_found -> match env.parent with
-    None -> raise Not_found
-  | Some e -> look e s
+  with Not_found -> 
+    (match env.parent with
+    | None -> raise Not_found
+    | Some e -> look e s
+    )
 @
 
 <<function Symbol.mem>>=
@@ -290,7 +301,7 @@ let create l =
     tbl = Hashtbl.create 20;
     parent = None
   } in
-  List.iter (fun (key, data) -> enter env (symbol key) data) l;
+  l |> List.iter (fun (key, data) -> enter env (symbol key) data);
   env
 @
 
@@ -317,17 +328,29 @@ let new_scope env = { level = env.level + 1;
 %token FUNCTION VAR LET IN
 %token TYPE OF ARRAY
 %token ASSIGN COLON COMMA DOT SEMICOLON 
-%token LPAREN RPAREN LBRACE RBRACE LBRACK RBRACK
+%token LPAREN RPAREN  LBRACE RBRACE  LBRACK RBRACK
 %token SPAWN
 %token NIL
-%token EOF         
+%token EOF
 @
 
 
 
 \section{Intermediate representation}
 
+% ???
+
+
 \section{Stack frames}
+
+
+
+
+
+
+
+
+
 
 \chapter{[[main()]]}
 
@@ -335,7 +358,7 @@ let new_scope env = { level = env.level + 1;
 
 <<function Main.compile>>=
 let compile ch =
-  let base_env = V.new_env base_tenv base_venv in
+  let base_env = Environment.new_env base_tenv base_venv in
 
   let lexbuf = Lexing.from_channel ch in
   let ast = Parser.program Lexer.token lexbuf in
@@ -349,7 +372,7 @@ let compile ch =
 
 \chapter{Lexing}
 
-% Lexer.token
+% Lexer.token()
 
 \section{Overview}
 
@@ -373,7 +396,7 @@ module P = Parser
 
 <<rule token>>=
 rule token = parse
-  <<rule token cases>>
+  <<[[Lexer.token]] cases>>
   | eof  { P.EOF }
   | _
       { raise (E.Error(E.Illegal_character (Lexing.lexeme_char lexbuf 0),
@@ -386,23 +409,25 @@ rule token = parse
 let nl = ['\010' '\013']
 let blank = [' ' '\009' '\012']
 @
+% C-j, C-m
+% Tab (C-i), C-l (PageDown)
 
 <<Lexer globals>>=
 let line_num = ref 0
 @
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 |  nl   { incr line_num;
          E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
          token lexbuf }
 | blank + { token lexbuf }
 @
-
+%E = Error
 % important for error reporting, see appendix
 
 \section{Comments}
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | "/*" { comment lexbuf; token lexbuf }
 @
 % call back original rule
@@ -433,13 +458,14 @@ let letter = ['A'-'Z' 'a'-'z']
 let identchar = ['A'-'Z' 'a'-'z' '_' '0'-'9']
 @
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | letter identchar *
     { let s = Lexing.lexeme lexbuf in
       try
         Hashtbl.find keyword_table s
       with Not_found ->
-        P.ID s }
+        P.ID s 
+    }
 @
 
 
@@ -484,7 +510,7 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
 
 \section{Operators}
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | "+"  { P.PLUS }
 | "-"  { P.MINUS }
 | "*"  { P.TIMES }
@@ -505,7 +531,7 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
 
 \section{Punctuations}
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | ":=" { P.ASSIGN }
 | ":"  { P.COLON }
 | ","  { P.COMMA }
@@ -519,23 +545,23 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
 
 \section{Numbers}
 
-% no float ?
-
 <<Lexer aliases>>=
 let number = ['0'-'9']
 @
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | number +
     { P.INT (int_of_string(Lexing.lexeme lexbuf)) }
 @
+
+% no float ?
 
 
 \section{Strings}
 
 % no chars? no unicode?
 
-<<rule token cases>>=
+<<[[Lexer.token]] cases>>=
 | "\"" 
     { string_start_pos := Lexing.lexeme_start lexbuf;
       P.STRING (string lexbuf) }
@@ -550,8 +576,7 @@ let buffer = Buffer.create 30
 <<rule string>>=
 and string = parse
     '"'
-      { let s = Buffer.contents buffer in
-        (Buffer.clear buffer; s) }
+      { Buffer.contents buffer }
   | '\\' ['\\' '\'' '"' 'n' 't' 'b' 'r']
       { Buffer.add_char buffer (escape (Lexing.lexeme_char lexbuf 1));
         string lexbuf }
@@ -561,6 +586,8 @@ and string = parse
   | eof
       { raise (E.Error(E.Unterminated_string, !string_start_pos)) }
 @
+%old:      { let s = Buffer.contents buffer in
+%        (Buffer.clear buffer; s) }
 
 <<function Lexer.escape>>=
 (* To buffer string literals *)
@@ -581,7 +608,7 @@ let escape c =
 
 \chapter{Parsing}
 
-% Parser.program
+% Parser.program()
 
 \section{Overview}
 
@@ -597,8 +624,8 @@ module S = Symbol
 
 /* Tokens */
 <<token declarations>>
-/* Precedences and associativities.
-   The precedences must be listed from low to high. */
+
+/* Precedences and associativities (from low to high) */
 <<token priorities>>
 
 /* start symbols */
@@ -610,18 +637,7 @@ module S = Symbol
 %%
 <<grammar>>
 @ 
-%$
-% 63 conflicts???
-
-
-<<token priorities>>=
-%nonassoc ASSIGN
-%left AND OR
-%nonassoc EQ NEQ GT LT GE LE
-%left PLUS MINUS
-%left TIMES DIVIDE
-%nonassoc UMINUS
-@
+% 63 conflicts??? actually gets 66
 
 
 <<grammar>>=
@@ -643,15 +659,8 @@ module S = Symbol
 @
 
 
-<<parser helper functions>>=
-let getpos = Parsing.symbol_start
-@
 
-<<parser helper functions>>=
-let parse_error s =
-  let pos = getpos() in
-  raise (E.Error(E.Syntax_error, pos))
-@
+
 
 
 
@@ -665,8 +674,6 @@ let parse_error s =
 
 
 
-
-
 <<rule program>>=
 program:
   expr EOF { $1 }
@@ -676,6 +683,23 @@ program:
 <<rule expr>>=
 expr:
   LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
+@
+
+
+
+
+<<parser helper functions>>=
+let getpos = Parsing.symbol_start
+@
+
+
+<<token priorities>>=
+%nonassoc ASSIGN
+%left AND OR
+%nonassoc EQ NEQ GT LT GE LE
+%left PLUS MINUS
+%left TIMES DIVIDE
+%nonassoc UMINUS
 @
 
 \section{Declarations}
@@ -716,7 +740,7 @@ dec:
 
 \subsection{Variables}
 
-<<type Ast.dec cases>>=
+<<[[Ast.dec]] cases>>=
 | VarDec       of symbol * symbol option * exp * pos
 @
 
@@ -729,7 +753,7 @@ var_dec:
 
 \subsection{Types}
 
-<<type Ast.dec cases>>=
+<<[[Ast.dec]] cases>>=
 | TypeDec      of (symbol * ty * pos) list
 @
 % list so can have mutually recursive things
@@ -748,7 +772,7 @@ type_dec:
 
 \subsection{Functions}
 
-<<type Ast.dec cases>>=
+<<[[Ast.dec]] cases>>=
 | FunctionDec  of (symbol * field list * symbol option * exp * pos) list
 @
 % list again for mutually recursive possibilities
@@ -768,7 +792,7 @@ fun_dec:
 
 \subsection{Exceptions}
 
-<<type Ast.dec cases>>=
+<<[[Ast.dec]] cases>>=
 | ExceptionDec of symbol * pos
 @
 
@@ -808,13 +832,13 @@ id: ID { S.symbol $1 };
 %  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
 % saw Let in in overview section
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | LetExp    of dec list * exp * pos
 @
 
 \subsection{Lvalue, array and field accesses}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | VarExp    of var
 @
 
@@ -825,7 +849,7 @@ and var =
   | FieldVar     of var * symbol * pos
   | SubscriptVar of var * exp * pos
 @
-
+% no pointer here
 
 <<rule lvalue>>=
 /* Variables (L-values) 
@@ -843,7 +867,7 @@ lvalue:
 
 \subsection{Literals}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | NilExp
 | IntExp    of int
 | StringExp of string * pos
@@ -857,19 +881,20 @@ literal:
  | STRING { mkStringExp $1 }
 @
 
+% no float
 
 \subsection{Arithmetic}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | OpExp     of exp * oper * exp * pos
 @
 
 <<type Ast.oper>>=
 and oper =
-<<type Ast.oper cases>>
+<<[[Ast.oper]] cases>>
 @
 
-<<type Ast.oper cases>>=
+<<[[Ast.oper]] cases>>=
 | PlusOp | MinusOp | TimesOp | DivideOp
 @
 
@@ -885,7 +910,7 @@ arithmetic:
 
 \subsection{Comparison}
 
-<<type Ast.oper cases>>=
+<<[[Ast.oper]] cases>>=
 | EqOp | NeqOp   
 | LtOp | LeOp | GtOp | GeOp
 @
@@ -915,7 +940,7 @@ boolean:
 
 \subsection{Function calls}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | CallExp   of symbol * exp list * pos
 @
 % no dynamic funcall! fixed symbol
@@ -935,7 +960,7 @@ fun_args:
 
 \subsection{Construction}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | RecordExp of symbol * (symbol * exp * pos) list * pos
 | ArrayExp  of symbol * exp * exp * pos
 @
@@ -965,7 +990,7 @@ ctor_list:
 
 \subsection{Sequence}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | SeqExp    of exp list * pos
 @
 
@@ -986,7 +1011,7 @@ expr_list:
 
 \subsection{Assignments}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | AssignExp of var * exp * pos
 @
 
@@ -996,7 +1021,7 @@ expr_list:
 
 \subsection{Conditionals}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | IfExp     of exp * exp * exp option * pos
 @
 
@@ -1010,12 +1035,13 @@ if_statement:
 
 \subsection{Loops}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | WhileExp  of exp * exp * pos
 | ForExp    of symbol * exp * exp * exp * pos
 
 | BreakExp  of pos
 @
+% no continue?
 
 <<subrules for stmt>>=
 /* Loop statements */
@@ -1028,7 +1054,7 @@ loop_statement:
 
 \subsection{Exceptions}
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | TryExp    of exp * (symbol * exp * pos) list * pos
 | RaiseExp  of symbol * pos
 @
@@ -1051,8 +1077,9 @@ handlers:
 %$
 
 \subsection{Misc}
+% process?
 
-<<type Ast.exp cases>>=
+<<[[Ast.exp]] cases>>=
 | SpawnExp  of symbol * pos
 @
 
@@ -1065,7 +1092,7 @@ handlers:
 
 \section{Types}
 
-<<type Ast.ty cases>>=
+<<[[Ast.ty]] cases>>=
 | NameTy   of symbol * pos
 | RecordTy of field list
 | ArrayTy  of symbol * pos
@@ -1167,11 +1194,14 @@ let mkException s         = A.ExceptionDec(s, getpos())
 <<type Error.error>>=
 type error =
     Internal_error of string
+  (* lexical errors *)
   | Illegal_character of char
   | Illegal_escape of string
   | Unterminated_comment
   | Unterminated_string
+  (* syntaxic errors *)
   | Syntax_error
+  (* semantic errors *)
   | Type_error of string
   | Undefined_symbol of string
   | Duplicate_symbol of string
@@ -1234,6 +1264,7 @@ let source_map = { sm = [(0,0)] }
 let add_source_mapping pos line =
   source_map.sm <- source_map.sm @ [(pos,line)]
 @
+% @? slow?
 
 <<function Error.line_number>>=
 let line_number pos =
@@ -1245,20 +1276,28 @@ let line_number pos =
   in line 0 0 source_map.sm
 @
 
+
+
+<<parser helper functions>>=
+let parse_error s =
+  let pos = getpos() in
+  raise (E.Error(E.Syntax_error, pos))
+@
+
 \chapter{Debugging}
 
 \section{[[tiger -dump_ast]]}
 
+<<command line flags>>=
+let ast    = ref false
+@
 <<command line options>>=
 "-dump_ast",      Arg.Set ast,    "\tprint Abstract Syntax Tree";
 @
 
-<<command line flags>>=
-let ast    = ref false
-@
-
 <<[[Main.compile()]] if dump AST option>>=
-if Option.print_ast() then Ast.print_tree ast;
+if Option.print_ast() 
+then Ast.print_tree ast;
 @
 
 
@@ -1424,10 +1463,6 @@ and exp d = function
 <<command line options>>=
 "-dump_lext",     Arg.Set lext,   "\tprint Linearized Expression Trees";
 @
-
-\chapter{Profiling}
-
-\chapter{Error Managment}
 
 \chapter{Mini stdlib}
 
