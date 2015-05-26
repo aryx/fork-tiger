@@ -52,8 +52,9 @@ let check_type_eq pos msg t1 t2 =
               | (ARRAY ANY, ARRAY _)
               | (ARRAY _, ARRAY ANY) -> false
               | _                    -> true
-  in if check && t1 <> t2 then
-    E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
+  in 
+  if check && t1 <> t2 
+  then E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
 (*e: type system *)
 (*s: translators *)
 let functions                 = ref []
@@ -93,12 +94,12 @@ let rec trans (env : Environment.t) (node : ast_node) =
     (*s: variable declarations *)
       | A.VarDec(name, typ, init, pos) ->
           let e,t = trexp init in
-          begin match typ with
+          (match typ with
             Some x -> check_type_eq pos
                 "Variable of type %s cannot be initialized with type %s"
                 (V.lookup_type env x pos) t
           | None -> ()
-          end;
+          );
           let acc = V.enter_local env name t (is_ptr t) in
           T.assign (T.simple_var (V.frame env) acc) e
     (*e: variable declarations *)

@@ -3,7 +3,7 @@ module S = Symbol
 module F = Frame
 module V = Environment
 module T = Environment
-(*s: standard basis *)
+
 (*s: constant Main.base_tenv *)
 let base_tenv =
 (* name     type *)
@@ -11,7 +11,6 @@ let base_tenv =
 ; "string", T.STRING
 ]
 (*e: constant Main.base_tenv *)
-(*x: standard basis *)
 (*s: constant Main.base_venv *)
 let base_venv = 
 (* name        cc        args                    return *)
@@ -29,7 +28,7 @@ let base_venv =
 ; "exit",      Some "C", [T.INT],                T.UNIT
 ]
 (*e: constant Main.base_venv *)
-(*x: standard basis *)
+(*s: constant Main.imports *)
 let imports =
   let internal = [ "alloc"
                  ; "call_gc"
@@ -42,8 +41,8 @@ let imports =
                  ]
   in
   List.map (fun(n,_,_,_) -> n) base_venv @ internal
-(*e: standard basis *)
-(*s: compiler driver *)
+(*e: constant Main.imports *)
+
 (*s: function Main.emit_function *)
 let emit_function (frm,ex) =
   (* compiling *)
@@ -101,6 +100,4 @@ let main () =
 let _ = 
   main ()
 (*e: toplevel Main._ *)
-
-(*e: compiler driver *)
 (*e: main.ml *)

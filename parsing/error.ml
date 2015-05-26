@@ -1,5 +1,4 @@
 (*s: parsing/error.ml *)
-(*s: types(error.nw) *)
 (*s: type Error.error *)
 type error =
     Internal_error of string
@@ -25,9 +24,7 @@ type ex = error * int
 (*s: exception Error.Error *)
 exception Error of ex
 (*e: exception Error.Error *)
-(*e: types(error.nw) *)
 
-(*s: error.ml *)
 (*s: type Error.sm *)
 type sm = { mutable sm: (int * int) list }
 (*e: type Error.sm *)
@@ -38,7 +35,7 @@ let source_map = { sm = [(0,0)] }
 let add_source_mapping pos line =
   source_map.sm <- source_map.sm @ [(pos,line)]
 (*e: function Error.add_source_mapping *)
-(*x: error.ml *)
+
 (*s: function Error.line_number *)
 let line_number pos =
   let rec line ln last_p = function
@@ -48,7 +45,7 @@ let line_number pos =
     | [] -> (ln + 1, pos - last_p)
   in line 0 0 source_map.sm
 (*e: function Error.line_number *)
-(*x: error.ml *)
+
 (*s: function Error.err_msg *)
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
@@ -63,7 +60,7 @@ let err_msg prefix pos msg =
 (*s: function Error.warning *)
 let warning = err_msg "Warning"
 (*e: function Error.warning *)
-(*x: error.ml *)
+
 (*s: function Error.handle_exception *)
 let handle_exception (ex,pos) =
   let msg = match ex with
@@ -84,7 +81,7 @@ let handle_exception (ex,pos) =
   err_msg "Error" pos msg;
   exit 1
 (*e: function Error.handle_exception *)
-(*x: error.ml *)
+
 (*s: function Error.type_err *)
 let type_err  pos msg = 
   raise(Error(Type_error msg, pos))
@@ -97,5 +94,4 @@ let undefined pos msg =
 let internal      msg = 
   raise(Error(Internal_error msg, 0))
 (*e: function Error.internal *)
-(*e: error.ml *)
 (*e: parsing/error.ml *)

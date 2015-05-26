@@ -1,14 +1,12 @@
 (*s: frontend/tree.ml *)
-(*s: tree.ml *)
 module S = Symbol
-(*s: types(tree.nw) *)
+
 (*s: type Tree.label *)
 type label = Symbol.symbol
 (*e: type Tree.label *)
 (*s: type Tree.temp *)
 and  temp  = Symbol.symbol
 (*e: type Tree.temp *)
-(*x: types(tree.nw) *)
 (*s: type Tree.stm *)
 type stm =
   | EXP    of exp
@@ -24,7 +22,6 @@ type stm =
     | TRYEND of label
   (*e: [[Tree.stm]] cases *)
 (*e: type Tree.stm *)
-(*x: types(tree.nw) *)
 (*s: type Tree.exp *)
 and exp =
   | CONST of int
@@ -36,13 +33,12 @@ and exp =
   | NAME  of label
   | CALL  of exp * exp list * string option * label option * bool
 (*e: type Tree.exp *)
-(*x: types(tree.nw) *)
 (*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
-(*e: types(tree.nw) *)
-(*x: tree.ml *)
+
+(*s: tree.ml *)
 let new_label s = S.new_symbol ("L" ^ s)
 let new_temp () = S.new_symbol "temp"
 (*x: tree.ml *)

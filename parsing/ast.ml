@@ -1,13 +1,12 @@
 (*s: parsing/ast.ml *)
 (*s: ast.ml *)
-(*s: types(ast.nw) *)
 (*s: type Ast.pos *)
 type pos = int 
 (*e: type Ast.pos *)
 (*s: type Ast.symbol *)
 type symbol = Symbol.symbol
 (*e: type Ast.symbol *)
-(*x: types(ast.nw) *)
+
 (*s: type Ast.dec *)
 type dec =
 | VarDec       of symbol * symbol option * exp * pos
@@ -17,25 +16,21 @@ type dec =
 | ExceptionDec of symbol * pos
 (*e: [[Ast.dec]] cases *)
 (*e: type Ast.dec *)
-(*x: types(ast.nw) *)
 (*s: type Ast.ty *)
 and ty =
 | NameTy   of symbol * pos
 | RecordTy of field list
 | ArrayTy  of symbol * pos
 (*e: type Ast.ty *)
-(*x: types(ast.nw) *)
 (*s: type Ast.field *)
 and field = (symbol * symbol * pos)
 (*e: type Ast.field *)
-(*x: types(ast.nw) *)
 (*s: type Ast.var *)
 and var =
     SimpleVar    of symbol * pos
   | FieldVar     of var * symbol * pos
   | SubscriptVar of var * exp * pos
 (*e: type Ast.var *)
-(*x: types(ast.nw) *)
 (*s: type Ast.exp *)
 and exp =
 | NilExp
@@ -67,7 +62,6 @@ and exp =
 | SpawnExp  of symbol * pos
 (*e: [[Ast.exp]] cases *)
 (*e: type Ast.exp *)
-(*x: types(ast.nw) *)
 (*s: type Ast.oper *)
 and oper =
 (*s: [[Ast.oper]] cases *)
@@ -77,7 +71,6 @@ and oper =
 | LtOp | LeOp | GtOp | GeOp
 (*e: [[Ast.oper]] cases *)
 (*e: type Ast.oper *)
-(*e: types(ast.nw) *)
 
 (*s: tree printer *)
 module S = Symbol

@@ -1,5 +1,4 @@
 (*s: parsing/error.mli *)
-(*s: types(error.nw) *)
 (*s: type Error.error *)
 type error =
     Internal_error of string
@@ -25,7 +24,6 @@ type ex = error * int
 (*s: exception Error.Error *)
 exception Error of ex
 (*e: exception Error.Error *)
-(*e: types(error.nw) *)
 
 (*s: error.mli *)
 val handle_exception : ex -> unit

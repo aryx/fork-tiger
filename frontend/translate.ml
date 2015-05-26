@@ -5,9 +5,12 @@ module A = Ast
 module S = Symbol
 module T = Tree
 module F = Frame
+
 type exp   = T.exp
 type label = T.label
+
 let  ws    = Sys.word_size / 8
+
 (*s: utilities *)
 let rec seq = function
     []        -> E.internal "nil passed to seq"

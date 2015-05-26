@@ -1,28 +1,47 @@
 
 %note:
-% Tiger was already a literate program, but using different conventions
+% Tiger was already a literate program, but using a different decomposition
 % than I usually use, so I re-lpized it. Below are sections of
 % the original literate program. Each time
 % there is a [[dir/foo.nw]] section and below the corresponding original
 % latex section in the original literate document.
 % Note that syncweb requires a single toplevel chunkname hence
-% the introduction of a few extra boilerplate chunknames.
+% the introduction of a few extra boilerplate chunknames sometimes.
 
 \chapter{[[parsing]]}
 
 \section{[[parsing/error.nw]]}
 
-<<parsing/error.ml>>=
-<<types(error.nw)>>
-
-<<error.ml>>
-@
-
 <<parsing/error.mli>>=
-<<types(error.nw)>>
+<<type Error.error>>
+<<type Error.ex>>
+<<exception Error.Error>>
 
 <<error.mli>>
 @
+
+<<parsing/error.ml>>=
+<<type Error.error>>
+<<type Error.ex>>
+<<exception Error.Error>>
+
+<<type Error.sm>>
+<<global Error.source_map>>
+<<function Error.add_source_mapping>>
+
+<<function Error.line_number>>
+
+<<function Error.err_msg>>
+
+<<function Error.warning>>
+
+<<function Error.handle_exception>>
+
+<<function Error.type_err>>
+<<function Error.undefined>>
+<<function Error.internal>>
+@
+
 
 \section{Error Handling}
 %%\label{sec:errors}
@@ -31,11 +50,11 @@
 %%Other modules can raise exceptions defined in this module to signal
 %%unrecoverable errors. The set of errors that can be raised is listed
 %%below.
-<<types(error.nw)>>=
-<<type Error.error>>
-<<type Error.ex>>
-<<exception Error.Error>>
-@
+%<<types(error.nw)>>=
+%<<type Error.error>>
+%<<type Error.ex>>
+%<<exception Error.Error>>
+%@
 %%When an exception is raised, the compiler driver will use this module
 %%to report the error. The [[handle_exception]] function will print a
 %%source line number and an error message, and then exit.
@@ -66,46 +85,48 @@ val line_number : int -> int * int
 %%source position, and the second is the line number that ends at that
 %%position. In effect, the scanner records the position and line number
 %%of each newline character.
-<<error.ml>>=
-<<type Error.sm>>
-<<global Error.source_map>>
-<<function Error.add_source_mapping>>
-@
+%<<error.ml>>=
+%<<type Error.sm>>
+%<<global Error.source_map>>
+%<<function Error.add_source_mapping>>
+%@
 %%To compute the line number of a source position, we do a linear search
 %%through the pairs of integers.
-<<error.ml>>=
-<<function Error.line_number>>
-@
+%<<error.ml>>=
+%<<function Error.line_number>>
+%@
 %%Errors are printed with a prefix that indicates the type of error. If
 %%the source line number can be computed, then it is also printed along
 %%with the error message.
-<<error.ml>>=
-<<function Error.err_msg>>
-
-<<function Error.warning>>
-@
+%<<error.ml>>=
+%<<function Error.err_msg>>
+%
+%<<function Error.warning>>
+%@
 %%The exception handler is used by the compiler driver
 %%(Section~\ref{sec:driver}) to print error messages and exit in the
 %%case of errors.
-<<error.ml>>=
-<<function Error.handle_exception>>
-@
+%<<error.ml>>=
+%<<function Error.handle_exception>>
+%@
 %%Finally, here is the definition of the error raising functions.
-<<error.ml>>=
-<<function Error.type_err>>
-<<function Error.undefined>>
-<<function Error.internal>>
-@ 
+%<<error.ml>>=
+%<<function Error.type_err>>
+%<<function Error.undefined>>
+%<<function Error.internal>>
+%@ 
 
 
 \section{[[parsing/option.nw]]}
-<<parsing/option.ml>>=
-<<option.ml>>
-@
 
 <<parsing/option.mli>>=
 <<option.mli>>
 @
+
+<<parsing/option.ml>>=
+<<option.ml>>
+@
+
 
 \section{Command Line Options}
 %%\label{sec:options}
@@ -177,13 +198,16 @@ val file      : string ref
 
 
 \section{[[parsing/symbol.nw]]}
-<<parsing/symbol.ml>>=
-<<symbol.ml>>
-@
+
 
 <<parsing/symbol.mli>>=
 <<symbol.mli>>
 @
+
+<<parsing/symbol.ml>>=
+<<symbol.ml>>
+@
+
 
 
 \section{Symbols}
@@ -300,13 +324,16 @@ let rec fold f env init =
 @ 
 %%
 \section{[[parsing/ast.nw]]}
-<<parsing/ast.ml>>=
-<<ast.ml>>
-@
+
 
 <<parsing/ast.mli>>=
 <<ast.mli>>
 @
+
+<<parsing/ast.ml>>=
+<<ast.ml>>
+@
+
 
 
 
@@ -318,13 +345,29 @@ let rec fold f env init =
 %%string representation of an abstract syntax tree for debugging
 %%purposes.
 <<ast.mli>>=
-<<types(ast.nw)>>
+<<type Ast.pos>>
+<<type Ast.symbol>>
+
+<<type Ast.dec>>
+<<type Ast.ty>>
+<<type Ast.field>>
+<<type Ast.var>>
+<<type Ast.exp>>
+<<type Ast.oper>>
 
 val print_tree : exp -> unit
 @ 
 %%
 <<ast.ml>>=
-<<types(ast.nw)>>
+<<type Ast.pos>>
+<<type Ast.symbol>>
+
+<<type Ast.dec>>
+<<type Ast.ty>>
+<<type Ast.field>>
+<<type Ast.var>>
+<<type Ast.exp>>
+<<type Ast.oper>>
 
 <<tree printer>>
 @
@@ -334,45 +377,45 @@ val print_tree : exp -> unit
 %%Symbols are defined in the [[Symbol]] module
 %%(Section~\ref{sec:symbols}), and positions within the source file are
 %%integers representing a byte offset.
-<<types(ast.nw)>>=
-<<type Ast.pos>>
-<<type Ast.symbol>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.pos>>
+%<<type Ast.symbol>>
+%@
 %%The Tiger language allows declarations of functions, types, and
 %%variables. A function declaration may have a return type, but it is
 %%optional. Variable declaration also have an optional type.
-<<types(ast.nw)>>=
-<<type Ast.dec>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.dec>>
+%@
 %%A type declaration may be either an alias (reference to a previously
 %%declared type), a record declaration, or an array declaration.
-<<types(ast.nw)>>=
-<<type Ast.ty>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.ty>>
+%@
 %%Record and function definitions both take parameters of the form
 %%[[name : type]] where both [[name]] and [[type]] are symbols. These
 %%[[name]]-[[type]] pairs are represented by the Ocaml type [[field]].
-<<types(ast.nw)>>=
-<<type Ast.field>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.field>>
+%@
 %%A variable expressions is either a simple variable name, a field
 %%variable for referencing members of a record type, or a subscript
 %%variable for accessing the elements of an array.
-<<types(ast.nw)>>=
-<<type Ast.var>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.var>>
+%@
 %%Expressions in Tiger are described by the [[exp]] type below. The
 %%[[ArrayExp]] and [[RecordExp]] types are used for anonymous arrays and
 %%records respectively. The first element of both the [[ArrayExp]] and
 %%[[RecordExp]] types is a reference to an already existing type.
-<<types(ast.nw)>>=
-<<type Ast.exp>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.exp>>
+%@
 %%Finally, the valid operators in the Tiger language are
 %%[[+,-,*,/,=,<>,<,<=,>,]] and [[>=]].
-<<types(ast.nw)>>=
-<<type Ast.oper>>
-@
+%<<types(ast.nw)>>=
+%<<type Ast.oper>>
+%@
 
 \subsection{Abstract Syntax Tree Printer}
 
@@ -421,13 +464,22 @@ module S = Symbol
 \chapter{[[frontend]]}
 
 \section{[[frontend/environment.nw]]}
+
+
+<<frontend/environment.mli>>=
+<<type Environment.vartype>>
+<<type Environment.enventry>>
+<<type Environment.t>>
+
+<<signature function Environment.new_env>>
+
+<<environment.mli>>
+@
+
 <<frontend/environment.ml>>=
 <<environment.ml>>
 @
 
-<<frontend/environment.mli>>=
-<<environment.mli>>
-@
 
 
 
@@ -464,18 +516,18 @@ module S = Symbol
 %%but adding new type definitions and variable bindings do not.
 %%
 %%The environment types are exposed in the interface.
-<<environment.mli>>=
-<<type Environment.vartype>>
-<<type Environment.enventry>>
-<<type Environment.t>>
-@ 
+%<<environment.mli>>=
+%<<type Environment.vartype>>
+%<<type Environment.enventry>>
+%<<type Environment.t>>
+%@ 
 %%An initial environment can be generated using the [[new_env]]
 %%function. The new environment will be populated with an initial set of
 %%type definitions and functions. All new environments are automatically
 %%given a new stack frame.
-<<environment.mli>>=
-<<signature function Environment.new_env>>
-@ 
+%<<environment.mli>>=
+%<<signature function Environment.new_env>>
+%@ 
 %%There are three functions for manipulating the variable scope and the
 %%current stack frame. Creating a new stack frame automatically creates
 %%a new variable scope.
@@ -657,13 +709,15 @@ let new_exn_label env =
   { env with exn_label = Some(T.new_label "exn") }
 @
 \section{[[frontend/semantics.nw]]}
+
+<<frontend/semantics.mli>>=
+<<signature function Semantics.translate>>
+@
+
 <<frontend/semantics.ml>>=
 <<semantics.ml>>
 @
 
-<<frontend/semantics.mli>>=
-<<semantics.mli>>
-@
 
 
 
@@ -683,9 +737,9 @@ let new_exn_label env =
 %%(Section~\ref{sec:frame}), and an expression tree
 %%(Section~\ref{sec:tree})---the intermediate representation of the
 %%function body.
-<<semantics.mli>>=
-<<signature function Semantics.translate>>
-@
+%<<semantics.mli>>=
+%<<signature function Semantics.translate>>
+%@
 %%The [[Semantics]] module implementation consists of a definition of
 %%the type system used internally in the compiler, the [[translate]]
 %%function entry point, and a private translator function for each type
@@ -775,8 +829,9 @@ let check_type_eq pos msg t1 t2 =
               | (ARRAY ANY, ARRAY _)
               | (ARRAY _, ARRAY ANY) -> false
               | _                    -> true
-  in if check && t1 <> t2 then
-    E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
+  in 
+  if check && t1 <> t2 
+  then E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
 @
 -
 \subsection{The [[translate]] Entry Point}
@@ -887,12 +942,12 @@ let rec trdec = function
 <<variable declarations>>=
   | A.VarDec(name, typ, init, pos) ->
       let e,t = trexp init in
-      begin match typ with
+      (match typ with
         Some x -> check_type_eq pos
             "Variable of type %s cannot be initialized with type %s"
             (V.lookup_type env x pos) t
       | None -> ()
-      end;
+      );
       let acc = V.enter_local env name t (is_ptr t) in
       T.assign (T.simple_var (V.frame env) acc) e
 @
@@ -1275,13 +1330,30 @@ and trexp = function
       end
 @
 \section{[[frontend/tree.nw]]}
+
+
+<<frontend/tree.mli>>=
+<<type Tree.label>>
+<<type Tree.temp>>
+<<type Tree.stm>>
+<<type Tree.exp>>
+<<types Tree.xxxop>>
+
+<<utility functions>>
+@
+
 <<frontend/tree.ml>>=
+module S = Symbol
+
+<<type Tree.label>>
+<<type Tree.temp>>
+<<type Tree.stm>>
+<<type Tree.exp>>
+<<types Tree.xxxop>>
+
 <<tree.ml>>
 @
 
-<<frontend/tree.mli>>=
-<<tree.mli>>
-@
 
 
 
@@ -1294,44 +1366,44 @@ and trexp = function
 %%below.
 %%
 %%Both code labels and temporary variables are represented by symbols.
-<<types(tree.nw)>>=
-<<type Tree.label>>
-<<type Tree.temp>>
-@ 
+%<<types(tree.nw)>>=
+%<<type Tree.label>>
+%<<type Tree.temp>>
+%@ 
 %%Statements are represented by the [[stm]] type. Sequences of
 %%statements can be created using the [[SEQ]] constructor. In addition,
 %%any expression can be used as a statement by way of the [[EXP]]
 %%constructor. The [[TRY]] and [[TRYEND]] constructors mark the start
 %%and end of try blocks. Both of the try constructors take the label of
 %%the continuation for the exception handlers.
-<<types(tree.nw)>>=
-<<type Tree.stm>>
-@
+%<<types(tree.nw)>>=
+%<<type Tree.stm>>
+%@
 %%The abstract syntax of expressions is represented by the [[exp]] type.
 %%Many expressions carry a boolean flag that is true if the expression
 %%results in a pointer value. The [[CALL]] constructor also takes an
 %%optional string that indicates the calling convention of the function
 %%being called, and an optional label indicating a continuation that the
 %%function may cut to or unwind to.
-<<types(tree.nw)>>=
-<<type Tree.exp>>
-@ 
+%<<types(tree.nw)>>=
+%<<type Tree.exp>>
+%@ 
 %%Finally, a handful of binary operators are supported. The binary
 %%operators are divided into relational and arithmetic types.
-<<types(tree.nw)>>=
-<<types Tree.xxxop>>
-@
+%<<types(tree.nw)>>=
+%<<types Tree.xxxop>>
+%@
 
 \subsection{Interface to the IR}
 
 %%In addition to defining the abstract syntax of the IR, the [[Tree]]
 %%module also defines a number of utility functions for manipulating the
 %%IR.
-<<tree.mli>>=
-<<types(tree.nw)>>
-
-<<utility functions>>
-@ 
+%<<tree.mli>>=
+%<<types(tree.nw)>>
+%
+%<<utility functions>>
+%@ 
 %%New code labels and temporary variables can be created using the
 %%[[new_label]] and [[new_temp]] functions. The [[new_label]] function
 %%generates a new unique code label, and the [[new_temp]] function
@@ -1369,10 +1441,6 @@ val print_exp : exp -> unit
 
 \subsection{Implementation of IR Utilities}
 
-<<tree.ml>>=
-module S = Symbol
-<<types(tree.nw)>>
-@ 
 %%New labels and temporaries are generated using the [[new_symbol]]
 %%function from the [[Symbol]] module.
 <<tree.ml>>=
@@ -1470,13 +1538,16 @@ let find_temps stmts =
 
 
 \section{[[frontend/translate.nw]]}
-<<frontend/translate.ml>>=
-<<translate.ml>>
-@
+
 
 <<frontend/translate.mli>>=
 <<translate.mli>>
 @
+
+<<frontend/translate.ml>>=
+<<translate.ml>>
+@
+
 
 
 
@@ -1528,9 +1599,12 @@ module A = Ast
 module S = Symbol
 module T = Tree
 module F = Frame
+
 type exp   = T.exp
 type label = T.label
+
 let  ws    = Sys.word_size / 8
+
 <<utilities>>
 <<literals>>
 <<function calls(translate.nw)>>
@@ -1913,13 +1987,16 @@ let raise_exn uid =
 let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 @
 \section{[[frontend/canonical.nw]]}
+
+
+<<frontend/canonical.mli>>=
+<<signature function Canonical.linearize>>
+@
+
 <<frontend/canonical.ml>>=
 <<canonical.ml>>
 @
 
-<<frontend/canonical.mli>>=
-<<canonical.mli>>
-@
 
 
 
@@ -1938,9 +2015,9 @@ let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 %%
 %%The algorithm implemented here is almost identical to the algorithm
 %%found in Chapter~8 of \cite{appel}.
-<<canonical.mli>>=
-<<signature function Canonical.linearize>>
-@
+%<<canonical.mli>>=
+%<<signature function Canonical.linearize>>
+%@
 
 <<canonical.ml>>=
 module T = Tree
@@ -2048,13 +2125,15 @@ let linearize stm0 =
     linear(do_stm stm0, [])
 @
 \section{[[frontend/frame.nw]]}
-<<frontend/frame.ml>>=
-<<frame.ml>>
-@
 
 <<frontend/frame.mli>>=
 <<frame.mli>>
 @
+
+<<frontend/frame.ml>>=
+<<frame.ml>>
+@
+
 
 
 \section{Stack Frames}
@@ -2270,13 +2349,16 @@ let output_strings() =
 \chapter{[[backend]]}
 
 \section{[[backend/codegen.nw]]}
-<<backend/codegen.ml>>=
-<<codegen.ml>>
-@
+
 
 <<backend/codegen.mli>>=
 <<codegen.mli>>
 @
+
+<<backend/codegen.ml>>=
+<<codegen.ml>>
+@
+
 
 
 \section{Code Generation}
@@ -2295,6 +2377,7 @@ val output_file_header : string list   -> unit
 module E = Error
 module S = Symbol
 module T = Tree
+
 let pf           = Printf.printf
 let spf          = Printf.sprintf
 let join_map f l = String.concat "," (List.map f l)
@@ -3062,27 +3145,56 @@ module S = Symbol
 module F = Frame
 module V = Environment
 module T = Environment
-<<standard basis>>
-<<compiler driver>>
+
+<<constant Main.base_tenv>>
+<<constant Main.base_venv>>
+<<constant Main.imports>>
+
+<<function Main.emit_function>>
+
+<<function Main.compile>>
+
+<<function Main.main>>
+
+<<toplevel Main._>>
 @
 %%\paragraph{Standard Basis}
 %%The standard basis consist of a set of initial type definitions, a set
 %%of initial functions, and a set of imports. There are only two initial
 %%type definitions in the standard basis: integers and strings.
-<<standard basis>>=
-<<constant Main.base_tenv>>
-@
+%<<standard basis>>=
+%<<constant Main.base_tenv>>
+%@
 %%The set of initial functions includes all of the functions in the
 %%Tiger standard library. For each function, we give the function name,
 %%the calling convention, and the argument and return types.
-<<standard basis>>=
-<<constant Main.base_venv>>
-@
+%<<standard basis>>=
+%<<constant Main.base_venv>>
+%@
 %%The set of imports includes all of the functions that may be called
 %%from compiled code. This includes the standard library functions as
 %%well as other internal functions such as the garbage collector and
 %%functions related to exceptions.
-<<standard basis>>=
+%<<standard basis>>=
+%<<constant Main.imports>>
+%@
+%%\paragraph{Compiler Driver}
+%%The compiler driver is relatively simple. First, the command line
+%%options are parsed. Then, the input program is parsed, type checked,
+%%and converted to the intermediate representation. Finally, we iterate
+%%over the functions and output each one by calling [[emit_function]].
+%<<compiler driver>>=
+%<<function Main.emit_function>>
+%
+%<<function Main.compile>>
+%
+%<<function Main.main>>
+%
+%<<toplevel Main._>>
+%
+%@
+
+<<constant Main.imports>>=
 let imports =
   let internal = [ "alloc"
                  ; "call_gc"
@@ -3095,19 +3207,4 @@ let imports =
                  ]
   in
   List.map (fun(n,_,_,_) -> n) base_venv @ internal
-@
-%%\paragraph{Compiler Driver}
-%%The compiler driver is relatively simple. First, the command line
-%%options are parsed. Then, the input program is parsed, type checked,
-%%and converted to the intermediate representation. Finally, we iterate
-%%over the functions and output each one by calling [[emit_function]].
-<<compiler driver>>=
-<<function Main.emit_function>>
-
-<<function Main.compile>>
-
-<<function Main.main>>
-
-<<toplevel Main._>>
-
 @

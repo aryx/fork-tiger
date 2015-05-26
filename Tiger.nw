@@ -170,7 +170,8 @@ you fully understand how things work under the hood.
 
 %% Hmm not redundant with Compiler.nw and even now OCaml.nw? Maybe but
 %% maybe it can help me to first have a cleaner and simpler compiler,
-%% so maybe making this manual can improve later Compiler.nw and OCaml.nw
+%% so maybe making this manual can improve later Compiler.nw and OCaml.nw.
+%% Can also see a simpler GC, which again can improve later OCaml.nw.
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}

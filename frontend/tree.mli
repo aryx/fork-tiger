@@ -1,13 +1,10 @@
 (*s: frontend/tree.mli *)
-(*s: tree.mli *)
-(*s: types(tree.nw) *)
 (*s: type Tree.label *)
 type label = Symbol.symbol
 (*e: type Tree.label *)
 (*s: type Tree.temp *)
 and  temp  = Symbol.symbol
 (*e: type Tree.temp *)
-(*x: types(tree.nw) *)
 (*s: type Tree.stm *)
 type stm =
   | EXP    of exp
@@ -23,7 +20,6 @@ type stm =
     | TRYEND of label
   (*e: [[Tree.stm]] cases *)
 (*e: type Tree.stm *)
-(*x: types(tree.nw) *)
 (*s: type Tree.exp *)
 and exp =
   | CONST of int
@@ -35,12 +31,10 @@ and exp =
   | NAME  of label
   | CALL  of exp * exp list * string option * label option * bool
 (*e: type Tree.exp *)
-(*x: types(tree.nw) *)
 (*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
-(*e: types(tree.nw) *)
 
 (*s: utility functions *)
 val new_label : string -> label
@@ -58,5 +52,4 @@ val find_temps : stm list -> (temp * bool) list
 val print_stm : stm -> unit
 val print_exp : exp -> unit
 (*e: utility functions *)
-(*e: tree.mli *)
 (*e: frontend/tree.mli *)
