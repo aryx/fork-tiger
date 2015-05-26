@@ -1,16 +1,18 @@
 (*s: parsing/error.mli *)
-(*s: error.mli *)
 (*s: types(error.nw) *)
 (*s: type Error.error *)
 type error =
     Internal_error of string
+
   (* lexical errors *)
   | Illegal_character of char
   | Illegal_escape of string
   | Unterminated_comment
   | Unterminated_string
+
   (* syntaxic errors *)
   | Syntax_error
+
   (* semantic errors *)
   | Type_error of string
   | Undefined_symbol of string
@@ -25,6 +27,7 @@ exception Error of ex
 (*e: exception Error.Error *)
 (*e: types(error.nw) *)
 
+(*s: error.mli *)
 val handle_exception : ex -> unit
 (*x: error.mli *)
 val warning   : int -> string -> unit

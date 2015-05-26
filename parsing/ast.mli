@@ -10,24 +10,19 @@ type symbol = Symbol.symbol
 (*x: types(ast.nw) *)
 (*s: type Ast.dec *)
 type dec =
-(*s: [[Ast.dec]] cases *)
 | VarDec       of symbol * symbol option * exp * pos
-(*x: [[Ast.dec]] cases *)
 | TypeDec      of (symbol * ty * pos) list
-(*x: [[Ast.dec]] cases *)
 | FunctionDec  of (symbol * field list * symbol option * exp * pos) list
-(*x: [[Ast.dec]] cases *)
+(*s: [[Ast.dec]] cases *)
 | ExceptionDec of symbol * pos
 (*e: [[Ast.dec]] cases *)
 (*e: type Ast.dec *)
 (*x: types(ast.nw) *)
 (*s: type Ast.ty *)
 and ty =
-(*s: [[Ast.ty]] cases *)
 | NameTy   of symbol * pos
 | RecordTy of field list
 | ArrayTy  of symbol * pos
-(*e: [[Ast.ty]] cases *)
 (*e: type Ast.ty *)
 (*x: types(ast.nw) *)
 (*s: type Ast.field *)
@@ -43,33 +38,29 @@ and var =
 (*x: types(ast.nw) *)
 (*s: type Ast.exp *)
 and exp =
-(*s: [[Ast.exp]] cases *)
-| LetExp    of dec list * exp * pos
-(*x: [[Ast.exp]] cases *)
-| VarExp    of var
-(*x: [[Ast.exp]] cases *)
 | NilExp
 | IntExp    of int
 | StringExp of string * pos
-(*x: [[Ast.exp]] cases *)
+
+| VarExp    of var
+
 | OpExp     of exp * oper * exp * pos
-(*x: [[Ast.exp]] cases *)
 | CallExp   of symbol * exp list * pos
-(*x: [[Ast.exp]] cases *)
+
 | RecordExp of symbol * (symbol * exp * pos) list * pos
 | ArrayExp  of symbol * exp * exp * pos
-(*x: [[Ast.exp]] cases *)
-| SeqExp    of exp list * pos
-(*x: [[Ast.exp]] cases *)
+
+| LetExp    of dec list * exp * pos
+
+(*s: [[Ast.exp]] statement cases *)
 | AssignExp of var * exp * pos
-(*x: [[Ast.exp]] cases *)
+| SeqExp    of exp list * pos
 | IfExp     of exp * exp * exp option * pos
-(*x: [[Ast.exp]] cases *)
 | WhileExp  of exp * exp * pos
 | ForExp    of symbol * exp * exp * exp * pos
-
 | BreakExp  of pos
-(*x: [[Ast.exp]] cases *)
+(*e: [[Ast.exp]] statement cases *)
+(*s: [[Ast.exp]] cases *)
 | TryExp    of exp * (symbol * exp * pos) list * pos
 | RaiseExp  of symbol * pos
 (*x: [[Ast.exp]] cases *)

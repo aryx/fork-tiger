@@ -4,24 +4,45 @@ module E = Error
 module S = Symbol
 module F = Frame
 module T = Tree
+(*s: type Environment.vartype *)
+type vartype =
+  (* basic types *)
+  | UNIT
+  | INT
+  | STRING
+
+  (* aggregate types *)
+  | ARRAY  of vartype
+  | RECORD of (Symbol.symbol * vartype) list
+
+  (* other types *)
+  (*s: [[Environment.vartype]] cases *)
+  | NIL
+  | ANY
+  (*x: [[Environment.vartype]] cases *)
+  | NAME   of Symbol.symbol
+  (*e: [[Environment.vartype]] cases *)
+(*e: type Environment.vartype *)
 (*s: type Environment.enventry *)
 type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
   | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
 (*e: type Environment.enventry *)
 (*s: type Environment.t *)
-type 'ty t = {
+type t = {
     (* type definitions *)
-    tenv        : 'ty Symbol.table;
+    tenv        : vartype Symbol.table;
     (* value definitions *)
-    venv        : 'ty enventry Symbol.table;
-
+    venv        : vartype enventry Symbol.table;
+    (*s: [[Environment.t]] other fields *)
     xenv        : int Symbol.table;
 
     frame       : Frame.frame;
 
     break_label : Tree.label option;
+    (*x: [[Environment.t]] other fields *)
     exn_label   : Tree.label option
+    (*e: [[Environment.t]] other fields *)
   }
 (*e: type Environment.t *)
 (*x: environment.ml *)

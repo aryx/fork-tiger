@@ -5,18 +5,10 @@ module A = Ast
 module S = Symbol
 module V = Environment
 module T = Translate
-(*s: variable types *)
-type vartype =
-    UNIT
-  | NIL
-  | INT
-  | STRING
-  | ARRAY  of vartype
-  | RECORD of (Symbol.symbol * vartype) list
-  | NAME   of Symbol.symbol
-  | ANY
-(*e: variable types *)
-(*s: type system *)
+
+open Environment
+
+(*s: function Semantics.type_name *)
 let rec type_name = function
     RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
                 "record {" l) ^ "}"
@@ -27,18 +19,21 @@ let rec type_name = function
   | NAME(s)  -> "named type " ^ (S.name s)
   | UNIT     -> "unit"
   | ANY      -> "any"
-(*x: type system *)
+(*e: function Semantics.type_name *)
+(*s: function Semantics.base_type *)
 let rec base_type env = function
     NAME s ->
-      begin
-        try base_type env (V.lookup_type env s 0)
-        with Not_found -> E.internal "NAME symbol not found"
-      end
+      (try base_type env (V.lookup_type env s 0)
+       with Not_found -> E.internal "NAME symbol not found"
+      )
   | x -> x
-
+(*e: function Semantics.base_type *)
+(*s: function Semantics.lookup_base_type *)
 let lookup_base_type env sym pos =
   base_type env (V.lookup_type env sym pos)
-(*x: type system *)
+(*e: function Semantics.lookup_base_type *)
+
+(*s: type system *)
 let is_ptr = function
     INT | UNIT -> false
   | NIL | RECORD _ | STRING | ARRAY _ -> true
@@ -67,7 +62,7 @@ let add_function frm (ex,typ) =
   functions := (frm, T.func frm ex (is_ptr typ)) :: !functions
 (*x: translators *)
 type ast_node = DEC of Ast.dec | EXP of Ast.exp
-let rec trans (env : vartype V.t) (node : ast_node) =
+let rec trans (env : Environment.t) (node : ast_node) =
   (*s: declaration translator *)
   let rec trdec = function
     (*s: function declarations *)
@@ -354,11 +349,10 @@ in match node with
 (*e: translators *)
 (*s: entry point *)
 let translate env ast =
+  let (mainex, mainty) = trans env (EXP ast) in
   begin
-    let (mainex,mainty) = trans env (EXP ast) in
-    if mainty <> INT && mainty <> UNIT then
-      E.type_err 0 "tiger program must return INT or UNIT"
-    else ();
+    if mainty <> INT && mainty <> UNIT 
+    then E.type_err 0 "tiger program must return INT or UNIT";
     add_function (V.frame env) (mainex,mainty);
     get_functions()
   end

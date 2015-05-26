@@ -13,10 +13,14 @@
 \section{[[parsing/error.nw]]}
 
 <<parsing/error.ml>>=
+<<types(error.nw)>>
+
 <<error.ml>>
 @
 
 <<parsing/error.mli>>=
+<<types(error.nw)>>
+
 <<error.mli>>
 @
 
@@ -36,8 +40,6 @@
 %%to report the error. The [[handle_exception]] function will print a
 %%source line number and an error message, and then exit.
 <<error.mli>>=
-<<types(error.nw)>>
-
 val handle_exception : ex -> unit
 @
 %%A few functions are defined for reporting warnings and raising common
@@ -60,9 +62,6 @@ val line_number : int -> int * int
 
 \subsection{Error Implementation}
 
-<<error.ml>>=
-<<types(error.nw)>>
-@
 %%The source map is a list of pairs of integers. The first integer is a
 %%source position, and the second is the line number that ends at that
 %%position. In effect, the scanner records the position and line number
@@ -466,6 +465,7 @@ val token : Lexing.lexbuf -> Parser.token
 %%
 %%The environment types are exposed in the interface.
 <<environment.mli>>=
+<<type Environment.vartype>>
 <<type Environment.enventry>>
 <<type Environment.t>>
 @ 
@@ -474,16 +474,16 @@ val token : Lexing.lexbuf -> Parser.token
 %%type definitions and functions. All new environments are automatically
 %%given a new stack frame.
 <<environment.mli>>=
-val new_env : (string * 'ty) list ->
-              (string * string option * 'ty list * 'ty) list -> 'ty t
+val new_env : (string * vartype) list ->
+              (string * string option * vartype list * vartype) list -> t
 @ 
 %%There are three functions for manipulating the variable scope and the
 %%current stack frame. Creating a new stack frame automatically creates
 %%a new variable scope.
 <<environment.mli>>=
-val new_scope : 'a t -> 'a t
-val frame     : 'a t -> Frame.frame
-val new_frame : 'a t -> Symbol.symbol -> 'a t
+val new_scope : t -> t
+val frame     : t -> Frame.frame
+val new_frame : t -> Symbol.symbol -> t
 @ 
 %%The environment provides functions for looking up types, values and
 %%exception identifiers. Calling a lookup function for a symbol that
@@ -491,9 +491,9 @@ val new_frame : 'a t -> Symbol.symbol -> 'a t
 %%undefined symbol). Each lookup function takes an [[Ast.pos]] argument
 %%that is used to report errors.
 <<environment.mli>>=
-val lookup_type  : 'a t -> Symbol.symbol -> Ast.pos -> 'a
-val lookup_value : 'a t -> Symbol.symbol -> Ast.pos -> 'a enventry
-val lookup_exn   : 'a t -> Symbol.symbol -> Ast.pos -> int
+val lookup_type  : t -> Symbol.symbol -> Ast.pos -> vartype
+val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
+val lookup_exn   : t -> Symbol.symbol -> Ast.pos -> int
 @ 
 %%New types, values, and exceptions can be added to an environment using
 %%the enter functions. There are five functions for entering type
@@ -502,12 +502,12 @@ val lookup_exn   : 'a t -> Symbol.symbol -> Ast.pos -> int
 %%boolean parameter that is true if the new local or parameter will hold
 %%a pointer value.
 <<environment.mli>>=
-val enter_type  : 'a t -> Symbol.symbol -> 'a -> unit
-val enter_exn   : 'a t -> Symbol.symbol -> unit
-val enter_fun   : 'a t -> Symbol.symbol -> string option ->
-                  'a list -> 'a  -> 'a t
-val enter_param : 'a t -> Symbol.symbol -> 'a -> bool -> unit
-val enter_local : 'a t -> Symbol.symbol -> 'a -> bool -> Frame.access
+val enter_type  : t -> Symbol.symbol -> vartype -> unit
+val enter_exn   : t -> Symbol.symbol -> unit
+val enter_fun   : t -> Symbol.symbol -> string option ->
+                  vartype list -> vartype  -> t
+val enter_param : t -> Symbol.symbol -> vartype -> bool -> unit
+val enter_local : t -> Symbol.symbol -> vartype -> bool -> Frame.access
 @ 
 
 
@@ -516,8 +516,8 @@ val enter_local : 'a t -> Symbol.symbol -> 'a -> bool -> Frame.access
 %%from loops. The [[break_label]] function will raise [[Not_Found]] if
 %%there is no current break label.
 <<environment.mli>>=
-val break_label     : 'a t -> Tree.label
-val new_break_label : 'a t -> 'a t
+val break_label     : t -> Tree.label
+val new_break_label : t -> t
 @ 
 
 
@@ -525,8 +525,8 @@ val new_break_label : 'a t -> 'a t
 %%exception label. The exception label can be [[None]] indicating that
 %%there is no current exception handler.
 <<environment.mli>>=
-val exn_label     : 'a t -> Tree.label option
-val new_exn_label : 'a t -> 'a t
+val exn_label     : t -> Tree.label option
+val new_exn_label : t -> t
 @ 
 
 \subsection{Implementation of Environments}
@@ -536,6 +536,7 @@ module E = Error
 module S = Symbol
 module F = Frame
 module T = Tree
+<<type Environment.vartype>>
 <<type Environment.enventry>>
 <<type Environment.t>>
 @ 
@@ -684,10 +685,7 @@ let new_exn_label env =
 %%(Section~\ref{sec:tree})---the intermediate representation of the
 %%function body.
 <<semantics.mli>>=
-<<variable types>>
-
-val translate : vartype Environment.t -> Ast.exp ->
-               (Frame.frame * Translate.exp) list
+val translate : Environment.t -> Ast.exp -> (Frame.frame * Translate.exp) list
 @
 %%The [[Semantics]] module implementation consists of a definition of
 %%the type system used internally in the compiler, the [[translate]]
@@ -699,44 +697,32 @@ module A = Ast
 module S = Symbol
 module V = Environment
 module T = Translate
-<<variable types>>
+
+open Environment
+
+<<function Semantics.type_name>>
+<<function Semantics.base_type>>
+<<function Semantics.lookup_base_type>>
+
 <<type system>>
 <<translators>>
 <<entry point>>
 @
--
+
+
 \subsection{Type System}
 %%\label{sec:types}
--
+
 %%The set of types used internally by the compiler is given below. The
 %%[[NAME]] type is an alias to another defined type. The [[ANY]] type
 %%can be used as a type variable when constructing polymorphic types.
 %%The [[ANY]] type is only used to define library functions.
-<<variable types>>=
-type vartype =
-    UNIT
-  | NIL
-  | INT
-  | STRING
-  | ARRAY  of vartype
-  | RECORD of (Symbol.symbol * vartype) list
-  | NAME   of Symbol.symbol
-  | ANY
-@ 
+%<<variable types>>=
+
 %%The [[type_name]] function will return a string representation of a
 %%type. This function is used by to report type errors.
-<<type system>>=
-let rec type_name = function
-    RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
-                "record {" l) ^ "}"
-  | NIL      -> "nil"
-  | INT      -> "int"
-  | STRING   -> "string"
-  | ARRAY vt -> "array of " ^ (type_name vt)
-  | NAME(s)  -> "named type " ^ (S.name s)
-  | UNIT     -> "unit"
-  | ANY      -> "any"
-@ 
+%<<function Semantics.type_name>>
+
 %%The internal type system allows type aliases by way of the [[NAME]]
 %%type. We often want to get the concrete base type for a type alias.
 %%The [[base_type]] function will lookup the definition of a [[NAME]]
@@ -747,18 +733,9 @@ let rec type_name = function
 %%types until we reach a base type. If a [[NAME]] type references a type
 %%that is not defined, then there is something wrong with the compiler
 %%and we give up.
-<<type system>>=
-let rec base_type env = function
-    NAME s ->
-      begin
-        try base_type env (V.lookup_type env s 0)
-        with Not_found -> E.internal "NAME symbol not found"
-      end
-  | x -> x
+%<<function Semantics.base_type>>=
+%<<function Semantics.lookup_base_type>>=
 
-let lookup_base_type env sym pos =
-  base_type env (V.lookup_type env sym pos)
-@ 
 %%For code generation we will be interested in partitioning the internal
 %%types into two classes: those that are represented by a pointer to a
 %%data structure~(e.g. arrays), and those that are represented by a
@@ -822,7 +799,7 @@ let add_function frm (ex,typ) =
 %%an expression or declaration.
 <<translators>>=
 type ast_node = DEC of Ast.dec | EXP of Ast.exp
-let rec trans (env : vartype V.t) (node : ast_node) =
+let rec trans (env : Environment.t) (node : ast_node) =
   <<declaration translator>>
   <<variable translator>>
   <<expression translator>>
@@ -830,15 +807,16 @@ in match node with
   DEC d -> (trdec d, NIL)
 | EXP e -> trexp e
 @
+
+
 %%The entry point for the [[Semantics]] module is the [[translate]]
 %%function shown below.
 <<entry point>>=
 let translate env ast =
+  let (mainex, mainty) = trans env (EXP ast) in
   begin
-    let (mainex,mainty) = trans env (EXP ast) in
-    if mainty <> INT && mainty <> UNIT then
-      E.type_err 0 "tiger program must return INT or UNIT"
-    else ();
+    if mainty <> INT && mainty <> UNIT 
+    then E.type_err 0 "tiger program must return INT or UNIT";
     add_function (V.frame env) (mainex,mainty);
     get_functions()
   end
@@ -1318,8 +1296,8 @@ and trexp = function
 %%
 %%Both code labels and temporary variables are represented by symbols.
 <<types(tree.nw)>>=
-type label = Symbol.symbol
-and  temp  = Symbol.symbol
+<<type Tree.label>>
+<<type Tree.temp>>
 @ 
 %%Statements are represented by the [[stm]] type. Sequences of
 %%statements can be created using the [[SEQ]] constructor. In addition,
@@ -1328,17 +1306,7 @@ and  temp  = Symbol.symbol
 %%and end of try blocks. Both of the try constructors take the label of
 %%the continuation for the exception handlers.
 <<types(tree.nw)>>=
-type stm =
-    SEQ    of stm * stm
-  | LABEL  of label
-  | CONT   of label * label list
-  | JUMP   of exp
-  | CJUMP  of exp * label * label
-  | MOVE   of exp * exp
-  | EXP    of exp
-  | TRY    of label
-  | TRYEND of label
-  | RET    of exp
+<<type Tree.stm>>
 @
 %%The abstract syntax of expressions is represented by the [[exp]] type.
 %%Many expressions carry a boolean flag that is true if the expression
@@ -1347,21 +1315,12 @@ type stm =
 %%being called, and an optional label indicating a continuation that the
 %%function may cut to or unwind to.
 <<types(tree.nw)>>=
-and exp =
-    BINOP of binop * exp * exp
-  | RELOP of relop * exp * exp
-  | MEM   of exp * bool
-  | TEMP  of temp * bool
-  | ESEQ  of stm * exp
-  | NAME  of label
-  | CONST of int
-  | CALL  of exp * exp list * string option * label option * bool
+<<type Tree.exp>>
 @ 
 %%Finally, a handful of binary operators are supported. The binary
 %%operators are divided into relational and arithmetic types.
 <<types(tree.nw)>>=
-and binop = PLUS | MINUS | MUL | DIV
-and relop = EQ | NE | LT | GT | LE | GE
+<<types Tree.xxxop>>
 @
 
 \subsection{Interface to the IR}
@@ -1371,6 +1330,7 @@ and relop = EQ | NE | LT | GT | LE | GE
 %%IR.
 <<tree.mli>>=
 <<types(tree.nw)>>
+
 <<utility functions>>
 @ 
 %%New code labels and temporary variables can be created using the
@@ -1400,6 +1360,7 @@ val cmm_relop      : relop -> string
 val is_ptr     : exp -> bool
 val find_temps : stm list -> (temp * bool) list
 @ 
+
 %%Finally, for debugging purposes, there are two functions for printing
 %%out string representations of expressions and statements.
 <<utility functions>>=
@@ -1494,48 +1455,21 @@ let find_temps stmts =
   in
   TempSet.elements (foldl stm TempSet.empty stmts)
 @ 
+
+
 %%Now, we give the implementation of the two printing functions for
 %%statements and expressions. We will define the function for printing
 %%statements first.
 <<tree.ml>>=
-let print_stm =
-  let rec iprintf = function
-      0 -> Printf.printf
-    | i -> (print_string "  "; iprintf (i-1))
-  in
-  let rec prstm d = function
-    | LABEL l      -> iprintf d "LABEL:%s\n " (S.name l)
-    | CONT(l,ls)   -> iprintf d "CONT:%s\n "  (S.name l)
-    | TRY l        -> iprintf d "TRY:%s\n"    (S.name l)
-    | TRYEND l     -> iprintf d "TRYEND:%s\n" (S.name l)
-    | SEQ(a,b)     -> iprintf d "SEQ:\n";     prstm(d+1) a; prstm(d+1) b
-    | MOVE(a,b)    -> iprintf d "MOVE:\n";    prexp(d+1) a; prexp(d+1) b
-    | JUMP e       -> iprintf d "JUMP:\n";    prexp(d+1) e
-    | EXP e        -> iprintf d "EXP:\n";     prexp(d+1) e
-    | RET e        -> iprintf d "RET:\n";     prexp(d+1) e
-    | CJUMP(a,t,f) -> iprintf d "CJUMP:\n";   prexp(d+1) a;
-                      iprintf (d+1) "true  label: %s\n" (S.name t);
-                      iprintf (d+1) "false label: %s\n" (S.name f)
-  and prexp d = function
-      BINOP(p,a,b)     -> iprintf d "BINOP:%s\n" (cmm_binop p);
-                          prexp (d+1) a; prexp (d+1) b
-    | RELOP(p,a,b)     -> iprintf d "RELOP:%s\n" (cmm_relop p);
-                          prexp (d+1) a; prexp (d+1) b
-    | MEM(e,_)         -> iprintf d "MEM:\n"; prexp (d+1) e
-    | TEMP(t,_)        -> iprintf d "TEMP %s\n" (S.name t)
-    | ESEQ(s,e)        -> iprintf d "ESEQ:\n";
-                          prstm (d+1) s; prexp (d+1) e
-    | NAME lab         -> iprintf d "NAME %s\n" (S.name lab)
-    | CONST i          -> iprintf d "CONST %d\n" i
-    | CALL(e,el,_,_,_) -> iprintf d "CALL:\n";
-                          prexp (d+1) e; List.iter (prexp (d+2)) el
-  in prstm 0
+<<function Tree.print_stm>>
 @ 
 %%The expression printer just calls the statement printer after
 %%converting the expression into a statement.
 <<tree.ml>>=
-let print_exp e = print_stm (EXP e)
+<<function Tree.print_exp>>
 @
+
+
 \section{[[frontend/translate.nw]]}
 <<frontend/translate.ml>>=
 <<translate.ml>>
@@ -3133,7 +3067,7 @@ tig_spawn(bits32 lbl) {
 module S = Symbol
 module F = Frame
 module V = Environment
-module M = Semantics
+module T = Environment
 <<standard basis>>
 <<compiler driver>>
 @
@@ -3142,31 +3076,13 @@ module M = Semantics
 %%of initial functions, and a set of imports. There are only two initial
 %%type definitions in the standard basis: integers and strings.
 <<standard basis>>=
-let base_tenv =
-(* name     type *)
-[ "int",    M.INT
-; "string", M.STRING
-]
+<<constant Main.base_tenv>>
 @
 %%The set of initial functions includes all of the functions in the
 %%Tiger standard library. For each function, we give the function name,
 %%the calling convention, and the argument and return types.
 <<standard basis>>=
-let base_venv = 
-(* name        cc        args                    return *)
-[ "print",     Some "C", [M.STRING],             M.UNIT
-; "printi",    Some "C", [M.INT],                M.UNIT
-; "flush",     Some "C", [],                     M.UNIT
-; "getchar",   None,     [],                     M.STRING
-; "ord",       Some "C", [M.STRING],             M.INT
-; "chr",       None,     [M.INT],                M.STRING
-; "size",      Some "C", [M.STRING],             M.INT
-; "sizea",     Some "C", [M.ARRAY M.ANY],        M.INT
-; "substring", None,     [M.STRING;M.INT;M.INT], M.STRING
-; "concat",    None,     [M.STRING;M.STRING],    M.STRING
-; "not",       Some "C", [M.INT],                M.INT
-; "exit",      Some "C", [M.INT],                M.UNIT
-]
+<<constant Main.base_venv>>
 @
 %%The set of imports includes all of the functions that may be called
 %%from compiled code. This includes the standard library functions as
@@ -3192,15 +3108,7 @@ let imports =
 %%and converted to the intermediate representation. Finally, we iterate
 %%over the functions and output each one by calling [[emit_function]].
 <<compiler driver>>=
-let emit_function (frm,ex) =
-  if !Option.dump_ext  then Tree.print_exp ex;
-  let ltree = Canonical.linearize (Tree.EXP ex) in
-  if !Option.dump_lext then List.iter Tree.print_stm ltree;
-  List.iter (fun (x,p) -> ignore(Frame.alloc_temp frm x p))
-            (Tree.find_temps ltree);
-  Frame.output_header frm;
-  Codegen.emit ltree;
-  Frame.output_footer frm
+<<function Main.emit_function>>
 
 <<function Main.compile>>
 

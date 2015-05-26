@@ -2,33 +2,45 @@
 (*s: tree.ml *)
 module S = Symbol
 (*s: types(tree.nw) *)
+(*s: type Tree.label *)
 type label = Symbol.symbol
+(*e: type Tree.label *)
+(*s: type Tree.temp *)
 and  temp  = Symbol.symbol
+(*e: type Tree.temp *)
 (*x: types(tree.nw) *)
+(*s: type Tree.stm *)
 type stm =
-    SEQ    of stm * stm
+  | EXP    of exp
+  | MOVE   of exp * exp
+  | SEQ    of stm * stm
   | LABEL  of label
   | CONT   of label * label list
   | JUMP   of exp
   | CJUMP  of exp * label * label
-  | MOVE   of exp * exp
-  | EXP    of exp
-  | TRY    of label
-  | TRYEND of label
   | RET    of exp
+  (*s: [[Tree.stm]] cases *)
+    | TRY    of label
+    | TRYEND of label
+  (*e: [[Tree.stm]] cases *)
+(*e: type Tree.stm *)
 (*x: types(tree.nw) *)
+(*s: type Tree.exp *)
 and exp =
-    BINOP of binop * exp * exp
+  | CONST of int
+  | BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
   | MEM   of exp * bool
   | TEMP  of temp * bool
   | ESEQ  of stm * exp
   | NAME  of label
-  | CONST of int
   | CALL  of exp * exp list * string option * label option * bool
+(*e: type Tree.exp *)
 (*x: types(tree.nw) *)
+(*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE | LT | GT | LE | GE
+(*e: types Tree.xxxop *)
 (*e: types(tree.nw) *)
 (*x: tree.ml *)
 let new_label s = S.new_symbol ("L" ^ s)
@@ -95,6 +107,7 @@ let find_temps stmts =
   in
   TempSet.elements (foldl stm TempSet.empty stmts)
 (*x: tree.ml *)
+(*s: function Tree.print_stm *)
 let print_stm =
   let rec iprintf = function
       0 -> Printf.printf
@@ -127,7 +140,10 @@ let print_stm =
     | CALL(e,el,_,_,_) -> iprintf d "CALL:\n";
                           prexp (d+1) e; List.iter (prexp (d+2)) el
   in prstm 0
+(*e: function Tree.print_stm *)
 (*x: tree.ml *)
+(*s: function Tree.print_exp *)
 let print_exp e = print_stm (EXP e)
+(*e: function Tree.print_exp *)
 (*e: tree.ml *)
 (*e: frontend/tree.ml *)

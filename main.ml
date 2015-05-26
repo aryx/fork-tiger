@@ -2,29 +2,33 @@
 module S = Symbol
 module F = Frame
 module V = Environment
-module M = Semantics
+module T = Environment
 (*s: standard basis *)
+(*s: constant Main.base_tenv *)
 let base_tenv =
 (* name     type *)
-[ "int",    M.INT
-; "string", M.STRING
+[ "int",    T.INT
+; "string", T.STRING
 ]
+(*e: constant Main.base_tenv *)
 (*x: standard basis *)
+(*s: constant Main.base_venv *)
 let base_venv = 
 (* name        cc        args                    return *)
-[ "print",     Some "C", [M.STRING],             M.UNIT
-; "printi",    Some "C", [M.INT],                M.UNIT
-; "flush",     Some "C", [],                     M.UNIT
-; "getchar",   None,     [],                     M.STRING
-; "ord",       Some "C", [M.STRING],             M.INT
-; "chr",       None,     [M.INT],                M.STRING
-; "size",      Some "C", [M.STRING],             M.INT
-; "sizea",     Some "C", [M.ARRAY M.ANY],        M.INT
-; "substring", None,     [M.STRING;M.INT;M.INT], M.STRING
-; "concat",    None,     [M.STRING;M.STRING],    M.STRING
-; "not",       Some "C", [M.INT],                M.INT
-; "exit",      Some "C", [M.INT],                M.UNIT
+[ "print",     Some "C", [T.STRING],             T.UNIT
+; "printi",    Some "C", [T.INT],                T.UNIT
+; "flush",     Some "C", [],                     T.UNIT
+; "getchar",   None,     [],                     T.STRING
+; "ord",       Some "C", [T.STRING],             T.INT
+; "chr",       None,     [T.INT],                T.STRING
+; "size",      Some "C", [T.STRING],             T.INT
+; "sizea",     Some "C", [T.ARRAY T.ANY],        T.INT
+; "substring", None,     [T.STRING;T.INT;T.INT], T.STRING
+; "concat",    None,     [T.STRING;T.STRING],    T.STRING
+; "not",       Some "C", [T.INT],                T.INT
+; "exit",      Some "C", [T.INT],                T.UNIT
 ]
+(*e: constant Main.base_venv *)
 (*x: standard basis *)
 let imports =
   let internal = [ "alloc"
@@ -40,15 +44,24 @@ let imports =
   List.map (fun(n,_,_,_) -> n) base_venv @ internal
 (*e: standard basis *)
 (*s: compiler driver *)
+(*s: function Main.emit_function *)
 let emit_function (frm,ex) =
-  if !Option.dump_ext  then Tree.print_exp ex;
+  (*s: [[Main.emit_function()]] if dump expression tree *)
+  if !Option.dump_ext  
+  then Tree.print_exp ex;
+  (*e: [[Main.emit_function()]] if dump expression tree *)
   let ltree = Canonical.linearize (Tree.EXP ex) in
-  if !Option.dump_lext then List.iter Tree.print_stm ltree;
-  List.iter (fun (x,p) -> ignore(Frame.alloc_temp frm x p))
-            (Tree.find_temps ltree);
+  (*s: [[Main.emit_function()]] if dump linearized tree *)
+  if !Option.dump_lext 
+  then List.iter Tree.print_stm ltree;
+  (*e: [[Main.emit_function()]] if dump linearized tree *)
+  ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
+    Frame.alloc_temp frm x p |> ignore
+  );
   Frame.output_header frm;
   Codegen.emit ltree;
   Frame.output_footer frm
+(*e: function Main.emit_function *)
 
 (*s: function Main.compile *)
 let compile ch =

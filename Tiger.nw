@@ -11,11 +11,15 @@
 %history: 
 %------------------------------------------------------------------------------
 
-%thx to LP, changed for the better a few things? I actually I re-lpized
-%this document so here is what I think is better:
-% - AST is put closer to grammar
+%thx to LP, changed for the better a few things. Actually I re-lpized
+%this document so here is what I think is now better:
 % - get a breath overview of the core DS first
-% - LP split things (environment.t, Ast, ...)
+% - LP split things (environment.t, Ast, vartype ...) so can expose
+%   first a simpler version
+% - get the main functions overview first, the main types
+% - AST is put closer to the grammar (update: actually was bad, but
+%   at least I aspectized a few constructions like Spawn, exns)
+% - I reordered AST elts, for instance CONST is before BINOP.
 
 %thx to codemap/codegraph/scheck:
 % - TODO use cg to reduce backward deps, introduce globals.c, utils.c,
@@ -36,13 +40,13 @@
 %    * function, global, struct, enum, constant, macro(actually function)
 %    * TODO ctor/dtor, dumper
 %    * TODO [[xxx]] other fields, [[xxx]] extra fields
-% - TODO read Extra section, identify concepts, first TOC
-% - TODO distribute parts of the Extra section in the main file
+% - read Extra section, identify concepts, first TOC
+% - SEMI distribute parts of the Extra section in the main file
 % - TODO understand main(), LP split main, improve TOC
 % - TODO understand main functions, LP split, cluster, improve TOC
-% - TODO LP split the structures, use datalog for flow to field info
+% - LP split the structures, use datalog for flow to field info
 % - TODO nullify, boolify, errorify, enumify,  typeify,    scheckify, plan9ify
-% - TODO aspecify advanced features! remove useless features
+% - SEMI aspecify advanced features! remove useless features
 % - TODO add figures
 % - TODO add explanations
 
@@ -154,9 +158,14 @@ a compiler.
 Why? Because I think it makes you a better programmer if
 you fully understand how things work under the hood.
 
-% choose tiger because? simple.
-% vs original tigerc.pdf manual? no module boundaries, so
-% can present AST closer to grammar rule for instance.
+% choose tiger because very very simple.
+
+%% vs original tigerc.pdf manual? no file/module fixed boundaries, so
+%% can LP-split and aspectize AST elements for instances.
+
+%% Hmm not redundant with Compiler.nw and even now OCaml.nw? Maybe but
+%% maybe it can help me to first have a cleaner and simpler compiler,
+%% so maybe making this manual can improve later Compiler.nw and OCaml.nw
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}
@@ -164,7 +173,8 @@ Here are other candidates that were considered but ultimately discarded:
 \item clang
 \end{itemize}
 
-% blue? also a toy language for learning
+% other:
+% - blue? also a toy language for learning
 
 \section{Getting started}
 
@@ -199,7 +209,24 @@ let rec usage() =
 
 \section{[[helloworld.tig]]}
 
+% demos/hello.tig
+
+<<demos/hello.tig>>=
+/* hello world */ 
+let
+  var a := "Hello, world.\n"
+in 
+  print(a)
+end
+@
+
+
 \section{Input Tiger language}
+
+% toy language:
+%  - no modules (no qualifier), so name resolution simple (even though
+%    scoped/nested language), and no linking really
+%  - no float
 
 \section{Output C-- language}
 
@@ -207,55 +234,164 @@ let rec usage() =
 
 \section{Software architecture}
 
+% classic compiler archi:
+% lexer -> parser -> typechecker&IR-generator -> c-- generator 
+% and on the side have runtime and stdlib "linked" with generated file.
+
 %###############################################################################
 
 \chapter{Core Data Structures}
 
 \section{Abstract syntax tree}
 
+%note: actually I put the main constructors below. I did that in Ocaml.nw
+% and it's better I think. AST is a really core DS, we can't wait to
+% see the grammar to get an idea of what is the language. Anyway if we
+% do not put the main cases here, it's
+% weird after in Type section to have RECORD, ARRAY, etc because
+% we have no idea where they come from. Same for IR tree.
+
+\subsection{Positions}
+
 <<type Ast.pos>>=
 type pos = int 
 @
-% for error reporting, = charpos, see Error appendix
-% and the charpos -> line thing
+% for error reporting, int = charpos, see Error appendix
+% and the charpos -> line mapping table
+
+%alt: below he has added pos as an extra tuple element. Alternatives are:
+% the 'a wrap tech in pfff, the record_expr in OCaml.nw, the
+% extra constructor ExpPos, etc.
+
+%alt: then alt to the line mapping table are:
+% have all info in the wrap in pfff, the linenum.mll in OCaml.nw, etc.
+
+\subsection{Names}
 
 <<type Ast.symbol>>=
 type symbol = Symbol.symbol
 @
-% see below, =~ unique string?
+% see below, =~ unique string
 
 % for identifiers and also type names
 %less: same namespace?
 
+\subsection{Declarations}
 
+% defs
 <<type Ast.dec>>=
 type dec =
+| VarDec       of symbol * symbol option * exp * pos
+| TypeDec      of (symbol * ty * pos) list
+| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
 <<[[Ast.dec]] cases>>
 @
+% list for TypeDec and FunctionDec so can have mutually recursive things
+% VarDec symbol option  ???
+% FunctionDec symbol option  ???
 
+<<type Ast.field>>=
+and field = (symbol * symbol * pos)
+@
+% symbol?? for type definition? so need to introduce indirect
+% name for everything?
+
+%ex? dump? actually have a -dump_ast!
+
+\subsection{Expressions}
+
+% uses
 <<type Ast.exp>>=
 and exp =
+| NilExp
+| IntExp    of int
+| StringExp of string * pos
+
+| VarExp    of var
+
+| OpExp     of exp * oper * exp * pos
+| CallExp   of symbol * exp list * pos
+
+| RecordExp of symbol * (symbol * exp * pos) list * pos
+| ArrayExp  of symbol * exp * exp * pos
+
+| LetExp    of dec list * exp * pos
+
+<<[[Ast.exp]] statement cases>>
 <<[[Ast.exp]] cases>>
 @
 % also include stmt, expression language!
+%ex?
+
+%Ast.var here? =~ lvalue
+%Ast.oper here?
+
+\subsection{Statements}
+
+<<[[Ast.exp]] statement cases>>=
+| AssignExp of var * exp * pos
+| SeqExp    of exp list * pos
+| IfExp     of exp * exp * exp option * pos
+| WhileExp  of exp * exp * pos
+| ForExp    of symbol * exp * exp * exp * pos
+| BreakExp  of pos
+@
+
+\subsection{Types}
 
 <<type Ast.ty>>=
 and ty =
-<<[[Ast.ty]] cases>>
+| NameTy   of symbol * pos
+| RecordTy of field list
+| ArrayTy  of symbol * pos
 @
+% namety can be also builtin types!
+% no size in ArrayTy, lose information when type
+
+%ex?
 
 
 \section{Types}
 % and the environment?
 
+<<type Environment.vartype>>=
+type vartype =
+  (* basic types *)
+  | UNIT
+  | INT
+  | STRING
+
+  (* aggregate types *)
+  | ARRAY  of vartype
+  | RECORD of (Symbol.symbol * vartype) list
+
+  (* other types *)
+  <<[[Environment.vartype]] cases>>
+@ 
+
+%XXX
+<<[[Environment.vartype]] cases>>=
+| NIL
+| ANY
+@
+% NIL?
+% ANY?
+
 \section{Symbol table}
 
 % for use/def checking, lookup attributes, etc. classic.
+
+\subsection{Unique symbols}
 
 <<type Symbol.symbol>>=
 type symbol = string * int
 @
 % int? a stamp to make sure things are unique
+
+%note: no qualifier, no module system, no linking modules.
+
+
+
 
 <<global Symbol.nextsym>>=
 let nextsym = ref 0
@@ -285,62 +421,123 @@ let symbol name =
     Hashtbl.add hashtable name !nextsym;
     (name, !nextsym)
 @
+%todo: how this function is used? a bit weird to imagine
 
-
-%\section{Scope table}
+\subsection{Symbol table}
 
 % nested scope so have a parent
 <<type Symbol.table>>=
 type 'a table = {
-    level  : int;
     tbl    : (symbol, 'a) Hashtbl.t;
-    parent : 'a table option
+    <<[[Symbol.table]] other fields>>
   }
 @
 % usually Ast.ty table; or Ast.ty Env.enventry table.
 
 
 <<function Symbol.enter>>=
-let enter env s v =
-  if Hashtbl.mem env.tbl s
+let enter env sym v =
+  if Hashtbl.mem env.tbl sym
   then failwith "Compiler error: symbol table duplicate entry"
-  else Hashtbl.add env.tbl s v
-@
-
-<<function Symbol.look>>=
-let rec look env s =
-  try Hashtbl.find env.tbl s
-  with Not_found -> 
-    (match env.parent with
-    | None -> raise Not_found
-    | Some e -> look e s
-    )
+  else Hashtbl.add env.tbl sym v
 @
 
 <<function Symbol.mem>>=
-let mem env = Hashtbl.mem env.tbl
+let mem env sym = 
+  Hashtbl.mem env.tbl sym
 @
+
+
 <<constructor Symbol.create>>=
 let create l =
   let env = {
-    level = 0;
     tbl = Hashtbl.create 20;
+    level = 0;
     parent = None
   } in
   l |> List.iter (fun (key, data) -> enter env (symbol key) data);
   env
 @
 
-<<constructor Symbol.new_scope>>=
-let new_scope env = { level = env.level + 1;
-                      tbl = Hashtbl.create 20;
-                      parent = Some env }
+\subsection{Scopes}
+
+<<[[Symbol.table]] other fields>>=
+parent : 'a table option;
 @
 
-\section{Intermediate representation}
 
-% ???
+% different from mem() we've seen above
+<<function Symbol.look>>=
+let rec look env sym =
+  try Hashtbl.find env.tbl sym
+  with Not_found -> 
+    (match env.parent with
+    | None -> raise Not_found
+    | Some e -> look e sym
+    )
+@
 
+
+<<constructor Symbol.new_scope>>=
+let new_scope env = { 
+  tbl = Hashtbl.create 20;
+  level = env.level + 1;
+  parent = Some env 
+}
+@
+
+%XXX
+<<[[Symbol.table]] other fields>>=
+level  : int;
+@
+% level is for?
+
+\section{Intermediate tree representation}
+% linearized tree
+
+<<type Tree.stm>>=
+type stm =
+  | EXP    of exp
+  | MOVE   of exp * exp
+  | SEQ    of stm * stm
+  | LABEL  of label
+  | CONT   of label * label list
+  | JUMP   of exp
+  | CJUMP  of exp * label * label
+  | RET    of exp
+  <<[[Tree.stm]] cases>>
+@
+% CONT?? JUMP?
+
+<<type Tree.label>>=
+type label = Symbol.symbol
+@
+
+
+<<type Tree.exp>>=
+and exp =
+  | CONST of int
+  | BINOP of binop * exp * exp
+  | RELOP of relop * exp * exp
+  | MEM   of exp * bool
+  | TEMP  of temp * bool
+  | ESEQ  of stm * exp
+  | NAME  of label
+  | CALL  of exp * exp list * string option * label option * bool
+@
+% hmm not really linearized. 
+% unless linearize() actually (ab)use the same structure but with
+% extra postconditions on the form of the tree.
+
+
+<<type Tree.temp>>=
+and  temp  = Symbol.symbol
+@
+
+<<types Tree.xxxop>>=
+and binop = PLUS | MINUS | MUL | DIV
+and relop = EQ | NE | LT | GT | LE | GE
+@
 
 \section{Stack frames}
 
@@ -376,18 +573,20 @@ let inch   = ref stdin
 
 \section{Command line processing}
 
+% main -> <>
+<<function Option.parse_cmdline>>=
+let parse_cmdline() = 
+  Arg.parse options set_input "Usage:"
+@
+
+
 <<constant Option.options>>=
 and options = [
   <<command line options>>
   "-help",     Arg.Unit usage, "\tprint this message";
 ]
 @
-
-% main -> <>
-<<function Option.parse_cmdline>>=
-let parse_cmdline() = 
-  Arg.parse options set_input "Usage:"
-@
+% will see more command line options later
 
 <<command line flags>>=
 let file   = ref ""
@@ -405,7 +604,7 @@ let set_input s =
 
 
 
-\section{[[compile()]]}
+\section{[[Main.compile()]]}
 
 <<function Main.compile>>=
 let compile ch =
@@ -421,6 +620,24 @@ let compile ch =
   Frame.output_strings();
 
   List.iter emit_function exl
+@
+
+
+
+\section{[[Main.emit_function()]]}
+
+
+<<function Main.emit_function>>=
+let emit_function (frm,ex) =
+  <<[[Main.emit_function()]] if dump expression tree>>
+  let ltree = Canonical.linearize (Tree.EXP ex) in
+  <<[[Main.emit_function()]] if dump linearized tree>>
+  ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
+    Frame.alloc_temp frm x p |> ignore
+  );
+  Frame.output_header frm;
+  Codegen.emit ltree;
+  Frame.output_footer frm
 @
 
 \chapter{Lexing}
@@ -465,7 +682,6 @@ rule token = parse
 %token <int> INT
 %token <string> STRING
 %token IF THEN ELSE END  WHILE DO FOR TO BREAK
-%token EXCEPTION TRY RAISE HANDLE
 %token PLUS MINUS TIMES DIVIDE
 %token AND OR
 %token EQ NEQ  LT LE GT GE
@@ -473,10 +689,10 @@ rule token = parse
 %token TYPE OF ARRAY
 %token ASSIGN COLON COMMA DOT SEMICOLON 
 %token LPAREN RPAREN  LBRACE RBRACE  LBRACK RBRACK
-%token SPAWN
 %token NIL
 %token EOF
 @
+
 
 % no position information here, no use of Lexing.lexeme_char()
 % but instead use Parsing.symbol_start()
@@ -567,7 +783,6 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
    "var",       P.VAR;
    "let",       P.LET;
    "in",        P.IN;
-   "exception", P.EXCEPTION;
 
    "type",      P.TYPE;
    "of",        P.OF;
@@ -576,13 +791,9 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
    "and",       P.AND;
    "or",        P.OR;
 
-   "try",       P.TRY;
-   "handle",    P.HANDLE;
-   "raise",     P.RAISE;
-
-   "spawn",     P.SPAWN;
-
    "nil",       P.NIL;
+
+   <<[[Lexer.keyword_table]] entries>>
  ];;
 @
 % no pointers, no class, no ADTs, very basic indeed.
@@ -810,9 +1021,9 @@ dec:
 
 \subsection{Variables}
 
-<<[[Ast.dec]] cases>>=
-| VarDec       of symbol * symbol option * exp * pos
-@
+%<<[[Ast.dec]] cases>>=
+%| VarDec       of symbol * symbol option * exp * pos
+%@
 
 <<rule var_dec>>=
 var_dec:
@@ -823,9 +1034,9 @@ var_dec:
 
 \subsection{Types}
 
-<<[[Ast.dec]] cases>>=
-| TypeDec      of (symbol * ty * pos) list
-@
+%<<[[Ast.dec]] cases>>=
+%| TypeDec      of (symbol * ty * pos) list
+%@
 % list so can have mutually recursive things
 
 <<rule type_decs>>=
@@ -842,9 +1053,9 @@ type_dec:
 
 \subsection{Functions}
 
-<<[[Ast.dec]] cases>>=
-| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
-@
+%<<[[Ast.dec]] cases>>=
+%| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
+%@
 % list again for mutually recursive possibilities
 % symbol option cos can be a procedure that returns nothing
 
@@ -860,17 +1071,6 @@ fun_dec:
      { mkFunDec $2 $4 (Some $7) $9 }
 @
 
-\subsection{Exceptions}
-
-<<[[Ast.dec]] cases>>=
-| ExceptionDec of symbol * pos
-@
-
-<<rule exn_dec>>=
-exn_dec:
-   EXCEPTION id { mkException $2 }
-@
-%$
 
 
 \section{Expressions}
@@ -902,15 +1102,15 @@ id: ID { S.symbol $1 };
 %  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
 % saw Let in in overview section
 
-<<[[Ast.exp]] cases>>=
-| LetExp    of dec list * exp * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| LetExp    of dec list * exp * pos
+%@
 
 \subsection{Lvalue, array and field accesses}
 
-<<[[Ast.exp]] cases>>=
-| VarExp    of var
-@
+%<<[[Ast.exp]] cases>>=
+%| VarExp    of var
+%@
 
 % =~ lvalue
 <<type Ast.var>>=
@@ -937,11 +1137,11 @@ lvalue:
 
 \subsection{Literals}
 
-<<[[Ast.exp]] cases>>=
-| NilExp
-| IntExp    of int
-| StringExp of string * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| NilExp
+%| IntExp    of int
+%| StringExp of string * pos
+%@
 
 <<subrules for expr>>=
 /* Literals */
@@ -965,9 +1165,9 @@ literal:
 @
 
 
-<<[[Ast.exp]] cases>>=
-| OpExp     of exp * oper * exp * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| OpExp     of exp * oper * exp * pos
+%@
 
 <<type Ast.oper>>=
 and oper =
@@ -1020,9 +1220,9 @@ boolean:
 
 \subsection{Function calls}
 
-<<[[Ast.exp]] cases>>=
-| CallExp   of symbol * exp list * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| CallExp   of symbol * exp list * pos
+%@
 % no dynamic funcall! fixed symbol
 
 <<subrules for expr>>=
@@ -1040,10 +1240,10 @@ fun_args:
 
 \subsection{Construction}
 
-<<[[Ast.exp]] cases>>=
-| RecordExp of symbol * (symbol * exp * pos) list * pos
-| ArrayExp  of symbol * exp * exp * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| RecordExp of symbol * (symbol * exp * pos) list * pos
+%| ArrayExp  of symbol * exp * exp * pos
+%@
 % why symbol? for type name? =~ new? bot for arrays?
 
 <<subrules for expr>>=
@@ -1070,9 +1270,9 @@ ctor_list:
 
 \subsection{Sequence}
 
-<<[[Ast.exp]] cases>>=
-| SeqExp    of exp list * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| SeqExp    of exp list * pos
+%@
 
 <<subrules for stmt>>=
 /* Sequence expression */
@@ -1091,9 +1291,9 @@ expr_list:
 
 \subsection{Assignments}
 
-<<[[Ast.exp]] cases>>=
-| AssignExp of var * exp * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| AssignExp of var * exp * pos
+%@
 
 <<rule expr>>=
  | lvalue ASSIGN expr        { mkAssignExp $1 $3 }
@@ -1101,9 +1301,9 @@ expr_list:
 
 \subsection{Conditionals}
 
-<<[[Ast.exp]] cases>>=
-| IfExp     of exp * exp * exp option * pos
-@
+%<<[[Ast.exp]] cases>>=
+%| IfExp     of exp * exp * exp option * pos
+%@
 
 <<subrules for stmt>>=
 /* If statements */
@@ -1115,12 +1315,12 @@ if_statement:
 
 \subsection{Loops}
 
-<<[[Ast.exp]] cases>>=
-| WhileExp  of exp * exp * pos
-| ForExp    of symbol * exp * exp * exp * pos
-
-| BreakExp  of pos
-@
+%<<[[Ast.exp]] cases>>=
+%| WhileExp  of exp * exp * pos
+%| ForExp    of symbol * exp * exp * exp * pos
+%
+%| BreakExp  of pos
+%@
 % no continue?
 
 <<subrules for stmt>>=
@@ -1132,57 +1332,20 @@ loop_statement:
 @
 %$
 
-\subsection{Exceptions}
 
-<<[[Ast.exp]] cases>>=
-| TryExp    of exp * (symbol * exp * pos) list * pos
-| RaiseExp  of symbol * pos
-@
-
-<<rule expr>>=
- | TRY expr handlers         { mkTryExp $2 (List.rev $3) }
- | RAISE id                  { mkRaise $2 }
-@
-%$
-
-<<subrules for stmt>>=
-/* exception handlers */
-handler:
-   HANDLE id expr END         { mkHandler $2 $3 }
-
-handlers:
-   handler          { $1 :: [] }
- | handler handlers { $1 :: $2 }
-@
-%$
-
-\subsection{Misc}
-% process?
-
-<<[[Ast.exp]] cases>>=
-| SpawnExp  of symbol * pos
-@
-
-<<rule expr>>=
- | SPAWN id                  { mkSpawn $2 }
-@
-%$
 
 
 
 \section{Types}
 
-<<[[Ast.ty]] cases>>=
-| NameTy   of symbol * pos
-| RecordTy of field list
-| ArrayTy  of symbol * pos
-@
+%<<[[Ast.ty]] cases>>=
+%| NameTy   of symbol * pos
+%| RecordTy of field list
+%| ArrayTy  of symbol * pos
+%@
 % namety can be also builtin types!
 % no size in ArrayTy, lose information when type
 
-<<type Ast.field>>=
-and field = (symbol * symbol * pos)
-@
 
 <<rule ty>>=
 ty:
@@ -1251,25 +1414,18 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 \section{The environment}
 
-
 <<type Environment.t>>=
-type 'ty t = {
+type t = {
     (* type definitions *)
-    tenv        : 'ty Symbol.table;
+    tenv        : vartype Symbol.table;
     (* value definitions *)
-    venv        : 'ty enventry Symbol.table;
-
-    xenv        : int Symbol.table;
-
-    frame       : Frame.frame;
-
-    break_label : Tree.label option;
-    exn_label   : Tree.label option
+    venv        : vartype enventry Symbol.table;
+    <<[[Environment.t]] other fields>>
   }
 @
 %todo: LP split
 %old: was 'a but clearer I think to put 'ty or even to directly
-% reference Ast.ty
+% reference vartype!
 
 <<type Environment.enventry>>=
 type 'ty enventry =
@@ -1277,18 +1433,61 @@ type 'ty enventry =
   | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
 @ 
 
+
+
+<<[[Environment.t]] other fields>>=
+xenv        : int Symbol.table;
+
+frame       : Frame.frame;
+
+break_label : Tree.label option;
+@
+
+\section{Builtins}
+
+<<constant Main.base_tenv>>=
+let base_tenv =
+(* name     type *)
+[ "int",    T.INT
+; "string", T.STRING
+]
+@
+
+<<constant Main.base_venv>>=
+let base_venv = 
+(* name        cc        args                    return *)
+[ "print",     Some "C", [T.STRING],             T.UNIT
+; "printi",    Some "C", [T.INT],                T.UNIT
+; "flush",     Some "C", [],                     T.UNIT
+; "getchar",   None,     [],                     T.STRING
+; "ord",       Some "C", [T.STRING],             T.INT
+; "chr",       None,     [T.INT],                T.STRING
+; "size",      Some "C", [T.STRING],             T.INT
+; "sizea",     Some "C", [T.ARRAY T.ANY],        T.INT
+; "substring", None,     [T.STRING;T.INT;T.INT], T.STRING
+; "concat",    None,     [T.STRING;T.STRING],    T.STRING
+; "not",       Some "C", [T.INT],                T.INT
+; "exit",      Some "C", [T.INT],                T.UNIT
+]
+@
+
+
+\section{Typechecking}
+
+% actually typechecking and IR code generation are done together
+% (as opposed to ocaml where have typechecking returning a typed
+% and named tree first)
+
 \chapter{Intermediate Representation Generation}
 %IR generation
 
-\section{Exceptions}
+\section{Declarations}
 
-<<command line flags>>=
-let unwind = ref false
-@
-<<command line options>>=
-"-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
-@
+\section{Statements}
 
+\section{Expressions}
+
+\chapter{Linearization}
 
 \chapter{[[C--]] Generation}
 
@@ -1300,7 +1499,126 @@ let unwind = ref false
 
 \section{Garbage collection}
 
+\chapter{Advanced Features}
+
+\section{Typedefs}
+
+<<[[Environment.vartype]] cases>>=
+| NAME   of Symbol.symbol
+@
+
+<<function Semantics.base_type>>=
+let rec base_type env = function
+    NAME s ->
+      (try base_type env (V.lookup_type env s 0)
+       with Not_found -> E.internal "NAME symbol not found"
+      )
+  | x -> x
+@
+
+<<function Semantics.lookup_base_type>>=
+let lookup_base_type env sym pos =
+  base_type env (V.lookup_type env sym pos)
+@ 
+
 \section{Exceptions}
+
+%lexer
+<<token declarations>>=
+%token EXCEPTION  TRY RAISE HANDLE
+@
+
+<<[[Lexer.keyword_table]] entries>>=
+"exception", P.EXCEPTION;
+
+"try",       P.TRY;
+"handle",    P.HANDLE;
+"raise",     P.RAISE;
+@
+
+
+
+%AST def
+<<[[Ast.dec]] cases>>=
+| ExceptionDec of symbol * pos
+@
+
+%grammar def
+<<rule exn_dec>>=
+exn_dec:
+   EXCEPTION id { mkException $2 }
+@
+%$
+% no arguments in exception
+
+% AST use
+<<[[Ast.exp]] cases>>=
+| TryExp    of exp * (symbol * exp * pos) list * pos
+| RaiseExp  of symbol * pos
+@
+
+% grammar user
+<<rule expr>>=
+ | TRY expr handlers         { mkTryExp $2 (List.rev $3) }
+ | RAISE id                  { mkRaise $2 }
+@
+%$
+
+<<subrules for stmt>>=
+/* exception handlers */
+handler:
+   HANDLE id expr END         { mkHandler $2 $3 }
+
+handlers:
+   handler          { $1 :: [] }
+ | handler handlers { $1 :: $2 }
+@
+%$
+
+
+% typechecking
+<<[[Environment.t]] other fields>>=
+exn_label   : Tree.label option
+@
+
+% generating
+<<[[Tree.stm]] cases>>=
+  | TRY    of label
+  | TRYEND of label
+@
+
+
+<<command line flags>>=
+let unwind = ref false
+@
+<<command line options>>=
+"-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
+@
+
+
+\section{Spawn}
+% process?
+
+%AST
+<<[[Ast.exp]] cases>>=
+| SpawnExp  of symbol * pos
+@
+
+%lexer
+<<token declarations>>=
+%token SPAWN
+@
+<<[[Lexer.keyword_table]] entries>>=
+"spawn",     P.SPAWN;
+@
+
+%grammar
+<<rule expr>>=
+ | SPAWN id                  { mkSpawn $2 }
+@
+%$
+
+%typechecking, generating
 
 \chapter{Advanced Topics}
 
@@ -1313,16 +1631,21 @@ let unwind = ref false
 
 \chapter{Error Managment}
 
+\section{The errors}
+
 <<type Error.error>>=
 type error =
     Internal_error of string
+
   (* lexical errors *)
   | Illegal_character of char
   | Illegal_escape of string
   | Unterminated_comment
   | Unterminated_string
+
   (* syntaxic errors *)
   | Syntax_error
+
   (* semantic errors *)
   | Type_error of string
   | Undefined_symbol of string
@@ -1364,11 +1687,14 @@ let internal      msg =
 let handle_exception (ex,pos) =
   let msg = match ex with
     Internal_error s     -> "Compiler bug: " ^ s
+
   | Illegal_character ch -> Printf.sprintf "illegal character '%c'" ch
   | Illegal_escape str   -> Printf.sprintf "illegal escape %s" str
   | Unterminated_comment -> "unterminated comment"
   | Unterminated_string  -> "unterminated string"
+
   | Syntax_error         -> "syntax error"
+
   | Type_error str       -> str
   | Undefined_symbol str -> "undefined symbol: " ^ str
   | Duplicate_symbol str -> "duplcate definition of: " ^ str
@@ -1377,6 +1703,22 @@ let handle_exception (ex,pos) =
   err_msg "Error" pos msg;
   exit 1
 @
+
+% type error dumper, should be the string in Type_error of string above
+<<function Semantics.type_name>>=
+let rec type_name = function
+    RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
+                "record {" l) ^ "}"
+  | NIL      -> "nil"
+  | INT      -> "int"
+  | STRING   -> "string"
+  | ARRAY vt -> "array of " ^ (type_name vt)
+  | NAME(s)  -> "named type " ^ (S.name s)
+  | UNIT     -> "unit"
+  | ANY      -> "any"
+@ 
+
+\section{Line position}
 
 <<function Error.err_msg>>=
 let err_msg prefix pos msg =
@@ -1394,7 +1736,17 @@ let warning = err_msg "Warning"
 @
 
 
-%\subsection{Line position}
+<<function Error.line_number>>=
+let line_number pos =
+  let rec line ln last_p = function
+      (p,l) :: rest ->
+        if p > pos then (l, pos - last_p)
+        else line l p rest
+    | [] -> (ln + 1, pos - last_p)
+  in line 0 0 source_map.sm
+@
+
+
 
 % source map
 <<type Error.sm>>=
@@ -1412,15 +1764,6 @@ let add_source_mapping pos line =
 @
 % @? slow?
 
-<<function Error.line_number>>=
-let line_number pos =
-  let rec line ln last_p = function
-      (p,l) :: rest ->
-        if p > pos then (l, pos - last_p)
-        else line l p rest
-    | [] -> (ln + 1, pos - last_p)
-  in line 0 0 source_map.sm
-@
 
 
 
@@ -1442,28 +1785,6 @@ then Ast.print_tree ast;
 @
 
 
-<<function iprintf>>=
-let iprintf d fmt =
-  let rec indent = function
-      0 -> ()
-    | i -> (print_string "  "; indent(i-1))
-  in (indent d; Printf.printf fmt)
-@
-
-<<function Ast.opname>>=
-let opname = function
-    PlusOp   -> "PlusOp"
-  | MinusOp  -> "MinusOp"
-  | TimesOp  -> "TimesOp"
-  | DivideOp -> "DivideOp"
-  | EqOp     -> "EqOp"
-  | NeqOp    -> "NeqOp"
-  | LtOp     -> "LtOp"
-  | LeOp     -> "LeOp"
-  | GtOp     -> "GtOp"
-  | GeOp     -> "GeOp"
-@
-
 <<function Ast.print_tree>>=
 let print_tree expression =
   <<declaration printer>>
@@ -1472,6 +1793,15 @@ let print_tree expression =
   <<expression printer>>
 in exp 0 expression
 @
+
+<<function iprintf>>=
+let iprintf d fmt =
+  let rec indent = function
+      0 -> ()
+    | i -> (print_string "  "; indent(i-1))
+  in (indent d; Printf.printf fmt)
+@
+
 
 
 <<declaration printer>>=
@@ -1592,6 +1922,20 @@ and exp d = function
       iprintf d "SpawnExp %s\n" (S.name name)
 @ 
 
+<<function Ast.opname>>=
+let opname = function
+    PlusOp   -> "PlusOp"
+  | MinusOp  -> "MinusOp"
+  | TimesOp  -> "TimesOp"
+  | DivideOp -> "DivideOp"
+  | EqOp     -> "EqOp"
+  | NeqOp    -> "NeqOp"
+  | LtOp     -> "LtOp"
+  | LeOp     -> "LeOp"
+  | GtOp     -> "GtOp"
+  | GeOp     -> "GeOp"
+@
+
 
 \section{[[tiger -dump_ext]]}
 
@@ -1600,6 +1944,51 @@ let dump_ext    = ref false
 @
 <<command line options>>=
 "-dump_ext",      Arg.Set dump_ext,    "\tprint Expression Trees";
+@
+
+<<[[Main.emit_function()]] if dump expression tree>>=
+if !Option.dump_ext  
+then Tree.print_exp ex;
+@
+
+
+<<function Tree.print_exp>>=
+let print_exp e = print_stm (EXP e)
+@
+
+<<function Tree.print_stm>>=
+let print_stm =
+  let rec iprintf = function
+      0 -> Printf.printf
+    | i -> (print_string "  "; iprintf (i-1))
+  in
+  let rec prstm d = function
+    | LABEL l      -> iprintf d "LABEL:%s\n " (S.name l)
+    | CONT(l,ls)   -> iprintf d "CONT:%s\n "  (S.name l)
+    | TRY l        -> iprintf d "TRY:%s\n"    (S.name l)
+    | TRYEND l     -> iprintf d "TRYEND:%s\n" (S.name l)
+    | SEQ(a,b)     -> iprintf d "SEQ:\n";     prstm(d+1) a; prstm(d+1) b
+    | MOVE(a,b)    -> iprintf d "MOVE:\n";    prexp(d+1) a; prexp(d+1) b
+    | JUMP e       -> iprintf d "JUMP:\n";    prexp(d+1) e
+    | EXP e        -> iprintf d "EXP:\n";     prexp(d+1) e
+    | RET e        -> iprintf d "RET:\n";     prexp(d+1) e
+    | CJUMP(a,t,f) -> iprintf d "CJUMP:\n";   prexp(d+1) a;
+                      iprintf (d+1) "true  label: %s\n" (S.name t);
+                      iprintf (d+1) "false label: %s\n" (S.name f)
+  and prexp d = function
+      BINOP(p,a,b)     -> iprintf d "BINOP:%s\n" (cmm_binop p);
+                          prexp (d+1) a; prexp (d+1) b
+    | RELOP(p,a,b)     -> iprintf d "RELOP:%s\n" (cmm_relop p);
+                          prexp (d+1) a; prexp (d+1) b
+    | MEM(e,_)         -> iprintf d "MEM:\n"; prexp (d+1) e
+    | TEMP(t,_)        -> iprintf d "TEMP %s\n" (S.name t)
+    | ESEQ(s,e)        -> iprintf d "ESEQ:\n";
+                          prstm (d+1) s; prexp (d+1) e
+    | NAME lab         -> iprintf d "NAME %s\n" (S.name lab)
+    | CONST i          -> iprintf d "CONST %d\n" i
+    | CALL(e,el,_,_,_) -> iprintf d "CALL:\n";
+                          prexp (d+1) e; List.iter (prexp (d+2)) el
+  in prstm 0
 @
 
 \section{[[tiger -dump_lext]]}
@@ -1611,7 +2000,12 @@ let dump_lext   = ref false
 "-dump_lext",     Arg.Set dump_lext,   "\tprint Linearized Expression Trees";
 @
 
-\chapter{Mini stdlib}
+<<[[Main.emit_function()]] if dump linearized tree>>=
+if !Option.dump_lext 
+then List.iter Tree.print_stm ltree;
+@
+
+
 
 \chapter{Extra Code}
 

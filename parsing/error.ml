@@ -1,16 +1,18 @@
 (*s: parsing/error.ml *)
-(*s: error.ml *)
 (*s: types(error.nw) *)
 (*s: type Error.error *)
 type error =
     Internal_error of string
+
   (* lexical errors *)
   | Illegal_character of char
   | Illegal_escape of string
   | Unterminated_comment
   | Unterminated_string
+
   (* syntaxic errors *)
   | Syntax_error
+
   (* semantic errors *)
   | Type_error of string
   | Undefined_symbol of string
@@ -24,7 +26,8 @@ type ex = error * int
 exception Error of ex
 (*e: exception Error.Error *)
 (*e: types(error.nw) *)
-(*x: error.ml *)
+
+(*s: error.ml *)
 (*s: type Error.sm *)
 type sm = { mutable sm: (int * int) list }
 (*e: type Error.sm *)
@@ -65,11 +68,14 @@ let warning = err_msg "Warning"
 let handle_exception (ex,pos) =
   let msg = match ex with
     Internal_error s     -> "Compiler bug: " ^ s
+
   | Illegal_character ch -> Printf.sprintf "illegal character '%c'" ch
   | Illegal_escape str   -> Printf.sprintf "illegal escape %s" str
   | Unterminated_comment -> "unterminated comment"
   | Unterminated_string  -> "unterminated string"
+
   | Syntax_error         -> "syntax error"
+
   | Type_error str       -> str
   | Undefined_symbol str -> "undefined symbol: " ^ str
   | Duplicate_symbol str -> "duplcate definition of: " ^ str
