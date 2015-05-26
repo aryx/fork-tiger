@@ -32,6 +32,11 @@
 %   (harder to understand non functional code using lots of globals)
 
 %thx to this manual, better understand compilers:
+% - mutual recursivity handling (list of things together, as in ocaml)
+%   alt: forward decl as in C
+% - scope handling (global for types only, as in ocaml)
+%   alt: mess as in C where structures can be nested which leads to
+%   complex edge cases. KISS!
 
 %history LP-ization:
 % - skeleton, mostly copy paste of Template.nw skeleton
@@ -351,7 +356,7 @@ and ty =
 %ex?
 
 
-\section{Types}
+\section{Type system}
 % and the environment?
 
 <<type Environment.vartype>>=
@@ -378,6 +383,7 @@ type vartype =
 % ANY?
 
 \section{Symbol table}
+% Scope system
 
 % for use/def checking, lookup attributes, etc. classic.
 
@@ -492,6 +498,9 @@ level  : int;
 @
 % level is for?
 
+%\section{Environment}
+%
+
 \section{Intermediate tree representation}
 % linearized tree
 
@@ -508,6 +517,8 @@ type stm =
   <<[[Tree.stm]] cases>>
 @
 % CONT?? JUMP?
+% diff with before? have labels and jumps! so closer
+% to assembly. No more if, while, for.
 
 <<type Tree.label>>=
 type label = Symbol.symbol
@@ -525,6 +536,7 @@ and exp =
   | NAME  of label
   | CALL  of exp * exp list * string option * label option * bool
 @
+% diff with before? Not much yet.
 % hmm not really linearized. 
 % unless linearize() actually (ab)use the same structure but with
 % extra postconditions on the form of the tree.
@@ -533,19 +545,37 @@ and exp =
 <<type Tree.temp>>=
 and  temp  = Symbol.symbol
 @
+% when we will lineraize then binop will have only "basic" children
+% in which case intermediate values will be stored in those 'temp'
+% variables. so x = 1+2+3; become temp1 = 2+3; temp2 = 1+temp1; x = temp2
 
 <<types Tree.xxxop>>=
 and binop = PLUS | MINUS | MUL | DIV
-and relop = EQ | NE | LT | GT | LE | GE
+and relop = EQ | NE   | LT | GT | LE | GE
 @
 
 \section{Stack frames}
 
+% locals, params, temporaries, all things not handled by
+% exp above.
+
+<<type Frame.frame>>=
+type frame = { 
+  mutable params : (Tree.label * bool) list;
+  mutable vars   : (Tree.label * bool) list;
+  mutable temps  : (Tree.label * bool) list;
+  <<[[Frame.frame]] other fields>>
+}
+@
+% bool?
 
 
-
-
-
+%XXX
+<<[[Frame.frame]] other fields>>=
+name           : Tree.label;
+level          : int;
+mutable size   : int;
+@
 
 
 
@@ -567,12 +597,18 @@ let _ =
   main ()
 @
 
+<<signature global Option.inch>>=
+val inch      : in_channel ref
+@
 <<command line flags>>=
 let inch   = ref stdin
 @
 
 \section{Command line processing}
 
+<<signature function Option.parse_cmdline>>=
+val parse_cmdline : unit -> unit
+@
 % main -> <>
 <<function Option.parse_cmdline>>=
 let parse_cmdline() = 
@@ -608,36 +644,82 @@ let set_input s =
 
 <<function Main.compile>>=
 let compile ch =
-  let base_env = Environment.new_env base_tenv base_venv in
-
+  (* parsing *)
   let lexbuf = Lexing.from_channel ch in
   let ast = Parser.program Lexer.token lexbuf in
   <<[[Main.compile()]] if dump AST option>>
 
-  let exl = Semantics.translate base_env ast in
+  (* checking and compiling part1 *)
+  let base_env = Environment.new_env base_tenv base_venv in
+  let xs = Semantics.translate base_env ast in
 
-  Codegen.output_file_header imports;
-  Frame.output_strings();
+  (* compiling part2 and generating *)
+  <<[[Main.compile()]] generate headers>>
+  xs |> List.iter emit_function 
+@
 
-  List.iter emit_function exl
+<<signature function Lexer.token>>=
+val token : Lexing.lexbuf -> Parser.token
+@
+
+%signature Parser.program is actually in generated file parser.mli
+% so orphaned chunk below
+<<signature function Parser.program>>=
+val program :
+  (Lexing.lexbuf  -> token) -> Lexing.lexbuf -> Ast.exp
 @
 
 
+<<signature function Environment.new_env>>=
+val new_env : (string * vartype) list ->
+              (string * string option * vartype list * vartype) list -> t
+@
+% type defs, function defs (string option?)
+
+<<signature function Semantics.translate>>=
+val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
+@
+% one for each function
 
 \section{[[Main.emit_function()]]}
 
 
 <<function Main.emit_function>>=
 let emit_function (frm,ex) =
+  (* compiling *)
   <<[[Main.emit_function()]] if dump expression tree>>
   let ltree = Canonical.linearize (Tree.EXP ex) in
   <<[[Main.emit_function()]] if dump linearized tree>>
   ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
     Frame.alloc_temp frm x p |> ignore
   );
+
+  (* generating *)
   Frame.output_header frm;
   Codegen.emit ltree;
   Frame.output_footer frm
+@
+
+<<signature function Canonical.linearize>>=
+val linearize : Tree.stm -> Tree.stm list
+@
+% but should use another DS where can more clearly see the restrictions
+% on the shape of the tree
+
+<<signature function Tree.find_temps>>=
+val find_temps : stm list -> (temp * bool) list
+@
+% bool?
+
+<<signature function Frame.output_header>>=
+val output_header  : frame -> unit
+@
+<<signature function Frame.output_footer>>=
+val output_footer  : frame -> unit
+@
+
+<<signature Codegen.emit>>=
+val emit               : Tree.stm list -> unit
 @
 
 \chapter{Lexing}
@@ -811,12 +893,13 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
 
 | "="  { P.EQ }
 | "<>" { P.NEQ }
+
 | ">"  { P.GT }
 | "<"  { P.LT }
 | ">=" { P.GE }
 | "<=" { P.LE }
 @
-% no negation?
+
 
 
 \section{Punctuations}
@@ -1281,6 +1364,7 @@ sequence:
  | LPAREN expr_list RPAREN { $2 }
 @
 %$
+% paren, meh, as in ocaml, but unusual; should have used LBRACE I think
 
 <<subrules for stmt>>=
 expr_list:
@@ -1366,6 +1450,8 @@ ty_fields:
 <<parser helper functions>>=
 let getpos = Parsing.symbol_start
 @
+% subtle! he does not use the lexer for position tracking (well he used
+% it only for the pos -> line tracking) but the lr engine.
 
 %less: could delete, inline
 <<AST mk wrappers>>=
@@ -1409,6 +1495,7 @@ let mkArrayTy n           = A.ArrayTy(n, getpos())
 let mkException s         = A.ExceptionDec(s, getpos())
 @
 \fi
+%todo: inline? not much gain
 
 \chapter{Checking}
 
@@ -1432,9 +1519,9 @@ type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
   | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
 @ 
+% string option = storage, for instance "C"
 
-
-
+%XXX
 <<[[Environment.t]] other fields>>=
 xenv        : int Symbol.table;
 
@@ -1490,6 +1577,13 @@ let base_venv =
 \chapter{Linearization}
 
 \chapter{[[C--]] Generation}
+
+\section{Header generation}
+
+<<[[Main.compile()]] generate headers>>=
+Codegen.output_file_header imports;
+Frame.output_strings();
+@
 
 \chapter{Runtime}
 

@@ -38,7 +38,7 @@ and exp =
 (*x: types(tree.nw) *)
 (*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
-and relop = EQ | NE | LT | GT | LE | GE
+and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
 (*e: types(tree.nw) *)
 
@@ -51,7 +51,9 @@ val cmm_binop      : binop -> string
 val cmm_relop      : relop -> string
 (*x: utility functions *)
 val is_ptr     : exp -> bool
+(*s: signature function Tree.find_temps *)
 val find_temps : stm list -> (temp * bool) list
+(*e: signature function Tree.find_temps *)
 (*x: utility functions *)
 val print_stm : stm -> unit
 val print_exp : exp -> unit

@@ -4,13 +4,18 @@ module S = Symbol
 module T = Tree
 module H = Hashtbl
 (*x: frame.ml *)
-type frame = { name           : T.label
-             ; level          : int
-             ; mutable size   : int
-             ; mutable params : (T.label * bool) list
-             ; mutable vars   : (T.label * bool) list
-             ; mutable temps  : (T.label * bool) list
-             }
+(*s: type Frame.frame *)
+type frame = { 
+  mutable params : (Tree.label * bool) list;
+  mutable vars   : (Tree.label * bool) list;
+  mutable temps  : (Tree.label * bool) list;
+  (*s: [[Frame.frame]] other fields *)
+  name           : Tree.label;
+  level          : int;
+  mutable size   : int;
+  (*e: [[Frame.frame]] other fields *)
+}
+(*e: type Frame.frame *)
 type access =
     Temp  of T.label
   | Stack of frame * int * bool

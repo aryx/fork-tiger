@@ -39,7 +39,7 @@ and exp =
 (*x: types(tree.nw) *)
 (*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
-and relop = EQ | NE | LT | GT | LE | GE
+and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
 (*e: types(tree.nw) *)
 (*x: tree.ml *)

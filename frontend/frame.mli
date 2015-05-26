@@ -17,8 +17,12 @@ val alloc_local  : frame  -> Tree.label -> bool -> access
 val alloc_temp   : frame  -> Tree.label -> bool -> access
 val alloc_string : string -> Tree.label
 (*x: frame.mli *)
+(*s: signature function Frame.output_header *)
 val output_header  : frame -> unit
+(*e: signature function Frame.output_header *)
+(*s: signature function Frame.output_footer *)
 val output_footer  : frame -> unit
+(*e: signature function Frame.output_footer *)
 val output_strings : unit  -> unit
 (*e: frame.mli *)
 (*e: frontend/frame.mli *)

@@ -118,7 +118,7 @@ val line_number : int -> int * int
 %%modules may access the value of options through the accessor
 %%functions.
 <<option.mli>>=
-val parse_cmdline : unit -> unit
+<<signature function Option.parse_cmdline>>
 
 val dump_ast     : bool ref
 val dump_ext     : bool ref
@@ -126,7 +126,7 @@ val dump_lext    : bool ref
 
 val unwind    : bool ref
 val file      : string ref
-val inch      : in_channel ref
+<<signature global Option.inch>>
 @
 %old:
 %val print_ast     : unit -> bool
@@ -407,7 +407,7 @@ module S = Symbol
 %%\label{sec:scanner}
 
 <<lexer.mli>>=
-val token : Lexing.lexbuf -> Parser.token
+<<signature function Lexer.token>>
 @
 
 
@@ -474,8 +474,7 @@ val token : Lexing.lexbuf -> Parser.token
 %%type definitions and functions. All new environments are automatically
 %%given a new stack frame.
 <<environment.mli>>=
-val new_env : (string * vartype) list ->
-              (string * string option * vartype list * vartype) list -> t
+<<signature function Environment.new_env>>
 @ 
 %%There are three functions for manipulating the variable scope and the
 %%current stack frame. Creating a new stack frame automatically creates
@@ -685,7 +684,7 @@ let new_exn_label env =
 %%(Section~\ref{sec:tree})---the intermediate representation of the
 %%function body.
 <<semantics.mli>>=
-val translate : Environment.t -> Ast.exp -> (Frame.frame * Translate.exp) list
+<<signature function Semantics.translate>>
 @
 %%The [[Semantics]] module implementation consists of a definition of
 %%the type system used internally in the compiler, the [[translate]]
@@ -1358,7 +1357,7 @@ val cmm_relop      : relop -> string
 %%is true only if the temporary variable holds a pointer.
 <<utility functions>>=
 val is_ptr     : exp -> bool
-val find_temps : stm list -> (temp * bool) list
+<<signature function Tree.find_temps>>
 @ 
 
 %%Finally, for debugging purposes, there are two functions for printing
@@ -1940,8 +1939,9 @@ let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 %%The algorithm implemented here is almost identical to the algorithm
 %%found in Chapter~8 of \cite{appel}.
 <<canonical.mli>>=
-val linearize : Tree.stm -> Tree.stm list
+<<signature function Canonical.linearize>>
 @
+
 <<canonical.ml>>=
 module T = Tree
 module S = Symbol
@@ -2111,8 +2111,8 @@ val alloc_string : string -> Tree.label
 %%addition, this module will also output the string literals as
 %%initialized data.
 <<frame.mli>>=
-val output_header  : frame -> unit
-val output_footer  : frame -> unit
+<<signature function Frame.output_header>>
+<<signature function Frame.output_footer>>
 val output_strings : unit  -> unit
 @
 
@@ -2129,13 +2129,7 @@ module H = Hashtbl
 %%temporaries. For each variable we store the name and a boolean that is
 %%true if the variable holds a pointer.
 <<frame.ml>>=
-type frame = { name           : T.label
-             ; level          : int
-             ; mutable size   : int
-             ; mutable params : (T.label * bool) list
-             ; mutable vars   : (T.label * bool) list
-             ; mutable temps  : (T.label * bool) list
-             }
+<<type Frame.frame>>
 type access =
     Temp  of T.label
   | Stack of frame * int * bool
@@ -2295,7 +2289,7 @@ let output_strings() =
 %%to the external functions that may be called by Tiger programs.
 <<codegen.mli>>=
 val output_file_header : string list   -> unit
-val emit               : Tree.stm list -> unit
+<<signature Codegen.emit>>
 @
 <<codegen.ml>>=
 module E = Error

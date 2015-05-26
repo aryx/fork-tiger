@@ -46,6 +46,7 @@ let imports =
 (*s: compiler driver *)
 (*s: function Main.emit_function *)
 let emit_function (frm,ex) =
+  (* compiling *)
   (*s: [[Main.emit_function()]] if dump expression tree *)
   if !Option.dump_ext  
   then Tree.print_exp ex;
@@ -58,6 +59,8 @@ let emit_function (frm,ex) =
   ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
     Frame.alloc_temp frm x p |> ignore
   );
+
+  (* generating *)
   Frame.output_header frm;
   Codegen.emit ltree;
   Frame.output_footer frm
@@ -65,8 +68,7 @@ let emit_function (frm,ex) =
 
 (*s: function Main.compile *)
 let compile ch =
-  let base_env = Environment.new_env base_tenv base_venv in
-
+  (* parsing *)
   let lexbuf = Lexing.from_channel ch in
   let ast = Parser.program Lexer.token lexbuf in
   (*s: [[Main.compile()]] if dump AST option *)
@@ -74,12 +76,16 @@ let compile ch =
   then Ast.print_tree ast;
   (*e: [[Main.compile()]] if dump AST option *)
 
-  let exl = Semantics.translate base_env ast in
+  (* checking and compiling part1 *)
+  let base_env = Environment.new_env base_tenv base_venv in
+  let xs = Semantics.translate base_env ast in
 
+  (* compiling part2 and generating *)
+  (*s: [[Main.compile()]] generate headers *)
   Codegen.output_file_header imports;
   Frame.output_strings();
-
-  List.iter emit_function exl
+  (*e: [[Main.compile()]] generate headers *)
+  xs |> List.iter emit_function 
 (*e: function Main.compile *)
 
 (*s: function Main.main *)

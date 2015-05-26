@@ -42,8 +42,10 @@ type t = {
   }
 (*e: type Environment.t *)
 (*x: environment.mli *)
+(*s: signature function Environment.new_env *)
 val new_env : (string * vartype) list ->
               (string * string option * vartype list * vartype) list -> t
+(*e: signature function Environment.new_env *)
 (*x: environment.mli *)
 val new_scope : t -> t
 val frame     : t -> Frame.frame
