@@ -233,6 +233,7 @@ end
 %  - no modules (no qualifier), so name resolution simple (even though
 %    scoped/nested language), and no linking really
 %  - no float
+%  - some form of type inference :) no need to declare type of VarDec
 
 \section{Output C-- language}
 
@@ -278,6 +279,7 @@ type pos = int
 type symbol = Symbol.symbol
 @
 % see below, =~ unique string
+%less: rename name? or ident?
 
 % for identifiers and also type names
 %less: same namespace?
@@ -293,8 +295,9 @@ type dec =
 <<[[Ast.dec]] cases>>
 @
 % list for TypeDec and FunctionDec so can have mutually recursive things
-% VarDec symbol option  ???
-% FunctionDec symbol option  ???
+% VarDec symbol option? optional type
+% FunctionDec symbol option? optional return type
+% less: have a symboltype?
 
 <<type Ast.field>>=
 and field = (symbol * symbol * pos)
@@ -394,6 +397,11 @@ type vartype =
 type symbol = string * int
 @
 % int? a stamp to make sure things are unique
+% will be used for many things, for many "namespaces"
+%  - ident
+%  - typename
+%  - label
+%  - temps
 
 %note: no qualifier, no module system, no linking modules.
 
