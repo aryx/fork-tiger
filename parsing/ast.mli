@@ -3,32 +3,35 @@
 (*s: type Ast.pos *)
 type pos = int 
 (*e: type Ast.pos *)
-(*s: type Ast.symbol *)
-type symbol = Symbol.symbol
-(*e: type Ast.symbol *)
+(*s: type Ast.name *)
+type name = Symbol.symbol
+(*e: type Ast.name *)
+(*s: type Ast.typename *)
+type typename = Symbol.symbol
+(*e: type Ast.typename *)
 
 (*s: type Ast.dec *)
 type dec =
-| VarDec       of symbol * symbol option * exp * pos
-| TypeDec      of (symbol * ty * pos) list
-| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
+| VarDec       of name * typename option * exp * pos
+| TypeDec      of (typename * ty * pos) list
+| FunctionDec  of (name * field list * typename option * exp * pos) list
 (*s: [[Ast.dec]] cases *)
-| ExceptionDec of symbol * pos
+| ExceptionDec of name * pos
 (*e: [[Ast.dec]] cases *)
 (*e: type Ast.dec *)
 (*s: type Ast.ty *)
 and ty =
-| NameTy   of symbol * pos
+| NameTy   of typename * pos
 | RecordTy of field list
-| ArrayTy  of symbol * pos
+| ArrayTy  of typename * pos
 (*e: type Ast.ty *)
 (*s: type Ast.field *)
-and field = (symbol * symbol * pos)
+and field = (name * typename * pos)
 (*e: type Ast.field *)
 (*s: type Ast.var *)
 and var =
-    SimpleVar    of symbol * pos
-  | FieldVar     of var * symbol * pos
+    SimpleVar    of name * pos
+  | FieldVar     of var * name * pos
   | SubscriptVar of var * exp * pos
 (*e: type Ast.var *)
 (*s: type Ast.exp *)
@@ -40,10 +43,10 @@ and exp =
 | VarExp    of var
 
 | OpExp     of exp * oper * exp * pos
-| CallExp   of symbol * exp list * pos
+| CallExp   of name * exp list * pos
 
-| RecordExp of symbol * (symbol * exp * pos) list * pos
-| ArrayExp  of symbol * exp * exp * pos
+| RecordExp of name * (name * exp * pos) list * pos
+| ArrayExp  of name * exp * exp * pos
 
 | LetExp    of dec list * exp * pos
 
@@ -52,14 +55,14 @@ and exp =
 | SeqExp    of exp list * pos
 | IfExp     of exp * exp * exp option * pos
 | WhileExp  of exp * exp * pos
-| ForExp    of symbol * exp * exp * exp * pos
+| ForExp    of name * exp * exp * exp * pos
 | BreakExp  of pos
 (*e: [[Ast.exp]] statement cases *)
 (*s: [[Ast.exp]] cases *)
-| TryExp    of exp * (symbol * exp * pos) list * pos
-| RaiseExp  of symbol * pos
+| TryExp    of exp * (name * exp * pos) list * pos
+| RaiseExp  of name * pos
 (*x: [[Ast.exp]] cases *)
-| SpawnExp  of symbol * pos
+| SpawnExp  of name * pos
 (*e: [[Ast.exp]] cases *)
 (*e: type Ast.exp *)
 (*s: type Ast.oper *)

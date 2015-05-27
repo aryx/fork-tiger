@@ -8,7 +8,7 @@ type vartype =
 
   (* aggregate types *)
   | ARRAY  of vartype
-  | RECORD of (Symbol.symbol * vartype) list
+  | RECORD of (Ast.name * vartype) list
 
   (* other types *)
   (*s: [[Environment.vartype]] cases *)
@@ -30,13 +30,13 @@ type t = {
     (* value definitions *)
     venv        : vartype enventry Symbol.table;
     (*s: [[Environment.t]] other fields *)
-    xenv        : int Symbol.table;
-
     frame       : Frame.frame;
-
+    (*x: [[Environment.t]] other fields *)
     break_label : Tree.label option;
     (*x: [[Environment.t]] other fields *)
-    exn_label   : Tree.label option
+    exn_label   : Tree.label option;
+    (*x: [[Environment.t]] other fields *)
+    xenv        : int Symbol.table;
     (*e: [[Environment.t]] other fields *)
   }
 (*e: type Environment.t *)
@@ -51,16 +51,32 @@ val new_scope : t -> t
 val frame     : t -> Frame.frame
 val new_frame : t -> Symbol.symbol -> t
 (*x: environment.mli *)
-val lookup_type  : t -> Symbol.symbol -> Ast.pos -> vartype
+(*s: signature function Environment.lookup_type *)
+val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
+(*e: signature function Environment.lookup_type *)
+(*s: signature function Environment.lookup_value *)
 val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
-val lookup_exn   : t -> Symbol.symbol -> Ast.pos -> int
+(*e: signature function Environment.lookup_value *)
+(*s: signature function Environment.lookup_exn *)
+val lookup_exn   : t -> Ast.name -> Ast.pos -> int
+(*e: signature function Environment.lookup_exn *)
 (*x: environment.mli *)
-val enter_type  : t -> Symbol.symbol -> vartype -> unit
-val enter_exn   : t -> Symbol.symbol -> unit
-val enter_fun   : t -> Symbol.symbol -> string option ->
-                  vartype list -> vartype  -> t
-val enter_param : t -> Symbol.symbol -> vartype -> bool -> unit
-val enter_local : t -> Symbol.symbol -> vartype -> bool -> Frame.access
+(*s: signature function Environment.enter_type *)
+val enter_type  : t -> Ast.typename -> vartype -> unit
+(*e: signature function Environment.enter_type *)
+(*s: signature function Environment.enter_fun *)
+val enter_fun   : 
+  t -> Ast.name -> string option -> vartype list -> vartype  -> t
+(*e: signature function Environment.enter_fun *)
+(*s: signature function Environment.enter_param *)
+val enter_param : t -> Ast.name -> vartype -> bool -> unit
+(*e: signature function Environment.enter_param *)
+(*s: signature function Environment.enter_local *)
+val enter_local : t -> Ast.name -> vartype -> bool -> Frame.access
+(*e: signature function Environment.enter_local *)
+(*s: signature function Environment.enter_exn *)
+val enter_exn   : t -> Ast.name -> unit
+(*e: signature function Environment.enter_exn *)
 (*x: environment.mli *)
 val break_label     : t -> Tree.label
 val new_break_label : t -> t

@@ -11,15 +11,20 @@
 %history: 
 %------------------------------------------------------------------------------
 
-%thx to LP, changed for the better a few things. Actually I re-lpized
-%this document so here is what I think is now better:
-% - get a breath overview of the core DS first
+%thx to LP, changed for the better a few things. 
+% - introduce extra types ('name', 'typename') to avoid overload 'symbol'
+%   so clearer types I think (symbol * symbol -> name * typename)
+
+%Actually I re-lpized this document so here is what I think is now better:
+% - get first an overview of all the core DS
+% - get first an overview of the main functions, the main concepts/types
 % - LP split things (environment.t, Ast, vartype ...) so can expose
 %   first a simpler version
-% - get the main functions overview first, the main types
 % - AST is put closer to the grammar (update: actually was bad, but
 %   at least I aspectized a few constructions like Spawn, exns)
 % - I reordered AST elts, for instance CONST is before BINOP.
+% - I put the entry points of modules first, so know the goal/context
+%   so better understand the helpers presented later
 
 %thx to codemap/codegraph/scheck:
 % - TODO use cg to reduce backward deps, introduce globals.c, utils.c,
@@ -275,8 +280,8 @@ type pos = int
 
 \subsection{Names}
 
-<<type Ast.symbol>>=
-type symbol = Symbol.symbol
+<<type Ast.name>>=
+type name = Symbol.symbol
 @
 % see below, =~ unique string
 %less: rename name? or ident?
@@ -284,26 +289,28 @@ type symbol = Symbol.symbol
 % for identifiers and also type names
 %less: same namespace?
 
+<<type Ast.typename>>=
+type typename = Symbol.symbol
+@
+
 \subsection{Declarations}
 
 % defs
 <<type Ast.dec>>=
 type dec =
-| VarDec       of symbol * symbol option * exp * pos
-| TypeDec      of (symbol * ty * pos) list
-| FunctionDec  of (symbol * field list * symbol option * exp * pos) list
+| VarDec       of name * typename option * exp * pos
+| TypeDec      of (typename * ty * pos) list
+| FunctionDec  of (name * field list * typename option * exp * pos) list
 <<[[Ast.dec]] cases>>
 @
 % list for TypeDec and FunctionDec so can have mutually recursive things
-% VarDec symbol option? optional type
-% FunctionDec symbol option? optional return type
-% less: have a symboltype?
+% typename option so have a form of type inference!
+
+% need typename so need to introduce indirect name for everything
 
 <<type Ast.field>>=
-and field = (symbol * symbol * pos)
+and field = (name * typename * pos)
 @
-% symbol?? for type definition? so need to introduce indirect
-% name for everything?
 
 %ex? dump? actually have a -dump_ast!
 
@@ -319,10 +326,10 @@ and exp =
 | VarExp    of var
 
 | OpExp     of exp * oper * exp * pos
-| CallExp   of symbol * exp list * pos
+| CallExp   of name * exp list * pos
 
-| RecordExp of symbol * (symbol * exp * pos) list * pos
-| ArrayExp  of symbol * exp * exp * pos
+| RecordExp of name * (name * exp * pos) list * pos
+| ArrayExp  of name * exp * exp * pos
 
 | LetExp    of dec list * exp * pos
 
@@ -342,7 +349,7 @@ and exp =
 | SeqExp    of exp list * pos
 | IfExp     of exp * exp * exp option * pos
 | WhileExp  of exp * exp * pos
-| ForExp    of symbol * exp * exp * exp * pos
+| ForExp    of name * exp * exp * exp * pos
 | BreakExp  of pos
 @
 
@@ -350,12 +357,13 @@ and exp =
 
 <<type Ast.ty>>=
 and ty =
-| NameTy   of symbol * pos
+| NameTy   of typename * pos
 | RecordTy of field list
-| ArrayTy  of symbol * pos
+| ArrayTy  of typename * pos
 @
 % namety can be also builtin types!
 % no size in ArrayTy, lose information when type
+% not a recursive type because force to name every intermediate
 
 %ex?
 
@@ -372,19 +380,20 @@ type vartype =
 
   (* aggregate types *)
   | ARRAY  of vartype
-  | RECORD of (Symbol.symbol * vartype) list
+  | RECORD of (Ast.name * vartype) list
 
   (* other types *)
   <<[[Environment.vartype]] cases>>
 @ 
+% this one is recursive!
 
 %XXX
 <<[[Environment.vartype]] cases>>=
 | NIL
 | ANY
 @
-% NIL?
-% ANY?
+% NIL = Null = unitialized record
+% ANY? for unknown array?
 
 \section{Symbol table}
 % Scope system
@@ -398,7 +407,7 @@ type symbol = string * int
 @
 % int? a stamp to make sure things are unique
 % will be used for many things, for many "namespaces"
-%  - ident
+%  - name (var ident, func ident, field ident, exn ident)
 %  - typename
 %  - label
 %  - temps
@@ -577,6 +586,7 @@ type frame = {
 }
 @
 % bool?
+% mutable!
 
 
 %XXX
@@ -1207,8 +1217,8 @@ id: ID { S.symbol $1 };
 % =~ lvalue
 <<type Ast.var>>=
 and var =
-    SimpleVar    of symbol * pos
-  | FieldVar     of var * symbol * pos
+    SimpleVar    of name * pos
+  | FieldVar     of var * name * pos
   | SubscriptVar of var * exp * pos
 @
 % no pointer here
@@ -1506,6 +1516,10 @@ let mkException s         = A.ExceptionDec(s, getpos())
 \fi
 %todo: inline? not much gain
 
+
+% show example of dump! -dump_ast
+
+
 \chapter{Checking}
 
 \section{The environment}
@@ -1519,7 +1533,6 @@ type t = {
     <<[[Environment.t]] other fields>>
   }
 @
-%todo: LP split
 %old: was 'a but clearer I think to put 'ty or even to directly
 % reference vartype!
 
@@ -1530,13 +1543,50 @@ type 'ty enventry =
 @ 
 % string option = storage, for instance "C"
 
+
+<<[[Environment.t]] other fields>>=
+frame       : Frame.frame;
+@
+
+
+
+
 %XXX
 <<[[Environment.t]] other fields>>=
-xenv        : int Symbol.table;
-
-frame       : Frame.frame;
-
 break_label : Tree.label option;
+@
+
+
+\subsection{Lookups}
+
+<<signature function Environment.lookup_type>>=
+val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
+@
+% why pos? to give error msg?
+
+<<signature function Environment.lookup_value>>=
+val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
+@
+
+\subsection{Enters}
+
+<<signature function Environment.enter_type>>=
+val enter_type  : t -> Ast.typename -> vartype -> unit
+@
+
+<<signature function Environment.enter_fun>>=
+val enter_fun   : 
+  t -> Ast.name -> string option -> vartype list -> vartype  -> t
+@
+% not enter_global??
+
+<<signature function Environment.enter_param>>=
+val enter_param : t -> Ast.name -> vartype -> bool -> unit
+@
+% bool?
+
+<<signature function Environment.enter_local>>=
+val enter_local : t -> Ast.name -> vartype -> bool -> Frame.access
 @
 
 \section{Builtins}
@@ -1574,8 +1624,56 @@ let base_venv =
 % (as opposed to ocaml where have typechecking returning a typed
 % and named tree first)
 
+<<functions Semantics.check_type_xxx>>=
+let check_type_t ty pos msg typ =
+  if typ <> ty
+  then E.type_err pos (msg ^ " must be of type " ^ type_name ty)
+
+let check_type_int  = check_type_t INT
+let check_type_unit = check_type_t UNIT
+@ 
+
+
+<<function Semantics.check_type_eq>>=
+let check_type_eq pos msg t1 t2 =
+  let are_equivalent = 
+    match (t1,t2) with
+    | (RECORD _,NIL)
+    | (NIL,RECORD _)
+    | (ARRAY ANY, ARRAY _)
+    | (ARRAY _, ARRAY ANY) -> true
+    | _                    -> t1 = t2
+  in 
+  if not are_equivalent
+  then E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
+@
+%old: I reorged the code, clearer
+
+<<function Semantics.is_ptr>>=
+let is_ptr = function
+    INT | UNIT -> false
+  | NIL | RECORD _ | STRING | ARRAY _ -> true
+  | _ -> E.internal "non-base type for variable"
+@
+
+
 \chapter{Intermediate Representation Generation}
 %IR generation
+
+%val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
+
+<<function Semantics.translate>>=
+let translate env ast =
+  let (mainex, mainty) = trans env (EXP ast) in
+  begin
+    if mainty <> INT && mainty <> UNIT 
+    then E.type_err 0 "tiger program must return INT or UNIT";
+    add_function (V.frame env) (mainex, mainty);
+    get_functions()
+  end
+@
+
+
 
 \section{Declarations}
 
@@ -1643,7 +1741,7 @@ let lookup_base_type env sym pos =
 
 %AST def
 <<[[Ast.dec]] cases>>=
-| ExceptionDec of symbol * pos
+| ExceptionDec of name * pos
 @
 
 %grammar def
@@ -1656,8 +1754,8 @@ exn_dec:
 
 % AST use
 <<[[Ast.exp]] cases>>=
-| TryExp    of exp * (symbol * exp * pos) list * pos
-| RaiseExp  of symbol * pos
+| TryExp    of exp * (name * exp * pos) list * pos
+| RaiseExp  of name * pos
 @
 
 % grammar user
@@ -1681,7 +1779,18 @@ handlers:
 
 % typechecking
 <<[[Environment.t]] other fields>>=
-exn_label   : Tree.label option
+exn_label   : Tree.label option;
+@
+
+<<[[Environment.t]] other fields>>=
+xenv        : int Symbol.table;
+@
+
+<<signature function Environment.lookup_exn>>=
+val lookup_exn   : t -> Ast.name -> Ast.pos -> int
+@
+<<signature function Environment.enter_exn>>=
+val enter_exn   : t -> Ast.name -> unit
 @
 
 % generating
@@ -1704,7 +1813,7 @@ let unwind = ref false
 
 %AST
 <<[[Ast.exp]] cases>>=
-| SpawnExp  of symbol * pos
+| SpawnExp  of name * pos
 @
 
 %lexer

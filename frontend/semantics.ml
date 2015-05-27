@@ -33,29 +33,34 @@ let lookup_base_type env sym pos =
   base_type env (V.lookup_type env sym pos)
 (*e: function Semantics.lookup_base_type *)
 
-(*s: type system *)
+(*s: function Semantics.is_ptr *)
 let is_ptr = function
     INT | UNIT -> false
   | NIL | RECORD _ | STRING | ARRAY _ -> true
   | _ -> E.internal "non-base type for variable"
-(*x: type system *)
+(*e: function Semantics.is_ptr *)
+(*s: functions Semantics.check_type_xxx *)
 let check_type_t ty pos msg typ =
   if typ <> ty
   then E.type_err pos (msg ^ " must be of type " ^ type_name ty)
+
 let check_type_int  = check_type_t INT
 let check_type_unit = check_type_t UNIT
-(*x: type system *)
+(*e: functions Semantics.check_type_xxx *)
+(*s: function Semantics.check_type_eq *)
 let check_type_eq pos msg t1 t2 =
-  let check = match (t1,t2) with
-                (RECORD _,NIL)
-              | (NIL,RECORD _)
-              | (ARRAY ANY, ARRAY _)
-              | (ARRAY _, ARRAY ANY) -> false
-              | _                    -> true
+  let are_equivalent = 
+    match (t1,t2) with
+    | (RECORD _,NIL)
+    | (NIL,RECORD _)
+    | (ARRAY ANY, ARRAY _)
+    | (ARRAY _, ARRAY ANY) -> true
+    | _                    -> t1 = t2
   in 
-  if check && t1 <> t2 
+  if not are_equivalent
   then E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
-(*e: type system *)
+(*e: function Semantics.check_type_eq *)
+
 (*s: translators *)
 let functions                 = ref []
 let get_functions ()          = List.rev !functions
@@ -348,15 +353,15 @@ in match node with
   DEC d -> (trdec d, NIL)
 | EXP e -> trexp e
 (*e: translators *)
-(*s: entry point *)
+(*s: function Semantics.translate *)
 let translate env ast =
   let (mainex, mainty) = trans env (EXP ast) in
   begin
     if mainty <> INT && mainty <> UNIT 
     then E.type_err 0 "tiger program must return INT or UNIT";
-    add_function (V.frame env) (mainex,mainty);
+    add_function (V.frame env) (mainex, mainty);
     get_functions()
   end
-(*e: entry point *)
+(*e: function Semantics.translate *)
 (*e: semantics.ml *)
 (*e: frontend/semantics.ml *)

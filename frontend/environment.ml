@@ -13,7 +13,7 @@ type vartype =
 
   (* aggregate types *)
   | ARRAY  of vartype
-  | RECORD of (Symbol.symbol * vartype) list
+  | RECORD of (Ast.name * vartype) list
 
   (* other types *)
   (*s: [[Environment.vartype]] cases *)
@@ -35,13 +35,13 @@ type t = {
     (* value definitions *)
     venv        : vartype enventry Symbol.table;
     (*s: [[Environment.t]] other fields *)
-    xenv        : int Symbol.table;
-
     frame       : Frame.frame;
-
+    (*x: [[Environment.t]] other fields *)
     break_label : Tree.label option;
     (*x: [[Environment.t]] other fields *)
-    exn_label   : Tree.label option
+    exn_label   : Tree.label option;
+    (*x: [[Environment.t]] other fields *)
+    xenv        : int Symbol.table;
     (*e: [[Environment.t]] other fields *)
   }
 (*e: type Environment.t *)
