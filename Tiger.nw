@@ -260,7 +260,10 @@ end
 %  - no modules (no qualifier), so name resolution simple (even though
 %    scoped/nested language), and no linking really. Compile a single file.
 %  - no float
+%  - no union
 %  - no polymorphic types (ANY??)
+%  - no goto/labels (but generate code using goto/labels), goto considered
+%    harmful spirit I guess
 
 % but has a few nice things:
 %  - limited form of type inference :) no need to declare type of VarDec
@@ -322,7 +325,8 @@ type name = Symbol.symbol
 type typename = Symbol.symbol
 @
 
-\subsection{Declarations}
+\subsection{Definitions}
+% Was Declarations but it's actually more definitions
 
 % defs
 <<type Ast.dec>>=
@@ -517,7 +521,7 @@ let create l =
   env
 @
 
-\subsection{Scopes}
+\subsection{Scope managment}
 
 <<[[Symbol.table]] other fields>>=
 parent : 'a table option;
@@ -2067,7 +2071,7 @@ and trvar = function
       )
 @
 
-\subsection{Construction}
+\subsection{Constructions}
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.RecordExp(var, fields, pos) ->
@@ -2236,24 +2240,34 @@ in
      <<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>
 @
 
+% for (i := <lo> to <hi> do <body>) ==> 
+% let var i := <lo> in while v < <hi> do <body>; i := i + 1; done
 
 <<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>=
  let v            = A.SimpleVar(sym, pos) in
  let ve           = A.VarExp v in
- let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
- and v_plus_1     = A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos) in
  trexp (A.LetExp(
         [(A.VarDec(sym,(Some(S.symbol "int")), lo, pos))],
         (A.WhileExp
-           (v_less_eq_hi,
+           (A.OpExp(ve, A.LeOp, hi, pos),
             (A.SeqExp([body;
-                      (A.AssignExp(v, v_plus_1, pos))], pos)),
+                      (A.AssignExp(v, 
+                         A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos), pos))
+                      ], pos)),
             pos)),
         pos))
 @
+%less: hmm recompute hi each time?
+% opti opportunity here! if complex expression that does not change
+% can precompute it once and for all
 
 \chapter{Intermediate Representation Generation}
 %IR generation
+
+% first part. Here will compile:
+% - structured statements in labels/jmp ("labelization")
+% - "frameization"?
+% - "layouting"?
 
 <<function Semantics.is_ptr>>=
 let is_ptr = function
@@ -2264,6 +2278,9 @@ let is_ptr = function
 
 
 \chapter{Linearization}
+
+% here will compile:
+% - complex expressions in basic 3 address like code
 
 \chapter{[[C--]] Generation}
 

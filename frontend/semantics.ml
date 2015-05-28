@@ -281,14 +281,14 @@ let rec trans (env : Environment.t) (node : ast_node)
          (*s: [[Semantics.trans.trexp()]] ForExp case, unsugaring for in while *)
           let v            = A.SimpleVar(sym, pos) in
           let ve           = A.VarExp v in
-          let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
-          and v_plus_1     = A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos) in
           trexp (A.LetExp(
                  [(A.VarDec(sym,(Some(S.symbol "int")), lo, pos))],
                  (A.WhileExp
-                    (v_less_eq_hi,
+                    (A.OpExp(ve, A.LeOp, hi, pos),
                      (A.SeqExp([body;
-                               (A.AssignExp(v, v_plus_1, pos))], pos)),
+                               (A.AssignExp(v, 
+                                  A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos), pos))
+                               ], pos)),
                      pos)),
                  pos))
          (*e: [[Semantics.trans.trexp()]] ForExp case, unsugaring for in while *)
