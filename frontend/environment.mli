@@ -13,15 +13,16 @@ type vartype =
   (* other types *)
   (*s: [[Environment.vartype]] cases *)
   | NIL
+  (*x: [[Environment.vartype]] cases *)
   | ANY
   (*x: [[Environment.vartype]] cases *)
-  | NAME   of Symbol.symbol
+  | NAME   of Ast.typename
   (*e: [[Environment.vartype]] cases *)
 (*e: type Environment.vartype *)
 (*s: type Environment.enventry *)
 type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
-  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
+  | FunEntry of (Ast.name * string option * Frame.frame * 'ty list * 'ty)
 (*e: type Environment.enventry *)
 (*s: type Environment.t *)
 type t = {

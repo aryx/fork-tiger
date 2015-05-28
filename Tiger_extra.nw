@@ -70,6 +70,7 @@ val type_err  : int -> string -> 'a
 val undefined : int -> string -> 'a
 val internal  :        string -> 'a
 @ 
+
 %%The [[Error]] module maintains a mapping of source line numbers in
 %%order to provide more informative error messages. The scanner
 %%(Section~\ref{sec:scanner}) populates this mapping during the parsing
@@ -322,7 +323,8 @@ let rec fold f env init =
     None -> result
   | Some e -> fold f e result
 @ 
-%%
+
+
 \section{[[parsing/ast.nw]]}
 
 
@@ -358,7 +360,8 @@ let rec fold f env init =
 
 val print_tree : exp -> unit
 @ 
-%%
+
+
 <<ast.ml>>=
 <<type Ast.pos>>
 <<type Ast.name>>
@@ -523,6 +526,7 @@ module S = Symbol
 %<<type Environment.enventry>>
 %<<type Environment.t>>
 %@ 
+
 %%An initial environment can be generated using the [[new_env]]
 %%function. The new environment will be populated with an initial set of
 %%type definitions and functions. All new environments are automatically
@@ -530,6 +534,7 @@ module S = Symbol
 %<<environment.mli>>=
 %<<signature function Environment.new_env>>
 %@ 
+
 %%There are three functions for manipulating the variable scope and the
 %%current stack frame. Creating a new stack frame automatically creates
 %%a new variable scope.
@@ -538,6 +543,7 @@ val new_scope : t -> t
 val frame     : t -> Frame.frame
 val new_frame : t -> Symbol.symbol -> t
 @ 
+
 %%The environment provides functions for looking up types, values and
 %%exception identifiers. Calling a lookup function for a symbol that
 %%does not exist indicates that the original source has an error (use of
@@ -548,6 +554,7 @@ val new_frame : t -> Symbol.symbol -> t
 <<signature function Environment.lookup_value>>
 <<signature function Environment.lookup_exn>>
 @ 
+
 %%New types, values, and exceptions can be added to an environment using
 %%the enter functions. There are five functions for entering type
 %%definitions, exceptions, function definitions, formal parameters, and
@@ -592,100 +599,70 @@ module T = Tree
 <<type Environment.enventry>>
 <<type Environment.t>>
 @ 
+
 %%To create a new environment, we construct a record that contains the
 %%initial types and functions, and a base frame.
 <<environment.ml>>=
-let new_env types funs =
-  let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
-  in { tenv        = Symbol.create types;
-       venv        = Symbol.create (List.map mkfe funs);
+<<function Environment.new_env>>
+@
 
-       xenv        = Symbol.create [];
-       frame       = F.new_frame (S.symbol "tiger_main") F.base_frame;
-       break_label = None;
-       exn_label   = None 
-     }
-@ 
 %%To create a new variable scope, we update the symbol tables.
 <<environment.ml>>=
-let new_scope env = { env with
-                      tenv = S.new_scope env.tenv;
-                      venv = S.new_scope env.venv }
+<<function Environment.new_scope>>
 @
+
 %%Creating a new frame requires updating the frame and removing the
 %%current exception label in addition to updating the symbol tables.
 <<environment.ml>>=
 let frame env = env.frame
-let new_frame env sym = { env with
-                          tenv = S.new_scope env.tenv;
-                          venv = S.new_scope env.venv;
-                          frame = Frame.new_frame sym env.frame;
-                          exn_label = None }
+<<function Environment.new_frame>>
 @ 
+
 %%The lookup functions use the symbol table (Section~\ref{sec:symbols})
 %%implementation to lookup values in the various tables. If a symbol is
 %%not found, then we raise an undefined symbol error.
 <<environment.ml>>=
-let lookup env sym pos =
-  try S.look env sym
-  with Not_found ->
-    raise(E.Error(E.Undefined_symbol (S.name sym), pos))
-
-let lookup_type  env = lookup env.tenv
-let lookup_value env = lookup env.venv
-let lookup_exn   env = lookup env.xenv
+<<functions Environment.lookup_xxx>>
 @
 %%Entering new types, exceptions, and values into the environment is
 %%also implemented with the symbol table functions. In this case, we may
 %%raise a duplicate symbol error if a name is defined twice in a source
 %%file.
 <<environment.ml>>=
-let enter tbl sym v =
-  if S.mem tbl sym
-  then raise(E.Error(E.Duplicate_symbol (S.name sym), 0))
-  else S.enter tbl sym v
-
-let enter_type env = enter env.tenv
+<<functions Environment.enter_xxx>>
 @ 
+
 %%For exceptions, we need to generate a unique identifier for each
 %%exception. For this, we just use the unique identifier associated with
 %%the symbol.
-<<environment.ml>>=
-let enter_exn env sym = enter env.xenv sym (S.uid sym)
-@ 
+%<<environment.ml>>=
+%let enter_exn env sym = enter env.xenv sym (S.uid sym)
+%@ 
+
 %%For function definitions, we generate a fresh label based on the
 %%function name, and a new environment for the function parameters and
 %%local variables. After entering the function definition in the
 %%environment, we return the new function environment to the caller.
-<<environment.ml>>=
-let enter_fun env sym cc args result =
-  let lbl = S.new_symbol (S.name sym) in
-  let fenv = new_frame env lbl in
-  let fe = FunEntry (lbl, cc, fenv.frame, args, result) in
-  enter env.venv sym fe;
-  fenv
-@ 
+%<<environment.ml>>=
+%let enter_fun env sym cc args result =
+%  let lbl = S.new_symbol (S.name sym) in
+%  let fenv = new_frame env lbl in
+%  let fe = FunEntry (lbl, cc, fenv.frame, args, result) in
+%  enter env.venv sym fe;
+%  fenv
+%@ 
 
-<<function Symbol.new_symbol>>=
-let new_symbol s = 
-  symbol (Printf.sprintf "%s_%d" s !nextsym)
-@
 
 %%When a formal function parameter is entered in to the environment, a
 %%new slot is allocated in the current frame to hold the parameter.
 <<environment.ml>>=
-let enter_param env sym typ ptr =
-  let acc = F.alloc_param env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc,typ))
+<<function Environment.enter_param>>
 @
 %%When a new local variable is entered into the environment, we first
 %%allocate space in the current frame to hold a new temporary and then
 %%enter it into the value table.
 <<environment.ml>>=
-let enter_local env sym typ ptr =
-  let acc = F.alloc_local env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc, typ));
-  acc
+<<function Environment.enter_local>>
 @
 %%To create a new break label, we generate a new label and store it in
 %%the environment. When the break label is requested, the
@@ -749,8 +726,8 @@ let new_exn_label env =
 module E = Error
 module A = Ast
 module S = Symbol
-module V = Environment
-module T = Translate
+module Env = Environment
+module Trans = Translate
 
 open Environment
 
@@ -826,41 +803,29 @@ open Environment
 %%[[Translate]] module (Section~\ref{sec:translate}) to convert the
 %%expression into a function body.
 <<translators>>=
-let functions                 = ref []
-let get_functions ()          = List.rev !functions
-let add_function frm (ex,typ) =
-  functions := (frm, T.func frm ex (is_ptr typ)) :: !functions
+<<global Semantics.functions>>
+<<function Semantics.add_function>>
 @
+
 %%There are three private translation functions for handling
 %%declarations, variables, and expressions. All of these are enclosed in
 %%the function [[trans]]. The [[trans]] function can only be called with
 %%an expression or declaration.
 <<translators>>=
-type ast_node = DEC of Ast.dec | EXP of Ast.exp
-let rec trans (env : Environment.t) (node : ast_node) =
-  <<declaration translator>>
-  <<variable translator>>
-  <<expression translator>>
-in match node with
-  DEC d -> (trdec d, NIL)
-| EXP e -> trexp e
+<<type Semantics.ast_node>>
+<<function Semantics.trans>>
 @
-
 
 %%The entry point for the [[Semantics]] module is the [[translate]]
 %%function shown below.
+%<<function Semantics.translate>>=
 
 \subsection{Declarations}
 
 %%The [[trdec]] function translates declarations of functions,
 %%variables, and types.
-<<declaration translator>>=
-let rec trdec = function
-  <<function declarations>>
-  <<variable declarations>>
-  <<type declarations>>
-  <<exception declarations>>
-@
+%<<declaration translator>>=
+
 %%\paragraph{Function Declarations}
 %%Function declarations in tiger can be mutually recursive if the
 %%functions are declared together in the same block. To translate a list
@@ -871,41 +836,20 @@ let rec trdec = function
 %%The [[mk_func_env]] function enters a function signature into the
 %%variable environment, and creates a new nested environment for
 %%evaluating the function body.
-<<function declarations>>=
-  A.FunctionDec functions ->
-    let mk_param fenv (name, typ, pos) =
-      let t = lookup_base_type env typ pos in
-      V.enter_param fenv name t (is_ptr t)
-    in
-    let mk_func_env (name, params, typ, _, pos) =
-      let ret_type = match typ with
-        Some x -> lookup_base_type env x pos
-      | None   -> UNIT
-      and types = List.map (fun(_,t,p)-> lookup_base_type env t p) params in
-      let fenv  = V.enter_fun env name None types ret_type in
-      List.iter (mk_param fenv) params;
-      fenv
-    in
-@
+%<<function declarations>>=
+
 %%After all of the function signatures have been added to the
 %%environment, the bodies of the functions can be evaluated.
 %%[[trans_func]] evaluates a function body in the given environment and
 %%adds the translated body to the function list.
-<<function declarations>>=
-    let trans_func fenv (_, _, _, body, _) =
-      let b = trans fenv (EXP body) in
-      add_function (V.frame fenv) b
-    in
-@
+%<<function declarations>>=
+
 %%For each function, we must call [[mk_func_env]] to create a new
 %%environment, and then [[trans_func]] to translate the function body.
 %%As mentioned above, we need enter all of the function signatures into
 %%the new environment before processing the function bodies.
-<<function declarations>>=
-    let envs = (List.map mk_func_env functions) in
-    List.iter2 trans_func envs functions;
-    T.nil
-@
+%<<function declarations>>=
+
 %%\paragraph{Variable Declarations}
 %%To translate a variable declaration, first we evaluate the
 %%initializing expression in the current environment. Then, we check
@@ -913,18 +857,8 @@ let rec trdec = function
 %%declared type of the variable. If the types are compatible, we enter
 %%the variable definition into the environment, allocate a new local on
 %%the current frame, and initialize it.
-<<variable declarations>>=
-  | A.VarDec(name, typ, init, pos) ->
-      let e,t = trexp init in
-      (match typ with
-        Some x -> check_type_eq pos
-            "Variable of type %s cannot be initialized with type %s"
-            (V.lookup_type env x pos) t
-      | None -> ()
-      );
-      let acc = V.enter_local env name t (is_ptr t) in
-      T.assign (T.simple_var (V.frame env) acc) e
-@
+%<<variable declarations>>=
+
 %%\paragraph{Type Declarations}
 %%Similar to functions, types may have mutually recursive definitions.
 %%To translate a list of type declarations, first a new scope is created
@@ -935,118 +869,57 @@ let rec trdec = function
 %%for the real type. After all of the types are checked in the new
 %%environment, we enter the real type definitions into the current
 %%environment and discard the new environment.
-<<type declarations>>=
-  | A.TypeDec types ->
-      let penv = V.new_scope env in
-      let real_type (name, typ, _) = (name, match typ with
-        A.NameTy(name, pos) -> V.lookup_type penv name pos
-      | A.RecordTy(fields) ->
-          let chkfld(name,ty,p) = (name,(V.lookup_type penv ty p))
-          in RECORD (List.map chkfld fields)
-      | A.ArrayTy(name, pos) -> ARRAY (V.lookup_type penv name pos))
-      in
-      List.iter (fun(n,_,_) -> V.enter_type penv n (NAME n)) types;
-      let real_types = (List.map real_type types) in
-      List.iter (fun (n,t) -> V.enter_type env n t) real_types;
-      T.nil
-@
+%<<type declarations>>=
+
 %%\paragraph{Exception Declarations}
 %%Exception declarations in Tiger are very simple---an exception is just
 %%an identifier. When an exception is declared, we store the identifier
 %%in the environment.
-<<exception declarations>>=
-  | A.ExceptionDec(sym,_) -> V.enter_exn env sym; T.nil
-@ 
--
+%<<exception declarations>>=
+ 
+
 \subsection{Variables}
--
+
 %%The variable translator checks and translates simple variables, field
 %%variables which refer to record elements, and subscript variables
 %%which refer to array elements.
-<<variable translator>>=
-and trvar = function
-  <<simple vars>>
-  <<field vars>>
-  <<subscript vars>>
-@
+%<<variable translator>>=
+
 %%\paragraph{Simple Variables}
 %%A simple variable can be used as an expression in Tiger as long as the
 %%variable is defined. To translate a simple variable, we look up its
 %%definition in the environment and use it to create a variable access.
-<<simple vars>>=
-    A.SimpleVar(sym, pos) ->
-      begin match V.lookup_value env sym pos with
-        V.VarEntry(acc, vt) ->
-          (T.simple_var (V.frame env) acc, base_type env vt)
-      | V.FunEntry _ ->
-          E.type_err pos "function used as value"
-      end
-@
+%<<simple vars>>=
+
 %%\paragraph{Field Variables}
 %%Since field variables are references to record elements, first we must
 %%check that the base variable is of type [[RECORD]]. Then, the field
 %%offset is calculated by searching through the list of declared fields.
 %%The [[Translate]] module (Section~\ref{sec:translate}) then converts
 %%the base variable and offset into a field access.
-<<field vars>>=
-  | A.FieldVar(var, sym, pos) ->
-      let (exp, fields) = match (trvar var) with
-        (x, RECORD y) -> (x,y)
-      | _ -> E.type_err pos "attempt to dereference non-record type"
-      in
-      let offset  = ref (-1) in
-      let (_,fld) =
-        try List.find (fun (s,v) -> incr offset; s = sym) fields
-        with Not_found -> E.undefined pos (S.name sym)
-      in
-      let typ = base_type env fld in
-      (T.field_var exp !offset (is_ptr typ), typ)
-@
+%<<field vars>>=
+
 %%\paragraph{Subscript Variables}
 %%Subscript variables are computed in the same manner as field
 %%variables. However, instead of computing the offset, we use an
 %%expression which must be of type [[int]].
-<<subscript vars>>=
-  | A.SubscriptVar(var, exp, pos) ->
-      let e,t = (trexp exp) in
-      check_type_int pos "subscript variable" t;
-      begin match (trvar var) with
-        (exp, ARRAY vt) ->
-          let typ = (base_type env vt) in
-          (T.subscript_var exp e (is_ptr typ) pos, typ)
-      | _ ->
-          E.type_err pos "attempt to dereference a non-array type"
-      end
-@
--
+%<<subscript vars>>=
+
+
 \subsection{Expressions}
--
+
 %%Expressions are translated by the [[trexp]] function.
-<<expression translator>>=
-and trexp = function
-  <<simple expressions>>
-  <<records>>
-  <<arrays>>
-  <<assignment>>
-  <<operator expressions(semantics.nw)>>
-  <<function calls(semantics.nw)>>
-  <<conditionals(semantics.nw)>>
-  <<loops(semantics.nw)>>
-  <<sequences(semantics.nw)>>
-  <<let expressions>>
-  <<exceptions(semantics.nw)>>
-  <<threads(semantics.nw)>>
-@
+%<<expression translator>>=
+%@
+
+
 %%\paragraph{Simple Expressions}
 %%The simple expressions include variable access, [[nil]], and string
 %%and integer literals. Variables are handled by the [[trvar]] function.
 %%Literals are translated and assigned the appropriate type.
-<<simple expressions>>=
-    A.VarExp v       -> trvar v
-  | A.NilExp         -> (T.nil,           NIL)
-  | A.IntExp i       -> (T.int_literal i, INT)
-  | A.StringExp(s,_) -> (T.str_literal s, STRING)
-@
+%<<simple expressions>>=
+
+
 %%\paragraph{Records}
 %%When creating a new record instance, the new instance must match the
 %%declared type of the record. A record instance matches a record
@@ -1056,56 +929,20 @@ and trexp = function
 %%type. To check a record instance, we call the [[chk_field]] function
 %%on each field expression paired with the corresponding field
 %%declaration.
-<<records>>=
-  | A.RecordExp(var, fields, pos) ->
-      let chk_field (s1,e,p) (s2,vt) =
-        if (s1 <> s2) then E.type_err p "field names do not match";
-        let ex,ty = trexp e in
-        check_type_eq p "field type (%s) does not match declaration (%s)"
-                        (base_type env vt) ty;
-        (ex, is_ptr ty)
-      in
-      begin match V.lookup_type env var pos with
-        RECORD dec_fields ->
-          begin try
-            let field_vals = (List.map2 chk_field fields dec_fields) in
-            (T.new_record field_vals, RECORD dec_fields)
-          with Invalid_argument s ->
-            E.type_err pos "Record instance does not match declared type"
-          end
-      | _ ->
-          E.type_err pos "Attempt to use non-record type as record"
-      end
-@
+%<<records>>=
+
 %%\paragraph{Arrays}
 %%When creating a new array instance, the initializing expression must
 %%match the declared type of the array elements.
-<<arrays>>=
-  | A.ArrayExp(name, size, init, pos) ->
-      begin match V.lookup_type env name pos with
-        ARRAY vt ->
-          let size,sizety = trexp size
-          and init,initty = trexp init
-          and typ         = base_type env vt in
-          check_type_int pos "array size" sizety;
-          check_type_eq  pos "array type(%s) does not type(%s)" typ initty;
-          (T.new_array size init (is_ptr typ), ARRAY vt)
-      | _ ->
-          E.type_err pos "Attempt to use a non-array type as an array"
-      end
-@
+%<<arrays>>=
+
 %%\paragraph{Assignment}
 %%For assignment expressions, the type of the variable being assigned to
 %%on the left-hand side, must match the type of the expression on the
 %%right-hand side. In Tiger, assignments are only executed for
 %%side-effect; the type of an assignment expression is [[UNIT]].
-<<assignment>>=
-  | A.AssignExp(var, exp, pos) ->
-      let exp,ety = trexp exp
-      and var,vty = trvar var in
-      check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
-      (T.assign var exp, UNIT)
-@
+%<<assignment>>=
+
 %%\paragraph{Operator Expressions}
 %%Operators come in two flavors: arithmetic and comparison. The
 %%arithmetic operators can only be applied to expressions of type
@@ -1118,132 +955,49 @@ and trexp = function
 %%operator expression, we first check that the types of the left-hand
 %%and right-hand side expressions are compatible. Then, we select the
 %%correct translation function, and apply it to the two expressions.
-<<operator expressions(semantics.nw)>>=
-  | A.OpExp(left, oper, right, pos) ->
-      let lexp,lty = trexp left
-      and rexp,rty = trexp right in
-      check_type_eq pos "Incompatible types %s,%s" lty rty;
-      let trans_fn =
-        match oper with
-          A.PlusOp | A.MinusOp | A.TimesOp | A.DivideOp ->
-            check_type_int pos "operator argument" lty;    T.arithmetic
-        | A.EqOp | A.NeqOp
-        | A.LtOp | A.LeOp | A.GtOp | A.GeOp ->
-            begin match lty with
-              INT | NIL                                 -> T.compare_int
-            | STRING                                    -> T.compare_str
-            | ARRAY  _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
-            | RECORD _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
-            | _ ->
-                E.type_err pos "Incomparable types"
-            end
-      in (trans_fn oper lexp rexp, INT)
-@
+%<<operator expressions(semantics.nw)>>=
+
 %%\paragraph{Function Calls}
 %%When a function is called, the supplied arguments must have the
 %%correct types. To translate a function call, first the argument types
 %%are checked against the function declaration. If the types match, then
 %%the return type of the function is used as the result type for the
 %%call expression.
-<<function calls(semantics.nw)>>=
-  | A.CallExp(sym, arglist, pos) ->
-      let chk_arg = check_type_eq pos
-                    "Argument type (%s) does not match declaration (%s)"
-      in begin match V.lookup_value env sym pos with
-        V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
-          let args,tys = List.split (List.map trexp arglist) in
-          begin try
-            List.iter2 chk_arg tys dec_args;
-            let rtyp = base_type env return_type in
-            (T.call (V.frame env) lbl cc frm args
-                    (V.exn_label env) (is_ptr rtyp), rtyp)
-          with Invalid_argument x ->
-            E.type_err pos "function arguments do not match declaration"
-          end
-      | _ ->
-          E.type_err pos (S.name sym ^ " is not a function")
-      end
-@
+%<<function calls(semantics.nw)>>=
+
 %%\paragraph{Conditionals}
 %%Conditional expressions return a value if both the then clause and the
 %%else clause have the same type. Otherwise, the if statement does not
 %%return a value, and has type [[UNIT]]. The [[Translate]] module
 %%provides two translators for conditionals---one for if expressions
 %%that return a value and one for if statements that do not.
-<<conditionals(semantics.nw)>>=
-  | A.IfExp(if', then', else', pos) ->
-      let iex,ity = trexp if'
-      and tex,tty = trexp then'
-      and eex,ety = match else' with
-                      None    -> (T.nil, UNIT)
-                    | Some ex -> trexp ex
-      in
-      check_type_int pos "if condition" ity;
-      check_type_eq  pos
-        "type of then expression (%s) does not match else (%s)" tty ety;
-      let typ = base_type env tty in
-      (T.ifexp iex tex eex (is_ptr typ), typ)
-@
+%<<conditionals(semantics.nw)>>=
+
 %%\paragraph{Loops}
 %%Tiger defines two looping constructs: a while loop and a for loop. The
 %%while loop is composed of a test expression of type [[INT]], and a
 %%body of type [[UNIT]]. Before the body is translated, a break label is
 %%added to the environment.
-<<loops(semantics.nw)>>=
-  | A.WhileExp(test, body, pos) ->
-      let body_env = V.new_break_label env in
-      let tex,tty = trexp test
-      and bex,bty = trans body_env (EXP body) in
-      check_type_int pos "while condition" tty;
-      check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
-      (T.loop tex bex (V.break_label body_env), UNIT)
-@
+%<<loops(semantics.nw)>>=
+
 %%For loops are translated into equivalent [[let]] and [[while]]
 %%expressions. First, a looping variable is created and initialized to
 %%the low value. Then a test expression is created that compares the
 %%looping variable to the high value. Finally, the body of the for loop
 %%is modified to include an assignment to the looping variable, and is
 %%then used as the body of the new while loop.
-<<loops(semantics.nw)>>=
-  | A.ForExp(sym, lo, hi, body, pos) ->
-      let _,loty = trexp lo
-      and _,hity = trexp hi in
-      check_type_int pos "for lower bound" loty;
-      check_type_int pos "for upper bound" hity;
-      let v            = A.SimpleVar(sym, pos) in
-      let ve           = A.VarExp v in
-      let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
-      and v_plus_1     = A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos) in
-      trexp (A.LetExp(
-             [(A.VarDec(sym,(Some(S.symbol "int")), lo, pos))],
-             (A.WhileExp
-                (v_less_eq_hi,
-                 (A.SeqExp([body;
-                           (A.AssignExp(v, v_plus_1, pos))], pos)),
-                 pos)),
-             pos))
-@
+%<<loops(semantics.nw)>>=
+
 %%Break expressions are handled by generating a jump to the nearest
 %%break label, which is stored in the current environment.
-<<loops(semantics.nw)>>=
-  | A.BreakExp pos ->
-      begin
-        try (T.break (V.break_label env), UNIT)
-        with Not_found -> raise(E.Error(E.Illegal_break, pos))
-      end
-@
+%<<loops(semantics.nw)>>=
+
 %%\paragraph{Sequences}
 %%A sequence expression evaluates a list of tiger expressions and
 %%returns the value of the last expression. The empty sequence is a
 %%valid expression, and returns a value of type [[UNIT]].
-<<sequences(semantics.nw)>>=
-  | A.SeqExp ([],_) -> (T.nil, UNIT)
-  | A.SeqExp (el,_) ->
-      let exprs = List.rev_map trexp el in
-      let _,typ = List.hd exprs in
-      let exprs = List.rev_map fst exprs in
-      (T.sequence exprs, typ)
-@
+%<<sequences(semantics.nw)>>=
+
 %%\paragraph{Let Expressions}
 %%The let expression consists of a sequence of declarations followed by
 %%a sequence of expressions. To process the let expression, first a new
@@ -1251,13 +1005,8 @@ and trexp = function
 %%to the environment using the [[trdec]] function. Finally, the let body
 %%is processed inside the new environment, and a sequence is created
 %%consisting of the declarations followed by the body.
-<<let expressions>>=
-  | A.LetExp(decls, body, _) ->
-      let trns    = trans (V.new_scope env) in
-      let decs    = List.map (fun d -> fst (trns (DEC d))) decls
-      and bex,bty = trns (EXP body) in
-      (T.sequence (decs @ [bex]), bty)
-@ 
+%<<let expressions>>=
+
 %%\paragraph{Exceptions}
 %%A try block consists of an expression and one or more exception
 %%handlers. For simplicity, a try block is required to have type
@@ -1267,44 +1016,17 @@ and trexp = function
 %%in the new environment. Then, we translate each of the exception
 %%handlers in our current environment. Finally, we pass the expression
 %%and the handlers to the [[Translate]] module.
-<<exceptions(semantics.nw)>>=
-  | A.TryExp(expr, handlers, pos) ->
-      let new_env         = V.new_exn_label env in
-      let tryex, tryty    = trans new_env (EXP expr) in
-      let handler (s,h,p) =
-        let ex,ty = trexp h in
-        check_type_unit p "handler" ty;
-        (S.uid s, ex)
-      in
-      check_type_unit pos "try" tryty;
-      begin match V.exn_label new_env with
-        None     -> E.internal "no exception label for try block"
-      | Some lbl ->
-          (T.try_block tryex lbl (List.map handler handlers), tryty)
-      end
-@ 
+%<<exceptions(semantics.nw)>>=
+
 %%When an exception is raised, we lookup the exception id in the
 %%environment and call the [[Translate]] module.
-<<exceptions(semantics.nw)>>=
-  | A.RaiseExp(sym, pos) ->
-      let exn_id = V.lookup_exn env sym pos in
-      (T.raise_exn exn_id, UNIT)
-@
+%<<exceptions(semantics.nw)>>=
+
 %%The spawn keyword is given a function name. The function must take
 %%zero arguments; the return value is ignored.
-<<threads(semantics.nw)>>=
-  | A.SpawnExp(sym, pos) ->
-      begin match V.lookup_value env sym pos with
-        V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
-          if dec_args <> []
-          then E.type_err pos "spawn function must take zero arguments."
-          else (T.spawn lbl,INT)
-      | _ ->
-          E.type_err pos (S.name sym ^ " is not a function")
-      end
-@
-\section{[[frontend/tree.nw]]}
+%<<threads(semantics.nw)>>=
 
+\section{[[frontend/tree.nw]]}
 
 <<frontend/tree.mli>>=
 <<type Tree.label>>
@@ -1344,6 +1066,7 @@ module S = Symbol
 %<<type Tree.label>>
 %<<type Tree.temp>>
 %@ 
+
 %%Statements are represented by the [[stm]] type. Sequences of
 %%statements can be created using the [[SEQ]] constructor. In addition,
 %%any expression can be used as a statement by way of the [[EXP]]
@@ -1362,6 +1085,7 @@ module S = Symbol
 %<<types(tree.nw)>>=
 %<<type Tree.exp>>
 %@ 
+
 %%Finally, a handful of binary operators are supported. The binary
 %%operators are divided into relational and arithmetic types.
 %<<types(tree.nw)>>=
@@ -1378,6 +1102,7 @@ module S = Symbol
 %
 %<<utility functions>>
 %@ 
+
 %%New code labels and temporary variables can be created using the
 %%[[new_label]] and [[new_temp]] functions. The [[new_label]] function
 %%generates a new unique code label, and the [[new_temp]] function
@@ -1386,6 +1111,7 @@ module S = Symbol
 val new_label : string -> label
 val new_temp  : unit   -> temp
 @ 
+
 %%There are three functions related to binary operators. The
 %%[[relop_inverse]] function reverses the meaning of a relational
 %%operator. The other two functions return a string representing the
@@ -1421,6 +1147,7 @@ val print_exp : exp -> unit
 let new_label s = S.new_symbol ("L" ^ s)
 let new_temp () = S.new_symbol "temp"
 @ 
+
 %%The functions for binary operators are simple mappings.
 <<tree.ml>>=
 let relop_inverse = function
@@ -1468,6 +1195,7 @@ module TempSet = Set.Make(
     let compare = Pervasives.compare
   end)
 @ 
+
 %%Using the [[TempSet]] module, the implementation of [[find_temps]] is
 %%relatively easy.
 <<tree.ml>>=
@@ -1504,6 +1232,7 @@ let find_temps stmts =
 <<tree.ml>>=
 <<function Tree.print_stm>>
 @ 
+
 %%The expression printer just calls the statement printer after
 %%converting the expression into a statement.
 <<tree.ml>>=
@@ -1574,8 +1303,8 @@ module S = Symbol
 module T = Tree
 module F = Frame
 
-type exp   = T.exp
-type label = T.label
+type exp   = Tree.exp
+type label = Tree.label
 
 let  ws    = Sys.word_size / 8
 
@@ -1602,6 +1331,7 @@ let rec seq = function
   | x :: []   -> x
   | x :: rest -> T.SEQ(x, seq rest)
 @ 
+
 %%The [[eseq]] function produces an expression from and expression and a
 %%list of statements. The list of statement is executed first, then the
 %%expression is evaluated.
@@ -1716,12 +1446,14 @@ let simple_var frm = function
   | F.Stack(var_frm, offset, ptr) ->
       T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
 @ 
+
 %%Record fields always live in a memory location. For record field
 %%variables, we generate a memory access at an offset from the beginning
 %%of the record.
 <<variables>>=
 let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
 @ 
+
 %%Array subscripts also always live in a memory location. However,
 %%before accessing an array element, we first do an array bounds check.
 %%There is a small optimization when the array index expression is a
@@ -1907,6 +1639,7 @@ let try_block exp exn_lbl hs =
     | _           -> E.internal "non temp in continuation node"
   in
 @ 
+
 %%Each handler must test the continuation parameter, and then either
 %%handle the exception or pass control down to the next handler. The
 %%[[handler]] function constructs this sequence of statements for a
@@ -1922,6 +1655,7 @@ let try_block exp exn_lbl hs =
       T.LABEL sl ]
   in
 @ 
+
 %%The complete try block consists of the expression within the try block
 %%followed by a new continuation and the handlers for the block. The
 %%scope of the try block is marked by [[TRY]] and [[TRYEND]]. At the
@@ -2176,6 +1910,7 @@ module S = Symbol
 module T = Tree
 module H = Hashtbl
 @ 
+
 %%A stack frame is a record containing a name, and nesting level, the
 %%size of the stack, and a list of variables. There are three types of
 %%variables: function parameters, stack allocated variables, and
@@ -2244,6 +1979,7 @@ let alloc_temp frm name ptr =
   frm.temps <- (name,ptr) :: frm.temps;
   Temp name
 @ 
+
 %%When a new string literal is allocated, we first check to see if the
 %%same literal has already been allocated, and if so, we return a
 %%reference to the previously allocated string. Otherwise, we add the
@@ -2258,6 +1994,7 @@ let alloc_string s =
     let lbl = T.new_label "gbl" in
     (H.add strings s lbl; lbl)
 @ 
+
 %%The output functions are a bit tedious to write and even more tedious
 %%to read. However, we can at least attempt to control the ensuing
 %%insanity with a few nice abbreviations and utility functions.
@@ -2923,6 +2660,7 @@ void     tig_flush()            { fflush(stdout);        }
 void     tig_printi(int n)      { printf("%d", n);       }
 void     tig_print(string *s)   { printf("%s", s->chars);}
 @ 
+
 %%From within the standard library, strings are the only thing that we
 %%need to allocate memory for. This small function calls the allocator
 %%and initializes the memory according to the [[string]] structure
@@ -2946,7 +2684,7 @@ tig_chr(bits32 ch) {
   return(str_ptr);
 }
 @ 
-%%
+
 <<C-- functions>>=
 tig_getchar() {
   bits32 ch;
@@ -2961,6 +2699,7 @@ tig_getchar() {
   return(p);
 }
 @ 
+
 %%The bounds check function is called before all array accesses to
 %%provide dynamic array bounds checking.
 <<C functions>>=
@@ -2974,6 +2713,7 @@ void tig_bounds_check(void *array, int index, int line) {
   }
 }
 @ 
+
 %%The [[ord]] function can only be called on strings of length one. In
 %%this case, the character is converted to an integer and returned.
 <<C functions>>=
@@ -2986,6 +2726,7 @@ int tig_ord(string *s) {
   return s->chars[0];
 }
 @ 
+
 %%String comparison should return -1, 0, or 1 if the first string is
 %%less than, equal to, or greater that the second string.
 <<C functions>>=
@@ -3006,6 +2747,7 @@ int tig_compare_str(string *s, string *t) {
   return 1;
 }
 @ 
+
 %%The implementation of substring must allocate memory to hold the new
 %%string. In addition, this function will have a live heap pointer (the
 %%input string) during the allocation, and we want to be able to locate
@@ -3014,7 +2756,8 @@ int tig_compare_str(string *s, string *t) {
 <<C-- data>>=
  substr_msg: bits8[] "substring: index (%d,%d) out of range of (0,%d)\n\000";
 @ 
-%%
+
+
 <<C-- functions>>=
 tig_substring("address" bits32 str_ptr, bits32 first, bits32 length) {
   bits32 new_str_ptr;
@@ -3034,6 +2777,7 @@ Lerror:
   return(0);
 }
 @ 
+
 %%String concatenation has a similar constraint as substring, and it is
 %%also implemented in [[C--]].
 <<C-- functions>>=
@@ -3051,6 +2795,7 @@ tig_concat("address" bits32 str_a, "address" bits32 str_b) {
   return(new_str);
 }
 @ 
+
 %%\paragraph{Exceptions}
 %%There are two implementations of exceptions in the Tiger compiler. The
 %%first implementation maintains the current closest exception handler
@@ -3117,7 +2862,7 @@ tig_spawn(bits32 lbl) {
 <<main.ml>>=
 module S = Symbol
 module F = Frame
-module V = Environment
+module Env = Environment
 module T = Environment
 
 <<constant Main.base_tenv>>

@@ -31,8 +31,8 @@ let symbol name =
 (*e: function Symbol.symbol *)
 
 (*s: function Symbol.new_symbol *)
-let new_symbol s = 
-  symbol (Printf.sprintf "%s_%d" s !nextsym)
+let new_symbol prefix = 
+  symbol (Printf.sprintf "%s_%d" prefix !nextsym)
 (*e: function Symbol.new_symbol *)
 (*x: symbol.ml *)
 (*s: type Symbol.table *)

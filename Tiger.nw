@@ -17,14 +17,19 @@
 
 %Actually I re-lpized this document so here is what I think is now better:
 % - get first an overview of all the core DS
-% - get first an overview of the main functions, the main concepts/types
+% - get first an overview of the main functions, the main concepts/types,
+%   so you know where you go. Easier to orientate yourself I think.
 % - LP split things (environment.t, Ast, vartype ...) so can expose
 %   first a simpler version
 % - AST is put closer to the grammar (update: actually was bad, but
 %   at least I aspectized a few constructions like Spawn, exns)
 % - I reordered AST elts, for instance CONST is before BINOP.
 % - I put the entry points of modules first, so know the goal/context
-%   so better understand the helpers presented later
+%   so better understand the helpers presented later. Same for nested
+%   helper functions that I present later. You don't have to follow
+%   the order of the file imposed by the compiler.
+% - I think he often just paraphrases the code. I'd rather comment
+%   subtleties, history notes, design alternatives, bugfixes
 
 %thx to codemap/codegraph/scheck:
 % - TODO use cg to reduce backward deps, introduce globals.c, utils.c,
@@ -36,7 +41,7 @@
 %   relevant file (or even function), better cluster the code
 %   (harder to understand non functional code using lots of globals)
 
-%thx to this manual, better understand compilers:
+%thx to this manual, better understand compilers and/or language design:
 % - mutual recursivity handling (list of things together, as in ocaml)
 %   alt: forward decl as in C
 % - scope handling (global for types only, as in ocaml)
@@ -174,8 +179,8 @@ you fully understand how things work under the hood.
 %% can LP-split and aspectize AST elements for instances.
 
 %% Hmm not redundant with Compiler.nw and even now OCaml.nw? Maybe but
-%% maybe it can help me to first have a cleaner and simpler compiler,
-%% so maybe making this manual can improve later Compiler.nw and OCaml.nw.
+%% maybe it can help me to first have a cleaner and simpler compiler.
+%% So maybe making this manual can improve later Compiler.nw and OCaml.nw.
 %% Can also see a simpler GC, which again can improve later OCaml.nw.
 
 Here are other candidates that were considered but ultimately discarded:
@@ -208,6 +213,19 @@ License.
 
 \section{Compiler frontend principles}
 
+% to compile is to translate from language A to language B.
+% In our case from Tiger (=~ C), to C-- (=~ Assembly).
+
+% The main compilation algorithms are:
+%  - "labelization": structured statements to goto/labels
+%  - "linearization" of complex expressions, use of temporary variables
+%  - "frameization" for functions for params, locals, temporaries
+%    which was a better structure for the stack
+%  - "layouting" for complex data down to simple bytes
+%    which was a better structure for the heap and data section
+
+% Then in addition to that there is the lexing/parsing and typechecking.
+
 \section{[[tigerc]] services}
 
 <<function Option.usage>>=
@@ -231,16 +249,27 @@ in
 end
 @
 
+% not so different from Asm, but still print(a) is better
+% than an unchecked PUSH A; CALL print.
 
 \section{Input Tiger language}
 
-% toy language:
+% toy language.
+%  - no declarations (no header file), a single file with possibly mutually
+%    recursive functions
 %  - no modules (no qualifier), so name resolution simple (even though
-%    scoped/nested language), and no linking really
+%    scoped/nested language), and no linking really. Compile a single file.
 %  - no float
-%  - some form of type inference :) no need to declare type of VarDec
+%  - no polymorphic types (ANY??)
+
+% but has a few nice things:
+%  - limited form of type inference :) no need to declare type of VarDec
+%    'var' keyword a la C++ auto
+%  - nested functions, but have closure??
 
 \section{Output C-- language}
+
+% =~ Assembly
 
 \section{Code organization}
 
@@ -248,7 +277,7 @@ end
 
 % classic compiler archi:
 % lexer -> parser -> typechecker&IR-generator -> c-- generator 
-% and on the side have runtime and stdlib "linked" with generated file.
+% and on the side have runtime and stdlib "linked" with the generated file.
 
 %###############################################################################
 
@@ -353,6 +382,9 @@ and exp =
 | BreakExp  of pos
 @
 
+% no goto/labels here.
+% will see exceptions later.
+
 \subsection{Types}
 
 <<type Ast.ty>>=
@@ -385,14 +417,16 @@ type vartype =
   (* other types *)
   <<[[Environment.vartype]] cases>>
 @ 
-% this one is recursive!
+% this one is recursive! expanded the intermediate names
 
-%XXX
 <<[[Environment.vartype]] cases>>=
 | NIL
-| ANY
 @
 % NIL = Null = unitialized record
+
+<<[[Environment.vartype]] cases>>=
+| ANY
+@
 % ANY? for unknown array?
 
 \section{Symbol table}
@@ -517,10 +551,11 @@ level  : int;
 % level is for?
 
 %\section{Environment}
-%
+% see later, but more local to one phase, so less need to expose it here
 
 \section{Intermediate tree representation}
 % linearized tree
+% (present in core DS because useful to know where we go)
 
 <<type Tree.stm>>=
 type stm =
@@ -535,7 +570,7 @@ type stm =
   <<[[Tree.stm]] cases>>
 @
 % CONT?? JUMP?
-% diff with before? have labels and jumps! so closer
+%compile: diff with before? have labels and jumps! so closer
 % to assembly. No more if, while, for.
 
 <<type Tree.label>>=
@@ -554,7 +589,7 @@ and exp =
   | NAME  of label
   | CALL  of exp * exp list * string option * label option * bool
 @
-% diff with before? Not much yet.
+%compile: diff with before? Not much yet.
 % hmm not really linearized. 
 % unless linearize() actually (ab)use the same structure but with
 % extra postconditions on the form of the tree.
@@ -585,9 +620,10 @@ type frame = {
   <<[[Frame.frame]] other fields>>
 }
 @
-% bool?
-% mutable!
+% bool? is_ptr?
+% note that mutable!
 
+% A function is really a linearized body and frame information.
 
 %XXX
 <<[[Frame.frame]] other fields>>=
@@ -680,6 +716,8 @@ let compile ch =
 <<signature function Lexer.token>>=
 val token : Lexing.lexbuf -> Parser.token
 @
+% get a list of functions. for toplevel expressions there is an
+% implicit tiger_main enclosing function.
 
 %signature Parser.program is actually in generated file parser.mli
 % so orphaned chunk below
@@ -698,13 +736,14 @@ val new_env : (string * vartype) list ->
 <<signature function Semantics.translate>>=
 val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
 @
-% one for each function
+% one for each function. A function is really a set of statements (the body)
+% and some frame information for the params, locals, temps.
 
 \section{[[Main.emit_function()]]}
 
 
 <<function Main.emit_function>>=
-let emit_function (frm,ex) =
+let emit_function (frm, ex) =
   (* compiling *)
   <<[[Main.emit_function()]] if dump expression tree>>
   let ltree = Canonical.linearize (Tree.EXP ex) in
@@ -740,6 +779,10 @@ val output_footer  : frame -> unit
 <<signature Codegen.emit>>=
 val emit               : Tree.stm list -> unit
 @
+
+
+
+
 
 \chapter{Lexing}
 
@@ -1085,7 +1128,10 @@ expr:
 
 
 
-\section{Declarations}
+\section{Definitions}
+% actually it's declaration and definitions
+
+% alt: have (forward) decl and def
 
 <<rule decs>>=
 /* recursive declarations in tiger.
@@ -1120,6 +1166,11 @@ dec:
 @
 
 
+<<rule id>>=
+/* Symbols are created in this rule only */
+id: ID { S.symbol $1 };
+@
+%$
 
 \subsection{Variables}
 
@@ -1178,8 +1229,8 @@ fun_dec:
 \section{Expressions}
 
 <<rule expr>>=
- | lvalue                    { mkVarExp $1 }
  | literal                   { $1 }
+ | lvalue                    { mkVarExp $1 }
  | function_call             { $1 }
  | arithmetic                { $1 }
  | comparison                { $1 }
@@ -1187,34 +1238,37 @@ fun_dec:
  | construction              { $1 }
 @
 %$
+% actually here the lvalue is really an rvalue
 
 % no pointer!
 
-\subsection{Entity uses}
-
-<<rule id>>=
-/* Symbols are created in this rule only */
-id: ID { S.symbol $1 };
-@
-%$
-
-\subsection{Local entity definitions}
-
-%expr:
-%  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
-% saw Let in in overview section
+\subsection{Literals}
 
 %<<[[Ast.exp]] cases>>=
-%| LetExp    of dec list * exp * pos
+%| NilExp
+%| IntExp    of int
+%| StringExp of string * pos
 %@
 
-\subsection{Lvalue, array and field accesses}
+<<subrules for expr>>=
+/* Literals */
+literal:
+   NIL    { mkNilExp }
+ | INT    { mkIntExp $1 }
+ | STRING { mkStringExp $1 }
+@
+
+% no float
+
+
+\subsection{Variable, array and field accesses}
+% rvalue
 
 %<<[[Ast.exp]] cases>>=
 %| VarExp    of var
 %@
 
-% =~ lvalue
+% =~ rvalue and lvalue
 <<type Ast.var>>=
 and var =
     SimpleVar    of name * pos
@@ -1236,24 +1290,6 @@ lvalue:
  | lvalue LBRACK expr RBRACK { mkSubscriptVar $1 $3 }
 @
 %$
-
-\subsection{Literals}
-
-%<<[[Ast.exp]] cases>>=
-%| NilExp
-%| IntExp    of int
-%| StringExp of string * pos
-%@
-
-<<subrules for expr>>=
-/* Literals */
-literal:
-   NIL    { mkNilExp }
- | INT    { mkIntExp $1 }
- | STRING { mkStringExp $1 }
-@
-
-% no float
 
 \subsection{Arithmetic}
 
@@ -1340,7 +1376,7 @@ fun_args:
 %$
 
 
-\subsection{Construction}
+\subsection{Constructions}
 
 %<<[[Ast.exp]] cases>>=
 %| RecordExp of symbol * (symbol * exp * pos) list * pos
@@ -1359,6 +1395,15 @@ ctor_list:
  | id EQ expr COMMA ctor_list { (mkRecFld $1 $3) :: $5 }
 @
 
+\subsection{Local entity definitions}
+
+%expr:
+%  LET decs IN expr_list END { mkLetExp $2 (mkSeqExp $4) }
+% saw Let in in overview section
+
+%<<[[Ast.exp]] cases>>=
+%| LetExp    of dec list * exp * pos
+%@
 
 \section{Statements}
 
@@ -1522,6 +1567,97 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 \chapter{Checking}
 
+% Typechecking and IR code generation are done together in tigerc
+% (as opposed to ocaml where have typechecking returning a typed
+% and named tree first), but they can be untangled. Most
+% of the typechecking related functions are in Semantics and the
+% intermediate code generation is in Trans
+
+
+%rappel:
+%val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
+
+% the exp is actually the toplevel expression of the program.
+
+<<function Semantics.translate>>=
+let translate env ast =
+  let (mainex, mainty) = trans env (EXP ast) in
+
+  if mainty <> INT && mainty <> UNIT 
+  then E.type_err 0 "tiger program must return INT or UNIT";
+
+  <<[[Semantics.translate()]] returned translated functions>>
+@
+% type of mainex?
+% generate final implicit "tiger_main" function for the final expression
+%  (See the env created in new_env())
+% alt: toplevel expr scheme of ocaml, not toplevel complex expr of C
+
+<<type Semantics.ast_node>>=
+type ast_node = 
+ | DEC of Ast.dec 
+ | EXP of Ast.exp
+@
+
+<<function Semantics.trans>>=
+let rec trans (env : Environment.t) (node : ast_node) 
+ : (Tree.exp * Environment.vartype) =
+  <<function Semantics.trans.trdec>>
+  <<function Semantics.trans.trexp>>
+  <<function Semantics.trans.trvar>>
+in match node with
+  DEC d -> (trdec d, NIL)
+| EXP e -> trexp e
+@
+%NIL? should be more UNIT no?
+
+% spirit of the typechecker/generator is to go down recursively
+% returning each time a pair with transformed ast and type of ast
+% at this level
+
+
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.LetExp(decls, body, _) ->
+      let trns x    = trans (Env.new_scope env) x in
+      let decs    = List.map (fun d -> fst (trns (DEC d))) decls in
+      let bex,bty = trns (EXP body) in
+      (Trans.sequence (decs @ [bex]), bty)
+@ 
+
+
+
+% code generation stuff, but important to see now.
+
+<<[[Semantics.translate()]] returned translated functions>>=
+add_function (Env.frame env) (mainex, mainty);
+List.rev !functions
+@
+
+
+<<global Semantics.functions>>=
+let functions                 = ref []
+@
+
+<<function Semantics.add_function>>=
+let add_function frm (ex,typ) =
+  functions := (frm, Trans.func frm ex (is_ptr typ)) :: !functions
+@
+
+
+%XXX
+<<[[Environment.t]] other fields>>=
+frame       : Frame.frame;
+@
+
+% Main.compile -> new_env -> <> (as frm <- add_function <- translate)
+<<[[Environment.new_env()]] other field initializations>>=
+frame       = F.new_frame (S.symbol "tiger_main") F.base_frame;
+@
+
+
+
+
 \section{The environment}
 
 <<type Environment.t>>=
@@ -1533,29 +1669,37 @@ type t = {
     <<[[Environment.t]] other fields>>
   }
 @
+%note that symbol table are mutables!
 %old: was 'a but clearer I think to put 'ty or even to directly
 % reference vartype!
+
+% need type definitions because local vars use typename and those
+% typename are referenced in this tenv table.
+% could be merged in venv? and have a TypeEntry?
 
 <<type Environment.enventry>>=
 type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
-  | FunEntry of (Symbol.symbol * string option * Frame.frame * 'ty list * 'ty)
+  | FunEntry of (Ast.name * string option * Frame.frame * 'ty list * 'ty)
 @ 
+% the symbol is? symbol for frame? so maybe should use Tree.label?
 % string option = storage, for instance "C"
 
+% Frame stuff again. codegen and typechecking mixed together.
 
-<<[[Environment.t]] other fields>>=
-frame       : Frame.frame;
+
+% trexp (LexExp case)-> <>
+<<function Environment.new_scope>>=
+let new_scope env = { env with
+                      tenv = S.new_scope env.tenv;
+                      venv = S.new_scope env.venv }
 @
-
-
-
 
 %XXX
 <<[[Environment.t]] other fields>>=
 break_label : Tree.label option;
 @
-
+% for labelization algorithm
 
 \subsection{Lookups}
 
@@ -1568,28 +1712,100 @@ val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
 val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
 @
 
+<<functions Environment.lookup_xxx>>=
+let lookup env sym pos =
+  try S.look env sym
+  with Not_found ->
+    raise(E.Error(E.Undefined_symbol (S.name sym), pos))
+
+let lookup_type  env = lookup env.tenv
+let lookup_value env = lookup env.venv
+@
+
+% actually there is a lookup_base_type which is similar to lookup_type
+% but need it? shouldn't we have the invariant that tenv contains
+% only expanded types?
+
+
 \subsection{Enters}
 
 <<signature function Environment.enter_type>>=
 val enter_type  : t -> Ast.typename -> vartype -> unit
 @
 
+<<functions Environment.enter_xxx>>=
+let enter tbl sym v =
+  if S.mem tbl sym
+  then raise(E.Error(E.Duplicate_symbol (S.name sym), 0))
+  else S.enter tbl sym v
+
+let enter_type env = enter env.tenv
+@
+
+
+
 <<signature function Environment.enter_fun>>=
 val enter_fun   : 
   t -> Ast.name -> string option -> vartype list -> vartype  -> t
 @
 % not enter_global??
+% this returns a new env because it's a new scope
+
+<<functions Environment.enter_xxx>>=
+let enter_fun env sym cc args result =
+  let lbl = S.new_symbol (S.name sym) in
+  let fenv = new_frame env lbl in
+
+  let fe = FunEntry (lbl, cc, fenv.frame, args, result) in
+  enter env.venv sym fe;
+  fenv
+@
+% create a new scope
+
+<<function Environment.new_frame>>=
+let new_frame env sym = { env with
+                          tenv = S.new_scope env.tenv;
+                          venv = S.new_scope env.venv;
+                          frame = Frame.new_frame sym env.frame;
+                          exn_label = None }
+@
+
+
+% =~ gensym()
+<<function Symbol.new_symbol>>=
+let new_symbol prefix = 
+  symbol (Printf.sprintf "%s_%d" prefix !nextsym)
+@
+
+
+
 
 <<signature function Environment.enter_param>>=
 val enter_param : t -> Ast.name -> vartype -> bool -> unit
 @
-% bool?
-
 <<signature function Environment.enter_local>>=
 val enter_local : t -> Ast.name -> vartype -> bool -> Frame.access
 @
+% bool = is_ptr, useful info for the compilation (but not for typechecking)
+% return unit because the info will be added in the frame of Env.t
+
+<<function Environment.enter_param>>=
+let enter_param env sym typ ptr =
+  let acc = F.alloc_param env.frame sym ptr in
+  enter env.venv sym (VarEntry(acc, typ))
+@
+
+<<function Environment.enter_local>>=
+let enter_local env sym typ ptr =
+  let acc = F.alloc_local env.frame sym ptr in
+  enter env.venv sym (VarEntry(acc, typ));
+  acc
+@
 
 \section{Builtins}
+
+% remember in Main.compile():
+%  let base_env = Environment.new_env base_tenv base_venv in
 
 <<constant Main.base_tenv>>=
 let base_tenv =
@@ -1617,12 +1833,25 @@ let base_venv =
 ]
 @
 
+% Main.compile -> <>
+<<function Environment.new_env>>=
+let new_env types funs =
+  let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
+  in { tenv        = Symbol.create types;
+       venv        = Symbol.create (List.map mkfe funs);
 
-\section{Typechecking}
+       <<[[Environment.new_env()]] other field initializations>>
+       xenv        = Symbol.create [];
+       break_label = None;
+       exn_label   = None 
+     }
+@ 
+% why need to keep also symbol in FunEntry?
 
-% actually typechecking and IR code generation are done together
-% (as opposed to ocaml where have typechecking returning a typed
-% and named tree first)
+
+
+\section{Typechecking helpers}
+
 
 <<functions Semantics.check_type_xxx>>=
 let check_type_t ty pos msg typ =
@@ -1634,6 +1863,7 @@ let check_type_unit = check_type_t UNIT
 @ 
 
 
+% trdec | ... -> <>
 <<function Semantics.check_type_eq>>=
 let check_type_eq pos msg t1 t2 =
   let are_equivalent = 
@@ -1649,6 +1879,382 @@ let check_type_eq pos msg t1 t2 =
 @
 %old: I reorged the code, clearer
 
+
+
+\section{Definitions}
+
+% translate -> trans -> <>
+<<function Semantics.trans.trdec>>=
+let rec trdec = function
+  <<[[Semantics.trans.trdec()]] cases>>
+@
+%old:
+%  <<function declarations>>
+%  <<variable declarations>>
+%  <<type declarations>>
+%  <<exception declarations>>
+
+% remember LetExp case seen before
+
+
+\subsection{Variables}
+% globals and locals
+
+
+<<[[Semantics.trans.trdec()]] cases>>=
+| A.VarDec(name, typ, init, pos) ->
+    let e,t = trexp init in
+    (match typ with
+      Some x -> check_type_eq pos
+          "Variable of type %s cannot be initialized with type %s"
+          (Env.lookup_type env x pos) t
+    | None -> ()
+    );
+    let acc = Env.enter_local env name t (is_ptr t) in
+    Trans.assign (Trans.simple_var (Env.frame env) acc) e
+@
+
+
+\subsection{Types}
+
+<<[[Semantics.trans.trdec()]] cases>>=
+| A.TypeDec types ->
+    let penv = Env.new_scope env in
+    let real_type (name, typ, _) = 
+      (name, 
+       match typ with
+       (* type expansion *)
+       | A.NameTy(name, pos) -> Env.lookup_type penv name pos
+       | A.RecordTy(fields) ->
+          let chkfld(name,ty,p) = (name,(Env.lookup_type penv ty p))
+          in RECORD (List.map chkfld fields)
+       | A.ArrayTy(name, pos) -> ARRAY (Env.lookup_type penv name pos)
+      )
+    in
+    types |> List.iter (fun(n,_,_) -> Env.enter_type penv n (NAME n));
+    let real_types = (List.map real_type types) in
+    real_types |> List.iter (fun (n,t) -> Env.enter_type env n t);
+    Trans.nil
+@
+% mutually recursive types? how? can't inline forever :)
+% so at least add NAME as default
+
+
+\subsection{Functions}
+
+<<[[Semantics.trans.trdec()]] cases>>=
+| A.FunctionDec functions ->
+    <<local function Semantics.trans.trdec.mk_param (for FunctionDec case)>>
+    <<local function Semantics.trans.trdec.mk_func_env (for FunctionDec case)>>
+    <<local function Semantics.trans.trdec.trans_func (for FunctionDec case)>>
+    let envs = (List.map mk_func_env functions) in
+    List.iter2 trans_func   envs functions;
+    Trans.nil
+@
+
+
+<<local function Semantics.trans.trdec.trans_func (for FunctionDec case)>>=
+let trans_func fenv (_, _, _, body, _) =
+  let b = trans fenv (EXP body) in
+  add_function (Env.frame fenv) b
+in
+@
+% another function to translate
+
+
+<<local function Semantics.trans.trdec.mk_func_env (for FunctionDec case)>>=
+let mk_func_env (name, params, typ, _, pos) =
+  let ret_type = 
+    match typ with
+    | Some x -> lookup_base_type env x pos
+    | None   -> UNIT
+  in
+  let params_types = params|> List.map (fun(_,t,p)->lookup_base_type env t p) in
+  let fenv  = Env.enter_fun env name None(*not C func*) params_types ret_type in
+  params |> List.iter (fun p -> mk_param fenv p);
+  fenv
+in
+@
+% env here is enclosing env in trans.
+
+<<local function Semantics.trans.trdec.mk_param (for FunctionDec case)>>=
+let mk_param fenv (name, typ, pos) =
+  let t = lookup_base_type env typ pos in
+  Env.enter_param fenv name t (is_ptr t)
+in
+@
+
+\section{Expressions}
+
+<<function Semantics.trans.trexp>>=
+and trexp = function
+  <<[[Semantics.trans.trexp()]] cases>>
+@
+%old:
+%  <<simple expressions>>
+%  <<records>>
+%  <<arrays>>
+%  <<assignment>>
+%  <<operator expressions(semantics.nw)>>
+%  <<function calls(semantics.nw)>>
+%  <<conditionals(semantics.nw)>>
+%  <<loops(semantics.nw)>>
+%  <<sequences(semantics.nw)>>
+%  <<let expressions>>
+%  <<exceptions(semantics.nw)>>
+%  <<threads(semantics.nw)>>
+
+\subsection{Literals}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.NilExp         -> (Trans.nil,           NIL)
+  | A.IntExp i       -> (Trans.int_literal i, INT)
+  | A.StringExp(s,_) -> (Trans.str_literal s, STRING)
+@
+
+\subsection{Variable, array and field accesses}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.VarExp v       -> trvar v
+@
+
+<<function Semantics.trans.trvar>>=
+and trvar = function
+  <<[[Semantics.trans.trvar()]] cases>>
+@
+%old:
+%  <<simple vars>>
+%  <<field vars>>
+%  <<subscript vars>>
+
+<<[[Semantics.trans.trvar()]] cases>>=
+    A.SimpleVar(sym, pos) ->
+      (match Env.lookup_value env sym pos with
+        Env.VarEntry(acc, vt) ->
+          (Trans.simple_var (Env.frame env) acc, base_type env vt)
+      | Env.FunEntry _ ->
+          E.type_err pos "function used as value"
+      )
+@
+% no function as value :( Extension!!
+
+<<[[Semantics.trans.trvar()]] cases>>=
+  | A.FieldVar(var, sym, pos) ->
+      let (exp, fields) = 
+        match (trvar var) with
+        | (x, RECORD y) -> (x,y)
+        | _ -> E.type_err pos "attempt to dereference non-record type"
+      in
+      let offset  = ref (-1) in
+      let (_,fld) =
+        try List.find (fun (s,v) -> incr offset; s = sym) fields
+        with Not_found -> E.undefined pos (S.name sym)
+      in
+      let typ = base_type env fld in
+      (Trans.field_var exp !offset (is_ptr typ), typ)
+@
+
+<<[[Semantics.trans.trvar()]] cases>>=
+  | A.SubscriptVar(var, exp, pos) ->
+      let e,t = trexp exp in
+      check_type_int pos "subscript variable" t;
+      (match (trvar var) with
+        (exp, ARRAY vt) ->
+          let typ = (base_type env vt) in
+          (Trans.subscript_var exp e (is_ptr typ) pos, typ)
+      | _ ->
+          E.type_err pos "attempt to dereference a non-array type"
+      )
+@
+
+\subsection{Construction}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.RecordExp(var, fields, pos) ->
+      <<function Semantics.trans.trexp.chk_field>>
+      (match Env.lookup_type env var pos with
+        RECORD dec_fields ->
+          begin try
+            let field_vals = (List.map2 chk_field fields dec_fields) in
+            (Trans.new_record field_vals, RECORD dec_fields)
+          with Invalid_argument s ->
+            E.type_err pos "Record instance does not match declared type"
+          end
+      | _ ->
+          E.type_err pos "Attempt to use non-record type as record"
+      )
+@
+
+<<function Semantics.trans.trexp.chk_field>>=
+let chk_field (s1,e,p) (s2,vt) =
+  if (s1 <> s2) 
+  then E.type_err p "field names do not match";
+  let ex,ty = trexp e in
+  check_type_eq p "field type (%s) does not match declaration (%s)"
+                  (base_type env vt) ty;
+  (ex, is_ptr ty)
+in
+@
+
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.ArrayExp(name, size, init, pos) ->
+      (match Env.lookup_type env name pos with
+        ARRAY vt ->
+          let size,sizety = trexp size in
+          let init,initty = trexp init in
+          let typ         = base_type env vt in
+          check_type_int pos "array size" sizety;
+          check_type_eq  pos "array type(%s) does not type(%s)" typ initty;
+          (Trans.new_array size init (is_ptr typ), ARRAY vt)
+      | _ ->
+          E.type_err pos "Attempt to use a non-array type as an array"
+      )
+@
+
+
+\subsection{Operators}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.OpExp(left, oper, right, pos) ->
+      let lexp,lty = trexp left
+      and rexp,rty = trexp right in
+      check_type_eq pos "Incompatible types %s,%s" lty rty;
+      let trans_fn =
+        match oper with
+          A.PlusOp | A.MinusOp | A.TimesOp | A.DivideOp ->
+            check_type_int pos "operator argument" lty;    Trans.arithmetic
+        | A.EqOp | A.NeqOp
+        | A.LtOp | A.LeOp | A.GtOp | A.GeOp ->
+            (match lty with
+              INT | NIL                                 -> Trans.compare_int
+            | STRING                                    -> Trans.compare_str
+            | ARRAY  _ when oper=A.EqOp || oper=A.NeqOp -> Trans.compare_int
+            | RECORD _ when oper=A.EqOp || oper=A.NeqOp -> Trans.compare_int
+            | _ ->
+                E.type_err pos "Incomparable types"
+            )
+      in (trans_fn oper lexp rexp, INT)
+@
+
+\subsection{Function calls}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.CallExp(sym, arglist, pos) ->
+      let chk_arg = check_type_eq pos
+                    "Argument type (%s) does not match declaration (%s)"
+      in 
+      (match Env.lookup_value env sym pos with
+        Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          let args,tys = List.split (List.map trexp arglist) in
+          begin try
+            List.iter2 chk_arg tys dec_args;
+            let rtyp = base_type env return_type in
+            (Trans.call (Env.frame env) lbl cc frm args
+                    (Env.exn_label env) (is_ptr rtyp), rtyp)
+          with Invalid_argument x ->
+            E.type_err pos "function arguments do not match declaration"
+          end
+      | _ ->
+          E.type_err pos (S.name sym ^ " is not a function")
+      )
+@
+
+\subsection{Local entity definitions}
+% could be with definitions
+
+% see above
+
+
+\section{Statements}
+
+\subsection{Sequence}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.SeqExp ([],_) -> (Trans.nil, UNIT)
+  | A.SeqExp (el,_) ->
+      let exprs = List.rev_map trexp el in
+      let _,typ = List.hd exprs in
+      let exprs = List.rev_map fst exprs in
+      (Trans.sequence exprs, typ)
+@
+
+\subsection{Assignments}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.AssignExp(var, exp, pos) ->
+      let exp,ety = trexp exp
+      and var,vty = trvar var in
+      check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
+      (Trans.assign var exp, UNIT)
+@
+
+\subsection{Conditionals}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.IfExp(if', then', else', pos) ->
+      let iex,ity = trexp if'
+      and tex,tty = trexp then'
+      and eex,ety = match else' with
+                      None    -> (Trans.nil, UNIT)
+                    | Some ex -> trexp ex
+      in
+      check_type_int pos "if condition" ity;
+      check_type_eq  pos
+        "type of then expression (%s) does not match else (%s)" tty ety;
+      let typ = base_type env tty in
+      (Trans.ifexp iex tex eex (is_ptr typ), typ)
+@
+
+\subsection{Loops}
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.WhileExp(test, body, pos) ->
+      let body_env = Env.new_break_label env in
+      let tex,tty = trexp test
+      and bex,bty = trans body_env (EXP body) in
+      check_type_int pos "while condition" tty;
+      check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
+      (Trans.loop tex bex (Env.break_label body_env), UNIT)
+@
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.BreakExp pos ->
+      begin
+        try (Trans.break (Env.break_label env), UNIT)
+        with Not_found -> raise(E.Error(E.Illegal_break, pos))
+      end
+@
+
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.ForExp(sym, lo, hi, body, pos) ->
+      let _,loty = trexp lo
+      and _,hity = trexp hi in
+      check_type_int pos "for lower bound" loty;
+      check_type_int pos "for upper bound" hity;
+     <<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>
+@
+
+
+<<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>=
+ let v            = A.SimpleVar(sym, pos) in
+ let ve           = A.VarExp v in
+ let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
+ and v_plus_1     = A.OpExp(ve, A.PlusOp, (A.IntExp 1), pos) in
+ trexp (A.LetExp(
+        [(A.VarDec(sym,(Some(S.symbol "int")), lo, pos))],
+        (A.WhileExp
+           (v_less_eq_hi,
+            (A.SeqExp([body;
+                      (A.AssignExp(v, v_plus_1, pos))], pos)),
+            pos)),
+        pos))
+@
+
+\chapter{Intermediate Representation Generation}
+%IR generation
+
 <<function Semantics.is_ptr>>=
 let is_ptr = function
     INT | UNIT -> false
@@ -1656,30 +2262,6 @@ let is_ptr = function
   | _ -> E.internal "non-base type for variable"
 @
 
-
-\chapter{Intermediate Representation Generation}
-%IR generation
-
-%val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
-
-<<function Semantics.translate>>=
-let translate env ast =
-  let (mainex, mainty) = trans env (EXP ast) in
-  begin
-    if mainty <> INT && mainty <> UNIT 
-    then E.type_err 0 "tiger program must return INT or UNIT";
-    add_function (V.frame env) (mainex, mainty);
-    get_functions()
-  end
-@
-
-
-
-\section{Declarations}
-
-\section{Statements}
-
-\section{Expressions}
 
 \chapter{Linearization}
 
@@ -1705,13 +2287,15 @@ Frame.output_strings();
 \section{Typedefs}
 
 <<[[Environment.vartype]] cases>>=
-| NAME   of Symbol.symbol
+| NAME   of Ast.typename
 @
+% actually necessary to support mutually recursive type too!
+
 
 <<function Semantics.base_type>>=
 let rec base_type env = function
     NAME s ->
-      (try base_type env (V.lookup_type env s 0)
+      (try base_type env (Env.lookup_type env s 0)
        with Not_found -> E.internal "NAME symbol not found"
       )
   | x -> x
@@ -1719,7 +2303,7 @@ let rec base_type env = function
 
 <<function Semantics.lookup_base_type>>=
 let lookup_base_type env sym pos =
-  base_type env (V.lookup_type env sym pos)
+  base_type env (Env.lookup_type env sym pos)
 @ 
 
 \section{Exceptions}
@@ -1781,6 +2365,8 @@ handlers:
 <<[[Environment.t]] other fields>>=
 exn_label   : Tree.label option;
 @
+% remember that reset to None in new_frame, each time translate
+% a new function
 
 <<[[Environment.t]] other fields>>=
 xenv        : int Symbol.table;
@@ -1789,9 +2375,44 @@ xenv        : int Symbol.table;
 <<signature function Environment.lookup_exn>>=
 val lookup_exn   : t -> Ast.name -> Ast.pos -> int
 @
+<<functions Environment.lookup_xxx>>=
+let lookup_exn   env = lookup env.xenv
+@
+
 <<signature function Environment.enter_exn>>=
 val enter_exn   : t -> Ast.name -> unit
 @
+<<functions Environment.enter_xxx>>=
+let enter_exn env sym = enter env.xenv sym (S.uid sym)
+@
+
+<<[[Semantics.trans.trdec()]] cases>>=
+  | A.ExceptionDec(sym,_) -> Env.enter_exn env sym; Trans.nil
+@
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.TryExp(expr, handlers, pos) ->
+      let new_env         = Env.new_exn_label env in
+      let tryex, tryty    = trans new_env (EXP expr) in
+      let handler (s,h,p) =
+        let ex,ty = trexp h in
+        check_type_unit p "handler" ty;
+        (S.uid s, ex)
+      in
+      check_type_unit pos "try" tryty;
+      begin match Env.exn_label new_env with
+        None     -> E.internal "no exception label for try block"
+      | Some lbl ->
+          (Trans.try_block tryex lbl (List.map handler handlers), tryty)
+      end
+@ 
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.RaiseExp(sym, pos) ->
+      let exn_id = Env.lookup_exn env sym pos in
+      (Trans.raise_exn exn_id, UNIT)
+@
+
 
 % generating
 <<[[Tree.stm]] cases>>=
@@ -1809,7 +2430,7 @@ let unwind = ref false
 
 
 \section{Spawn}
-% process?
+% process? threads?
 
 %AST
 <<[[Ast.exp]] cases>>=
@@ -1831,6 +2452,18 @@ let unwind = ref false
 %$
 
 %typechecking, generating
+
+<<[[Semantics.trans.trexp()]] cases>>=
+  | A.SpawnExp(sym, pos) ->
+      begin match Env.lookup_value env sym pos with
+        Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          if dec_args <> []
+          then E.type_err pos "spawn function must take zero arguments."
+          else (Trans.spawn lbl,INT)
+      | _ ->
+          E.type_err pos (S.name sym ^ " is not a function")
+      end
+@
 
 \chapter{Advanced Topics}
 

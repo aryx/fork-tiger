@@ -6,8 +6,8 @@ module S = Symbol
 module T = Tree
 module F = Frame
 
-type exp   = T.exp
-type label = T.label
+type exp   = Tree.exp
+type label = Tree.label
 
 let  ws    = Sys.word_size / 8
 

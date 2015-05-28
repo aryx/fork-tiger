@@ -3,8 +3,8 @@
 module E = Error
 module A = Ast
 module S = Symbol
-module V = Environment
-module T = Translate
+module Env = Environment
+module Trans = Translate
 
 open Environment
 
@@ -23,14 +23,14 @@ let rec type_name = function
 (*s: function Semantics.base_type *)
 let rec base_type env = function
     NAME s ->
-      (try base_type env (V.lookup_type env s 0)
+      (try base_type env (Env.lookup_type env s 0)
        with Not_found -> E.internal "NAME symbol not found"
       )
   | x -> x
 (*e: function Semantics.base_type *)
 (*s: function Semantics.lookup_base_type *)
 let lookup_base_type env sym pos =
-  base_type env (V.lookup_type env sym pos)
+  base_type env (Env.lookup_type env sym pos)
 (*e: function Semantics.lookup_base_type *)
 
 (*s: function Semantics.is_ptr *)
@@ -62,160 +62,138 @@ let check_type_eq pos msg t1 t2 =
 (*e: function Semantics.check_type_eq *)
 
 (*s: translators *)
+(*s: global Semantics.functions *)
 let functions                 = ref []
-let get_functions ()          = List.rev !functions
+(*e: global Semantics.functions *)
+(*s: function Semantics.add_function *)
 let add_function frm (ex,typ) =
-  functions := (frm, T.func frm ex (is_ptr typ)) :: !functions
+  functions := (frm, Trans.func frm ex (is_ptr typ)) :: !functions
+(*e: function Semantics.add_function *)
 (*x: translators *)
-type ast_node = DEC of Ast.dec | EXP of Ast.exp
-let rec trans (env : Environment.t) (node : ast_node) =
-  (*s: declaration translator *)
+(*s: type Semantics.ast_node *)
+type ast_node = 
+ | DEC of Ast.dec 
+ | EXP of Ast.exp
+(*e: type Semantics.ast_node *)
+(*s: function Semantics.trans *)
+let rec trans (env : Environment.t) (node : ast_node) 
+ : (Tree.exp * Environment.vartype) =
+  (*s: function Semantics.trans.trdec *)
   let rec trdec = function
-    (*s: function declarations *)
-      A.FunctionDec functions ->
+    (*s: [[Semantics.trans.trdec()]] cases *)
+    | A.VarDec(name, typ, init, pos) ->
+        let e,t = trexp init in
+        (match typ with
+          Some x -> check_type_eq pos
+              "Variable of type %s cannot be initialized with type %s"
+              (Env.lookup_type env x pos) t
+        | None -> ()
+        );
+        let acc = Env.enter_local env name t (is_ptr t) in
+        Trans.assign (Trans.simple_var (Env.frame env) acc) e
+    (*x: [[Semantics.trans.trdec()]] cases *)
+    | A.TypeDec types ->
+        let penv = Env.new_scope env in
+        let real_type (name, typ, _) = 
+          (name, 
+           match typ with
+           (* type expansion *)
+           | A.NameTy(name, pos) -> Env.lookup_type penv name pos
+           | A.RecordTy(fields) ->
+              let chkfld(name,ty,p) = (name,(Env.lookup_type penv ty p))
+              in RECORD (List.map chkfld fields)
+           | A.ArrayTy(name, pos) -> ARRAY (Env.lookup_type penv name pos)
+          )
+        in
+        types |> List.iter (fun(n,_,_) -> Env.enter_type penv n (NAME n));
+        let real_types = (List.map real_type types) in
+        real_types |> List.iter (fun (n,t) -> Env.enter_type env n t);
+        Trans.nil
+    (*x: [[Semantics.trans.trdec()]] cases *)
+    | A.FunctionDec functions ->
+        (*s: local function Semantics.trans.trdec.mk_param (for FunctionDec case) *)
         let mk_param fenv (name, typ, pos) =
           let t = lookup_base_type env typ pos in
-          V.enter_param fenv name t (is_ptr t)
+          Env.enter_param fenv name t (is_ptr t)
         in
+        (*e: local function Semantics.trans.trdec.mk_param (for FunctionDec case) *)
+        (*s: local function Semantics.trans.trdec.mk_func_env (for FunctionDec case) *)
         let mk_func_env (name, params, typ, _, pos) =
-          let ret_type = match typ with
-            Some x -> lookup_base_type env x pos
-          | None   -> UNIT
-          and types = List.map (fun(_,t,p)-> lookup_base_type env t p) params in
-          let fenv  = V.enter_fun env name None types ret_type in
-          List.iter (mk_param fenv) params;
+          let ret_type = 
+            match typ with
+            | Some x -> lookup_base_type env x pos
+            | None   -> UNIT
+          in
+          let params_types = params|> List.map (fun(_,t,p)->lookup_base_type env t p) in
+          let fenv  = Env.enter_fun env name None(*not C func*) params_types ret_type in
+          params |> List.iter (fun p -> mk_param fenv p);
           fenv
         in
-    (*x: function declarations *)
+        (*e: local function Semantics.trans.trdec.mk_func_env (for FunctionDec case) *)
+        (*s: local function Semantics.trans.trdec.trans_func (for FunctionDec case) *)
         let trans_func fenv (_, _, _, body, _) =
           let b = trans fenv (EXP body) in
-          add_function (V.frame fenv) b
+          add_function (Env.frame fenv) b
         in
-    (*x: function declarations *)
+        (*e: local function Semantics.trans.trdec.trans_func (for FunctionDec case) *)
         let envs = (List.map mk_func_env functions) in
-        List.iter2 trans_func envs functions;
-        T.nil
-    (*e: function declarations *)
-    (*s: variable declarations *)
-      | A.VarDec(name, typ, init, pos) ->
-          let e,t = trexp init in
-          (match typ with
-            Some x -> check_type_eq pos
-                "Variable of type %s cannot be initialized with type %s"
-                (V.lookup_type env x pos) t
-          | None -> ()
-          );
-          let acc = V.enter_local env name t (is_ptr t) in
-          T.assign (T.simple_var (V.frame env) acc) e
-    (*e: variable declarations *)
-    (*s: type declarations *)
-      | A.TypeDec types ->
-          let penv = V.new_scope env in
-          let real_type (name, typ, _) = (name, match typ with
-            A.NameTy(name, pos) -> V.lookup_type penv name pos
-          | A.RecordTy(fields) ->
-              let chkfld(name,ty,p) = (name,(V.lookup_type penv ty p))
-              in RECORD (List.map chkfld fields)
-          | A.ArrayTy(name, pos) -> ARRAY (V.lookup_type penv name pos))
-          in
-          List.iter (fun(n,_,_) -> V.enter_type penv n (NAME n)) types;
-          let real_types = (List.map real_type types) in
-          List.iter (fun (n,t) -> V.enter_type env n t) real_types;
-          T.nil
-    (*e: type declarations *)
-    (*s: exception declarations *)
-      | A.ExceptionDec(sym,_) -> V.enter_exn env sym; T.nil
-    (*e: exception declarations *)
-  (*e: declaration translator *)
-  (*s: variable translator *)
-  and trvar = function
-    (*s: simple vars *)
-        A.SimpleVar(sym, pos) ->
-          begin match V.lookup_value env sym pos with
-            V.VarEntry(acc, vt) ->
-              (T.simple_var (V.frame env) acc, base_type env vt)
-          | V.FunEntry _ ->
-              E.type_err pos "function used as value"
-          end
-    (*e: simple vars *)
-    (*s: field vars *)
-      | A.FieldVar(var, sym, pos) ->
-          let (exp, fields) = match (trvar var) with
-            (x, RECORD y) -> (x,y)
-          | _ -> E.type_err pos "attempt to dereference non-record type"
-          in
-          let offset  = ref (-1) in
-          let (_,fld) =
-            try List.find (fun (s,v) -> incr offset; s = sym) fields
-            with Not_found -> E.undefined pos (S.name sym)
-          in
-          let typ = base_type env fld in
-          (T.field_var exp !offset (is_ptr typ), typ)
-    (*e: field vars *)
-    (*s: subscript vars *)
-      | A.SubscriptVar(var, exp, pos) ->
-          let e,t = (trexp exp) in
-          check_type_int pos "subscript variable" t;
-          begin match (trvar var) with
-            (exp, ARRAY vt) ->
-              let typ = (base_type env vt) in
-              (T.subscript_var exp e (is_ptr typ) pos, typ)
-          | _ ->
-              E.type_err pos "attempt to dereference a non-array type"
-          end
-    (*e: subscript vars *)
-  (*e: variable translator *)
-  (*s: expression translator *)
+        List.iter2 trans_func   envs functions;
+        Trans.nil
+    (*x: [[Semantics.trans.trdec()]] cases *)
+      | A.ExceptionDec(sym,_) -> Env.enter_exn env sym; Trans.nil
+    (*e: [[Semantics.trans.trdec()]] cases *)
+  (*e: function Semantics.trans.trdec *)
+  (*s: function Semantics.trans.trexp *)
   and trexp = function
-    (*s: simple expressions *)
-        A.VarExp v       -> trvar v
-      | A.NilExp         -> (T.nil,           NIL)
-      | A.IntExp i       -> (T.int_literal i, INT)
-      | A.StringExp(s,_) -> (T.str_literal s, STRING)
-    (*e: simple expressions *)
-    (*s: records *)
+    (*s: [[Semantics.trans.trexp()]] cases *)
+      | A.LetExp(decls, body, _) ->
+          let trns x    = trans (Env.new_scope env) x in
+          let decs    = List.map (fun d -> fst (trns (DEC d))) decls in
+          let bex,bty = trns (EXP body) in
+          (Trans.sequence (decs @ [bex]), bty)
+    (*x: [[Semantics.trans.trexp()]] cases *)
+      | A.NilExp         -> (Trans.nil,           NIL)
+      | A.IntExp i       -> (Trans.int_literal i, INT)
+      | A.StringExp(s,_) -> (Trans.str_literal s, STRING)
+    (*x: [[Semantics.trans.trexp()]] cases *)
+      | A.VarExp v       -> trvar v
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.RecordExp(var, fields, pos) ->
+          (*s: function Semantics.trans.trexp.chk_field *)
           let chk_field (s1,e,p) (s2,vt) =
-            if (s1 <> s2) then E.type_err p "field names do not match";
+            if (s1 <> s2) 
+            then E.type_err p "field names do not match";
             let ex,ty = trexp e in
             check_type_eq p "field type (%s) does not match declaration (%s)"
                             (base_type env vt) ty;
             (ex, is_ptr ty)
           in
-          begin match V.lookup_type env var pos with
+          (*e: function Semantics.trans.trexp.chk_field *)
+          (match Env.lookup_type env var pos with
             RECORD dec_fields ->
               begin try
                 let field_vals = (List.map2 chk_field fields dec_fields) in
-                (T.new_record field_vals, RECORD dec_fields)
+                (Trans.new_record field_vals, RECORD dec_fields)
               with Invalid_argument s ->
                 E.type_err pos "Record instance does not match declared type"
               end
           | _ ->
               E.type_err pos "Attempt to use non-record type as record"
-          end
-    (*e: records *)
-    (*s: arrays *)
+          )
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.ArrayExp(name, size, init, pos) ->
-          begin match V.lookup_type env name pos with
+          (match Env.lookup_type env name pos with
             ARRAY vt ->
-              let size,sizety = trexp size
-              and init,initty = trexp init
-              and typ         = base_type env vt in
+              let size,sizety = trexp size in
+              let init,initty = trexp init in
+              let typ         = base_type env vt in
               check_type_int pos "array size" sizety;
               check_type_eq  pos "array type(%s) does not type(%s)" typ initty;
-              (T.new_array size init (is_ptr typ), ARRAY vt)
+              (Trans.new_array size init (is_ptr typ), ARRAY vt)
           | _ ->
               E.type_err pos "Attempt to use a non-array type as an array"
-          end
-    (*e: arrays *)
-    (*s: assignment *)
-      | A.AssignExp(var, exp, pos) ->
-          let exp,ety = trexp exp
-          and var,vty = trvar var in
-          check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
-          (T.assign var exp, UNIT)
-    (*e: assignment *)
-    (*s: operator expressions(semantics.nw) *)
+          )
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.OpExp(left, oper, right, pos) ->
           let lexp,lty = trexp left
           and rexp,rty = trexp right in
@@ -223,66 +201,84 @@ let rec trans (env : Environment.t) (node : ast_node) =
           let trans_fn =
             match oper with
               A.PlusOp | A.MinusOp | A.TimesOp | A.DivideOp ->
-                check_type_int pos "operator argument" lty;    T.arithmetic
+                check_type_int pos "operator argument" lty;    Trans.arithmetic
             | A.EqOp | A.NeqOp
             | A.LtOp | A.LeOp | A.GtOp | A.GeOp ->
-                begin match lty with
-                  INT | NIL                                 -> T.compare_int
-                | STRING                                    -> T.compare_str
-                | ARRAY  _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
-                | RECORD _ when oper=A.EqOp || oper=A.NeqOp -> T.compare_int
+                (match lty with
+                  INT | NIL                                 -> Trans.compare_int
+                | STRING                                    -> Trans.compare_str
+                | ARRAY  _ when oper=A.EqOp || oper=A.NeqOp -> Trans.compare_int
+                | RECORD _ when oper=A.EqOp || oper=A.NeqOp -> Trans.compare_int
                 | _ ->
                     E.type_err pos "Incomparable types"
-                end
+                )
           in (trans_fn oper lexp rexp, INT)
-    (*e: operator expressions(semantics.nw) *)
-    (*s: function calls(semantics.nw) *)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.CallExp(sym, arglist, pos) ->
           let chk_arg = check_type_eq pos
                         "Argument type (%s) does not match declaration (%s)"
-          in begin match V.lookup_value env sym pos with
-            V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          in 
+          (match Env.lookup_value env sym pos with
+            Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
               let args,tys = List.split (List.map trexp arglist) in
               begin try
                 List.iter2 chk_arg tys dec_args;
                 let rtyp = base_type env return_type in
-                (T.call (V.frame env) lbl cc frm args
-                        (V.exn_label env) (is_ptr rtyp), rtyp)
+                (Trans.call (Env.frame env) lbl cc frm args
+                        (Env.exn_label env) (is_ptr rtyp), rtyp)
               with Invalid_argument x ->
                 E.type_err pos "function arguments do not match declaration"
               end
           | _ ->
               E.type_err pos (S.name sym ^ " is not a function")
-          end
-    (*e: function calls(semantics.nw) *)
-    (*s: conditionals(semantics.nw) *)
+          )
+    (*x: [[Semantics.trans.trexp()]] cases *)
+      | A.SeqExp ([],_) -> (Trans.nil, UNIT)
+      | A.SeqExp (el,_) ->
+          let exprs = List.rev_map trexp el in
+          let _,typ = List.hd exprs in
+          let exprs = List.rev_map fst exprs in
+          (Trans.sequence exprs, typ)
+    (*x: [[Semantics.trans.trexp()]] cases *)
+      | A.AssignExp(var, exp, pos) ->
+          let exp,ety = trexp exp
+          and var,vty = trvar var in
+          check_type_eq pos "Cannot assign to type %s from type %s" vty ety;
+          (Trans.assign var exp, UNIT)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.IfExp(if', then', else', pos) ->
           let iex,ity = trexp if'
           and tex,tty = trexp then'
           and eex,ety = match else' with
-                          None    -> (T.nil, UNIT)
+                          None    -> (Trans.nil, UNIT)
                         | Some ex -> trexp ex
           in
           check_type_int pos "if condition" ity;
           check_type_eq  pos
             "type of then expression (%s) does not match else (%s)" tty ety;
           let typ = base_type env tty in
-          (T.ifexp iex tex eex (is_ptr typ), typ)
-    (*e: conditionals(semantics.nw) *)
-    (*s: loops(semantics.nw) *)
+          (Trans.ifexp iex tex eex (is_ptr typ), typ)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.WhileExp(test, body, pos) ->
-          let body_env = V.new_break_label env in
+          let body_env = Env.new_break_label env in
           let tex,tty = trexp test
           and bex,bty = trans body_env (EXP body) in
           check_type_int pos "while condition" tty;
           check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
-          (T.loop tex bex (V.break_label body_env), UNIT)
-    (*x: loops(semantics.nw) *)
+          (Trans.loop tex bex (Env.break_label body_env), UNIT)
+    (*x: [[Semantics.trans.trexp()]] cases *)
+      | A.BreakExp pos ->
+          begin
+            try (Trans.break (Env.break_label env), UNIT)
+            with Not_found -> raise(E.Error(E.Illegal_break, pos))
+          end
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.ForExp(sym, lo, hi, body, pos) ->
           let _,loty = trexp lo
           and _,hity = trexp hi in
           check_type_int pos "for lower bound" loty;
           check_type_int pos "for upper bound" hity;
+         (*s: [[Semantics.trans.trexp()]] ForExp case, unsugaring for in while *)
           let v            = A.SimpleVar(sym, pos) in
           let ve           = A.VarExp v in
           let v_less_eq_hi = A.OpExp(ve, A.LeOp, hi, pos)
@@ -295,31 +291,10 @@ let rec trans (env : Environment.t) (node : ast_node) =
                                (A.AssignExp(v, v_plus_1, pos))], pos)),
                      pos)),
                  pos))
-    (*x: loops(semantics.nw) *)
-      | A.BreakExp pos ->
-          begin
-            try (T.break (V.break_label env), UNIT)
-            with Not_found -> raise(E.Error(E.Illegal_break, pos))
-          end
-    (*e: loops(semantics.nw) *)
-    (*s: sequences(semantics.nw) *)
-      | A.SeqExp ([],_) -> (T.nil, UNIT)
-      | A.SeqExp (el,_) ->
-          let exprs = List.rev_map trexp el in
-          let _,typ = List.hd exprs in
-          let exprs = List.rev_map fst exprs in
-          (T.sequence exprs, typ)
-    (*e: sequences(semantics.nw) *)
-    (*s: let expressions *)
-      | A.LetExp(decls, body, _) ->
-          let trns    = trans (V.new_scope env) in
-          let decs    = List.map (fun d -> fst (trns (DEC d))) decls
-          and bex,bty = trns (EXP body) in
-          (T.sequence (decs @ [bex]), bty)
-    (*e: let expressions *)
-    (*s: exceptions(semantics.nw) *)
+         (*e: [[Semantics.trans.trexp()]] ForExp case, unsugaring for in while *)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.TryExp(expr, handlers, pos) ->
-          let new_env         = V.new_exn_label env in
+          let new_env         = Env.new_exn_label env in
           let tryex, tryty    = trans new_env (EXP expr) in
           let handler (s,h,p) =
             let ex,ty = trexp h in
@@ -327,41 +302,80 @@ let rec trans (env : Environment.t) (node : ast_node) =
             (S.uid s, ex)
           in
           check_type_unit pos "try" tryty;
-          begin match V.exn_label new_env with
+          begin match Env.exn_label new_env with
             None     -> E.internal "no exception label for try block"
           | Some lbl ->
-              (T.try_block tryex lbl (List.map handler handlers), tryty)
+              (Trans.try_block tryex lbl (List.map handler handlers), tryty)
           end
-    (*x: exceptions(semantics.nw) *)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.RaiseExp(sym, pos) ->
-          let exn_id = V.lookup_exn env sym pos in
-          (T.raise_exn exn_id, UNIT)
-    (*e: exceptions(semantics.nw) *)
-    (*s: threads(semantics.nw) *)
+          let exn_id = Env.lookup_exn env sym pos in
+          (Trans.raise_exn exn_id, UNIT)
+    (*x: [[Semantics.trans.trexp()]] cases *)
       | A.SpawnExp(sym, pos) ->
-          begin match V.lookup_value env sym pos with
-            V.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          begin match Env.lookup_value env sym pos with
+            Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
               if dec_args <> []
               then E.type_err pos "spawn function must take zero arguments."
-              else (T.spawn lbl,INT)
+              else (Trans.spawn lbl,INT)
           | _ ->
               E.type_err pos (S.name sym ^ " is not a function")
           end
-    (*e: threads(semantics.nw) *)
-  (*e: expression translator *)
+    (*e: [[Semantics.trans.trexp()]] cases *)
+  (*e: function Semantics.trans.trexp *)
+  (*s: function Semantics.trans.trvar *)
+  and trvar = function
+    (*s: [[Semantics.trans.trvar()]] cases *)
+        A.SimpleVar(sym, pos) ->
+          (match Env.lookup_value env sym pos with
+            Env.VarEntry(acc, vt) ->
+              (Trans.simple_var (Env.frame env) acc, base_type env vt)
+          | Env.FunEntry _ ->
+              E.type_err pos "function used as value"
+          )
+    (*x: [[Semantics.trans.trvar()]] cases *)
+      | A.FieldVar(var, sym, pos) ->
+          let (exp, fields) = 
+            match (trvar var) with
+            | (x, RECORD y) -> (x,y)
+            | _ -> E.type_err pos "attempt to dereference non-record type"
+          in
+          let offset  = ref (-1) in
+          let (_,fld) =
+            try List.find (fun (s,v) -> incr offset; s = sym) fields
+            with Not_found -> E.undefined pos (S.name sym)
+          in
+          let typ = base_type env fld in
+          (Trans.field_var exp !offset (is_ptr typ), typ)
+    (*x: [[Semantics.trans.trvar()]] cases *)
+      | A.SubscriptVar(var, exp, pos) ->
+          let e,t = trexp exp in
+          check_type_int pos "subscript variable" t;
+          (match (trvar var) with
+            (exp, ARRAY vt) ->
+              let typ = (base_type env vt) in
+              (Trans.subscript_var exp e (is_ptr typ) pos, typ)
+          | _ ->
+              E.type_err pos "attempt to dereference a non-array type"
+          )
+    (*e: [[Semantics.trans.trvar()]] cases *)
+  (*e: function Semantics.trans.trvar *)
 in match node with
   DEC d -> (trdec d, NIL)
 | EXP e -> trexp e
+(*e: function Semantics.trans *)
 (*e: translators *)
 (*s: function Semantics.translate *)
 let translate env ast =
   let (mainex, mainty) = trans env (EXP ast) in
-  begin
-    if mainty <> INT && mainty <> UNIT 
-    then E.type_err 0 "tiger program must return INT or UNIT";
-    add_function (V.frame env) (mainex, mainty);
-    get_functions()
-  end
+
+  if mainty <> INT && mainty <> UNIT 
+  then E.type_err 0 "tiger program must return INT or UNIT";
+
+  (*s: [[Semantics.translate()]] returned translated functions *)
+  add_function (Env.frame env) (mainex, mainty);
+  List.rev !functions
+  (*e: [[Semantics.translate()]] returned translated functions *)
 (*e: function Semantics.translate *)
 (*e: semantics.ml *)
 (*e: frontend/semantics.ml *)

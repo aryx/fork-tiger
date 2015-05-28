@@ -1,7 +1,7 @@
 (*s: main.ml *)
 module S = Symbol
 module F = Frame
-module V = Environment
+module Env = Environment
 module T = Environment
 
 (*s: constant Main.base_tenv *)
@@ -44,7 +44,7 @@ let imports =
 (*e: constant Main.imports *)
 
 (*s: function Main.emit_function *)
-let emit_function (frm,ex) =
+let emit_function (frm, ex) =
   (* compiling *)
   (*s: [[Main.emit_function()]] if dump expression tree *)
   if !Option.dump_ext  
