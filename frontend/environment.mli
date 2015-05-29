@@ -56,7 +56,7 @@ val new_frame : t -> Symbol.symbol -> t
 val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
 (*e: signature function Environment.lookup_type *)
 (*s: signature function Environment.lookup_value *)
-val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
+val lookup_value : t -> Ast.name -> Ast.pos -> vartype enventry
 (*e: signature function Environment.lookup_value *)
 (*s: signature function Environment.lookup_exn *)
 val lookup_exn   : t -> Ast.name -> Ast.pos -> int
@@ -70,7 +70,7 @@ val enter_fun   :
   t -> Ast.name -> string option -> vartype list -> vartype  -> t
 (*e: signature function Environment.enter_fun *)
 (*s: signature function Environment.enter_param *)
-val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr-> unit
+val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr -> unit
 (*e: signature function Environment.enter_param *)
 (*s: signature function Environment.enter_local *)
 val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access

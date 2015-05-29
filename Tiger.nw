@@ -14,8 +14,9 @@
 %thx to LP, changed for the better a few things. 
 % - introduce extra types ('name', 'typename') to avoid overload 'symbol'
 %   so clearer types I think (symbol * symbol -> name * typename),
-%   introduced also is_ptr
+%   introduced also 'is_ptr' instead of bool,
 % - removed Temp useless constructor (also less confusing with Tree.TEMP)
+% - rename acc to access, acc has too much meaning usually for accumulator
 
 %Actually I re-lpized this document so here is what I think is now better:
 % - get first an overview of all the core DS
@@ -142,6 +143,7 @@ Yoann Padioleau\\
 with code from\\
 Paul Govereau
 }
+% And Andrew Appel?
 
 \maketitle 
 \onecolumn
@@ -609,6 +611,8 @@ level  : int;
 % linearized tree
 % (presented in core DS because it's useful to know where we go)
 
+\subsection{Instructions and labels}
+% labelization
 
 <<type Tree.stm>>=
 type stm =
@@ -621,6 +625,8 @@ type stm =
   | RET    of exp
   <<[[Tree.stm]] cases>>
 @
+%less: rename to instr instead?
+%nites:
 % CJUMP = conditional jmp
 % JUMP will be at the end of only a label or a const no?
 % MOVE is src dst (src -> dst)
@@ -639,6 +645,10 @@ type stm =
 type label = Symbol.symbol
 @
 % labelization
+
+\subsection{Basic expressions and temporaries}
+% linearization, offsetization
+% intermediate temporaries for complex expressions
 
 <<type Tree.exp>>=
 and exp =
@@ -660,15 +670,6 @@ and exp =
 
 % so foo(1,2) will be translated in 
 % CALL (NAME "foo", [CONST 1; CONST 2]).
-
-
-<<type Tree.is_ptr>>=
-type is_ptr = bool
-@
-% important in compilation context, will see later, no need to track
-% full type of data but important dichotomy to track is whether
-% pointer or word.
-%todo: why?
 
 <<type Tree.temp>>=
 and  temp  = Symbol.symbol
@@ -704,8 +705,32 @@ and relop = EQ | NE   | LT | GT | LE | GE
 %%The parent of every [[CALL]] node is either an [[EXP]] or a
 %%[[MOVE(...,TEMP _)]].
 
+\subsection{Pointers}
 
-\section{Stack frames}
+<<type Tree.is_ptr>>=
+type is_ptr = bool
+@
+% important in compilation context, will see later, no need to track
+% full type of data but important dichotomy to track is whether
+% pointer or word.
+%todo: why?
+
+<<function Semantics.is_ptr>>=
+let is_ptr = function
+    INT | UNIT -> false
+  | NIL | RECORD _ | STRING | ARRAY _ -> true
+  | _ -> E.internal "non-base type for variable"
+@
+% Need to carry this information a lot. Need to tag memory, params
+% locals, temps, with it.
+% Why ?? codegen differences?
+
+
+
+
+
+\subsection{Stack frames}
+% frameization
 
 % locals, params, temporaries, all things not handled by
 % exp above.
@@ -722,6 +747,8 @@ type frame = {
 % note that mutable!
 
 % A function is really a linearized body and frame information.
+% The frame is like the "head" of the function, and the exp its body
+% (which after linearize is transformed in a list of stm/instructions) 
 
 %XXX
 <<[[Frame.frame]] other fields>>=
@@ -1319,6 +1346,7 @@ fun_dec:
      { mkFunDec $2 $4 (Some $7) $9 }
 @
 
+%todo: 1 s/r on FUNCTION, but why? rewrite as fun_decs fun_dec ?
 
 
 \section{Expressions}
@@ -1369,14 +1397,19 @@ literal:
    the construction rule below */
 lvalue:
  | id                        { mkSimpleVar $1 }
- | id DOT id                 { mkFieldVar (mkSimpleVar $1) $3 }
  | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
 
  | lvalue DOT id             { mkFieldVar $1 $3 }
  | lvalue LBRACK expr RBRACK { mkSubscriptVar $1 $3 }
 @
 %$
-% ??? introduce conflicts no? id DOT id is useless?
+%old: id DOT id { ...} was useless and actually causing an
+% additional s/r conflict
+%todo:
+% but the one with LBRACK needs to remain I think. Without it
+% given 'id' and seing 'LBRACK' the parser could either reduce 'id' to 
+% 'lvalue', or shift in the rule about ArrayExp
+% it's because of ambiguity with constructor of arrays and records?
 
 \subsection{Arithmetic}
 
@@ -1482,6 +1515,10 @@ ctor_list:
  | id EQ expr COMMA ctor_list { (mkRecFld $1 $3) :: $5 }
 @
 
+% ambiguity here I think for LBRACK with lvalue
+
+% what does 'x[1] of y' means??
+
 \subsection{Local entity definitions}
 
 %expr:
@@ -1523,6 +1560,10 @@ expr_list:
  | expr SEMICOLON expr_list { $1 :: $3 }
 @
 %$
+
+% classic PL syntax choice, terminator vs separator. but not very
+% important
+%alt: as terminator (C), as optional terminator (ocaml)
 
 \subsection{Assignments}
 
@@ -1566,7 +1607,7 @@ loop_statement:
  | BREAK                              { mkBreakExp }
 @
 %$
-
+% no downto.
 
 
 
@@ -1653,9 +1694,9 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 \chapter{Checking}
 
-% Typechecking and intermediate code generation are done together in tigerc,
-% as opposed to ocaml where have typechecking returning a typed
-% (and named) tree first. But fortunately things are well separated and most
+% Typechecking and intermediate code generation are done together in tigerc
+% (as opposed to ocaml where have typechecking returning a typed
+% (and named) tree first). But fortunately things are well separated and most
 % of the typechecking related functions are in Semantics and the
 % intermediate code generation is in Trans.
 
@@ -1663,7 +1704,7 @@ let mkException s         = A.ExceptionDec(s, getpos())
 %rappel:
 %val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
 
-% the exp is actually the toplevel expression of the program.
+% the exp is actually the toplevel expression of the program
 
 <<function Semantics.translate>>=
 let translate env ast =
@@ -1674,6 +1715,7 @@ let translate env ast =
 
   <<[[Semantics.translate()]] return translated functions>>
 @
+%less: rename main to top?
 % type of mainex? Tree.exp
 % generate final implicit "tiger_main" function for the final expression
 %  (See the env created in new_env())
@@ -1684,6 +1726,9 @@ type ast_node =
  | DEC of Ast.dec 
  | EXP of Ast.exp
 @
+%less: need that? can't call trdec more directly?
+% hmm it's because trdec does not take an environment in parameter!
+% but we could change that
 
 <<function Semantics.trans>>=
 let rec trans (env : Environment.t) (node : ast_node) 
@@ -1696,6 +1741,8 @@ in match node with
 | EXP e -> trexp e
 @
 %NIL? should be more UNIT no?
+% trans take env! trexp not (use enclosing env), so use trans
+% when you want to use another environment
 
 % spirit of the typechecker/generator is to go down recursively
 % returning each time a pair with transformed ast and type of ast
@@ -1710,7 +1757,7 @@ in match node with
       let bex,bty = trans env' (EXP body) in
       (Trans.sequence (decs @ [bex]), bty)
 @ 
-
+%less: why not call trdec here? because trdec does not take an env!
 
 
 % code generation stuff, but important to see now.
@@ -1783,13 +1830,15 @@ let new_scope env = { env with
 
 \subsection{Lookups}
 
+% 2 namespaces
+
 <<signature function Environment.lookup_type>>=
 val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
 @
 % why pos? to give error msg?
 
 <<signature function Environment.lookup_value>>=
-val lookup_value : t -> Symbol.symbol -> Ast.pos -> vartype enventry
+val lookup_value : t -> Ast.name -> Ast.pos -> vartype enventry
 @
 
 <<functions Environment.lookup_xxx>>=
@@ -1841,6 +1890,7 @@ let enter_fun env sym cc args result =
   fenv
 @
 % create a new scope
+%less: use S.name here, so why needed a uid in the first place?
 
 <<function Environment.new_frame>>=
 let new_frame env sym = { env with
@@ -1856,12 +1906,13 @@ let new_frame env sym = { env with
 let new_symbol prefix = 
   symbol (Printf.sprintf "%s_%d" prefix !nextsym)
 @
+% no incr nextsym?
 
 
 
 
 <<signature function Environment.enter_param>>=
-val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr-> unit
+val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr -> unit
 @
 <<signature function Environment.enter_local>>=
 val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
@@ -1871,16 +1922,17 @@ val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
 
 <<function Environment.enter_param>>=
 let enter_param env sym typ ptr =
-  let acc = F.alloc_param env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc, typ))
+  let access = F.alloc_param env.frame sym ptr in
+  enter env.venv sym (VarEntry(access, typ))
 @
 
 <<function Environment.enter_local>>=
 let enter_local env sym typ ptr =
-  let acc = F.alloc_local env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc, typ));
-  acc
+  let access = F.alloc_local env.frame sym ptr in
+  enter env.venv sym (VarEntry(access, typ));
+  access
 @
+% will see alloc_xxx later
 
 \section{Builtins}
 
@@ -1990,8 +2042,8 @@ let rec trdec = function
           (Env.lookup_type env x pos) t
     | None -> ()
     );
-    let acc = Env.enter_local env name t (is_ptr t) in
-    Trans.assign (Trans.simple_var (Env.frame env) acc) e
+    let access = Env.enter_local env name t (is_ptr t) in
+    Trans.assign (Trans.simple_var (Env.frame env) access) e
 @
 
 
@@ -2031,7 +2083,7 @@ let rec trdec = function
     List.iter2 trans_func   envs functions;
     Trans.nil
 @
-
+% nil really?
 
 <<local function Semantics.trans.trdec.trans_func (for FunctionDec case)>>=
 let trans_func fenv (_, _, _, body, _) =
@@ -2110,8 +2162,8 @@ and trvar = function
 <<[[Semantics.trans.trvar()]] cases>>=
     A.SimpleVar(sym, pos) ->
       (match Env.lookup_value env sym pos with
-        Env.VarEntry(acc, vt) ->
-          (Trans.simple_var (Env.frame env) acc, base_type env vt)
+        Env.VarEntry(access, vt) ->
+          (Trans.simple_var (Env.frame env) access, base_type env vt)
       | Env.FunEntry _ ->
           E.type_err pos "function used as value"
       )
@@ -2133,6 +2185,7 @@ and trvar = function
       let typ = base_type env fld in
       (Trans.field_var exp !offset (is_ptr typ), typ)
 @
+% offsetization here
 
 <<[[Semantics.trans.trvar()]] cases>>=
   | A.SubscriptVar(var, exp, pos) ->
@@ -2295,8 +2348,8 @@ break_label : Tree.label option;
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.WhileExp(test, body, pos) ->
-      let body_env = Env.new_break_label env in
       let tex,tty = trexp test in
+      let body_env = Env.new_break_label env in
       let bex,bty = trans body_env (EXP body) in
       check_type_int pos "while condition" tty;
       check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
@@ -2333,18 +2386,10 @@ break_label : Tree.label option;
 
 % Here we will compile:
 % - "labelization"
+% - "offsetization"
 % - "frameization"
 % - "layouting"?
 
-<<function Semantics.is_ptr>>=
-let is_ptr = function
-    INT | UNIT -> false
-  | NIL | RECORD _ | STRING | ARRAY _ -> true
-  | _ -> E.internal "non-base type for variable"
-@
-% Need to carry this information a lot. Need to tag memory, params
-% locals, temps, with it.
-% Why ?? codegen differences?
 
 \section{Function definitions}
 
@@ -2418,9 +2463,7 @@ let alloc_string s =
 %hmm opti where same strings are shared, but if can allow people
 % to modify the strings, then pb! because shared.
 
-\subsection{Variable, array and field accesses}
-
-\subsubsection{Offsetization}
+\subsection{Field, array and offsetization}
 
 <<signature functions Translate.xxx>>=
 val field_var     : Tree.exp -> int -> Tree.is_ptr -> Tree.exp
@@ -2467,9 +2510,7 @@ let subscript_var e1 e2 ptr pos =
 
 
 
-
-
-\subsubsection{Frameization}
+\subsection{Variable and frameization}
 
 <<signature functions Translate.xxx>>=
 val simple_var    : Frame.frame -> Frame.access -> Tree.exp

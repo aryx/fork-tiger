@@ -89,8 +89,8 @@ let rec trans (env : Environment.t) (node : ast_node)
               (Env.lookup_type env x pos) t
         | None -> ()
         );
-        let acc = Env.enter_local env name t (is_ptr t) in
-        Trans.assign (Trans.simple_var (Env.frame env) acc) e
+        let access = Env.enter_local env name t (is_ptr t) in
+        Trans.assign (Trans.simple_var (Env.frame env) access) e
     (*x: [[Semantics.trans.trdec()]] cases *)
     | A.TypeDec types ->
         let penv = Env.new_scope env in
@@ -260,8 +260,8 @@ let rec trans (env : Environment.t) (node : ast_node)
           (Trans.ifexp iex tex eex (is_ptr typ), typ)
     (*x: [[Semantics.trans.trexp()]] cases *)
       | A.WhileExp(test, body, pos) ->
-          let body_env = Env.new_break_label env in
           let tex,tty = trexp test in
+          let body_env = Env.new_break_label env in
           let bex,bty = trans body_env (EXP body) in
           check_type_int pos "while condition" tty;
           check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
@@ -328,8 +328,8 @@ let rec trans (env : Environment.t) (node : ast_node)
     (*s: [[Semantics.trans.trvar()]] cases *)
         A.SimpleVar(sym, pos) ->
           (match Env.lookup_value env sym pos with
-            Env.VarEntry(acc, vt) ->
-              (Trans.simple_var (Env.frame env) acc, base_type env vt)
+            Env.VarEntry(access, vt) ->
+              (Trans.simple_var (Env.frame env) access, base_type env vt)
           | Env.FunEntry _ ->
               E.type_err pos "function used as value"
           )

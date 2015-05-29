@@ -110,15 +110,15 @@ let enter_exn env sym = enter env.xenv sym (S.uid sym)
 (*x: environment.ml *)
 (*s: function Environment.enter_param *)
 let enter_param env sym typ ptr =
-  let acc = F.alloc_param env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc, typ))
+  let access = F.alloc_param env.frame sym ptr in
+  enter env.venv sym (VarEntry(access, typ))
 (*e: function Environment.enter_param *)
 (*x: environment.ml *)
 (*s: function Environment.enter_local *)
 let enter_local env sym typ ptr =
-  let acc = F.alloc_local env.frame sym ptr in
-  enter env.venv sym (VarEntry(acc, typ));
-  acc
+  let access = F.alloc_local env.frame sym ptr in
+  enter env.venv sym (VarEntry(access, typ));
+  access
 (*e: function Environment.enter_local *)
 (*x: environment.ml *)
 let break_label env =

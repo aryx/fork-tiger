@@ -131,7 +131,6 @@ expr:
    the construction rule below */
 lvalue:
  | id                        { mkSimpleVar $1 }
- | id DOT id                 { mkFieldVar (mkSimpleVar $1) $3 }
  | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
 
  | lvalue DOT id             { mkFieldVar $1 $3 }
