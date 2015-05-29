@@ -832,9 +832,10 @@ open Environment
 %%the function [[trans]]. The [[trans]] function can only be called with
 %%an expression or declaration.
 <<translators>>=
-<<type Semantics.ast_node>>
-<<function Semantics.trans>>
+
+<<functions Semantics.trxxx>>
 @
+%old: <<type Semantics.ast_node>>
 
 %%The entry point for the [[Semantics]] module is the [[translate]]
 %%function shown below.
