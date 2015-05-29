@@ -56,7 +56,7 @@ let emit_function (frm, ex) =
   then List.iter Tree.print_stm ltree;
   (*e: [[Main.emit_function()]] if dump linearized tree *)
   ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
-    Frame.alloc_temp frm x p |> ignore
+    Frame.alloc_temp frm x p
   );
 
   (* generating *)
@@ -82,8 +82,10 @@ let compile ch =
   (* compiling part2 and generating *)
   (*s: [[Main.compile()]] generate headers *)
   Codegen.output_file_header imports;
-  Frame.output_strings();
   (*e: [[Main.compile()]] generate headers *)
+  (*s: [[Main.compile()]] generate data before functions *)
+  Frame.output_strings();
+  (*e: [[Main.compile()]] generate data before functions *)
   xs |> List.iter emit_function 
 (*e: function Main.compile *)
 

@@ -67,7 +67,7 @@ let functions                 = ref []
 (*e: global Semantics.functions *)
 (*s: function Semantics.add_function *)
 let add_function frm (ex,typ) =
-  functions := (frm, Trans.func frm ex (is_ptr typ)) :: !functions
+  functions := (frm, Trans.func ex (is_ptr typ)) :: !functions
 (*e: function Semantics.add_function *)
 (*x: translators *)
 (*s: type Semantics.ast_node *)
@@ -147,9 +147,9 @@ let rec trans (env : Environment.t) (node : ast_node)
   and trexp = function
     (*s: [[Semantics.trans.trexp()]] cases *)
       | A.LetExp(decls, body, _) ->
-          let trns x    = trans (Env.new_scope env) x in
-          let decs    = List.map (fun d -> fst (trns (DEC d))) decls in
-          let bex,bty = trns (EXP body) in
+          let env' = Env.new_scope env in
+          let decs = decls |> List.map (fun d -> fst (trans env' (DEC d))) in
+          let bex,bty = trans env' (EXP body) in
           (Trans.sequence (decs @ [bex]), bty)
     (*x: [[Semantics.trans.trexp()]] cases *)
       | A.NilExp         -> (Trans.nil,           NIL)
@@ -261,8 +261,8 @@ let rec trans (env : Environment.t) (node : ast_node)
     (*x: [[Semantics.trans.trexp()]] cases *)
       | A.WhileExp(test, body, pos) ->
           let body_env = Env.new_break_label env in
-          let tex,tty = trexp test
-          and bex,bty = trans body_env (EXP body) in
+          let tex,tty = trexp test in
+          let bex,bty = trans body_env (EXP body) in
           check_type_int pos "while condition" tty;
           check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
           (Trans.loop tex bex (Env.break_label body_env), UNIT)
@@ -313,14 +313,14 @@ let rec trans (env : Environment.t) (node : ast_node)
           (Trans.raise_exn exn_id, UNIT)
     (*x: [[Semantics.trans.trexp()]] cases *)
       | A.SpawnExp(sym, pos) ->
-          begin match Env.lookup_value env sym pos with
+          (match Env.lookup_value env sym pos with
             Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
               if dec_args <> []
               then E.type_err pos "spawn function must take zero arguments."
-              else (Trans.spawn lbl,INT)
+              else (Trans.spawn lbl, INT)
           | _ ->
               E.type_err pos (S.name sym ^ " is not a function")
-          end
+          )
     (*e: [[Semantics.trans.trexp()]] cases *)
   (*e: function Semantics.trans.trexp *)
   (*s: function Semantics.trans.trvar *)
@@ -372,10 +372,10 @@ let translate env ast =
   if mainty <> INT && mainty <> UNIT 
   then E.type_err 0 "tiger program must return INT or UNIT";
 
-  (*s: [[Semantics.translate()]] returned translated functions *)
+  (*s: [[Semantics.translate()]] return translated functions *)
   add_function (Env.frame env) (mainex, mainty);
   List.rev !functions
-  (*e: [[Semantics.translate()]] returned translated functions *)
+  (*e: [[Semantics.translate()]] return translated functions *)
 (*e: function Semantics.translate *)
 (*e: semantics.ml *)
 (*e: frontend/semantics.ml *)

@@ -14,6 +14,7 @@
 %thx to LP, changed for the better a few things. 
 % - introduce extra types ('name', 'typename') to avoid overload 'symbol'
 %   so clearer types I think (symbol * symbol -> name * typename)
+% - removed Temp useless constructor (also less confusing with Tree.TEMP)
 
 %Actually I re-lpized this document so here is what I think is now better:
 % - get first an overview of all the core DS
@@ -47,6 +48,8 @@
 % - scope handling (global for types only, as in ocaml)
 %   alt: mess as in C where structures can be nested which leads to
 %   complex edge cases. KISS!
+% - the main essential algorithms (labelization, frameization, offsetization,
+%   etc)
 
 %history LP-ization:
 % - skeleton, mostly copy paste of Template.nw skeleton
@@ -173,7 +176,9 @@ a compiler.
 Why? Because I think it makes you a better programmer if
 you fully understand how things work under the hood.
 
-% choose tiger because very very simple.
+% choose tiger because very simple language but has lots of the
+% essential features of a language like C or pascal and can showcase
+% the essential compilation algorithms.
 
 %% vs original tigerc.pdf manual? no file/module fixed boundaries, so
 %% can LP-split and aspectize AST elements for instances.
@@ -211,18 +216,23 @@ License.
 
 \chapter{Overview}
 
-\section{Compiler frontend principles}
+\section{Compiler principles}
+% compiler frontend principles?
 
 % to compile is to translate from language A to language B.
 % In our case from Tiger (=~ C), to C-- (=~ Assembly).
 
 % The main compilation algorithms are:
-%  - "labelization": structured statements to goto/labels
-%  - "linearization" of complex expressions, use of temporary variables
-%  - "frameization" for functions for params, locals, temporaries
-%    which was a better structure for the stack
-%  - "layouting" for complex data down to simple bytes
-%    which was a better structure for the heap and data section
+%  - "labelization": structured nested statements (including functions) to 
+%     basic goto/labels (as well as flattenization of nested functions)
+%  - "linearization": complex "recursive" expressions to 
+%     basic instructions and the possible introduction of temporary variables
+%  - "frameization": structured entities with params, arguments, locals, to
+%     basic stack operations
+%  - "layouting": structured data section and complex data initialization to
+%     basic bytes layout
+%  - "offsetization": structured access in records and array to
+%     basic memory offsets
 
 % Then in addition to that there is the lexing/parsing and typechecking.
 
@@ -261,14 +271,15 @@ end
 %    scoped/nested language), and no linking really. Compile a single file.
 %  - no float
 %  - no union
-%  - no polymorphic types (ANY??)
+%  - no general polymorphic types (ANY??), have just polymorphic arrays
 %  - no goto/labels (but generate code using goto/labels), goto considered
 %    harmful spirit I guess
 
 % but has a few nice things:
 %  - limited form of type inference :) no need to declare type of VarDec
 %    'var' keyword a la C++ auto
-%  - nested functions, but have closure??
+%  - nested functions (but no closure, can't return or have variable
+%    holding functions)
 
 \section{Output C-- language}
 
@@ -385,9 +396,11 @@ and exp =
 | ForExp    of name * exp * exp * exp * pos
 | BreakExp  of pos
 @
-
-% no goto/labels here.
-% will see exceptions later.
+% actually ForExp is sugar for While, so could aspectize. Could also
+% aspectize BreakExp.
+% note that no goto/labels here.
+% we will see exceptions later.
+% If are actually expressions in Tiger.
 
 \subsection{Types}
 
@@ -397,12 +410,13 @@ and ty =
 | RecordTy of field list
 | ArrayTy  of typename * pos
 @
-% namety can be also builtin types!
+% namety can be also for builtin types!
 % no size in ArrayTy, lose information when type
 % not a recursive type because force to name every intermediate
 
 %ex?
 
+% only polymorphic structure is the array (like in C).
 
 \section{Type system}
 % and the environment?
@@ -443,7 +457,8 @@ type vartype =
 <<type Symbol.symbol>>=
 type symbol = string * int
 @
-% int? a stamp to make sure things are unique
+% int? a stamp to make sure things are unique?
+% but need that?
 % will be used for many things, for many "namespaces"
 %  - name (var ident, func ident, field ident, exn ident)
 %  - typename
@@ -454,7 +469,7 @@ type symbol = string * int
 
 
 
-
+% used for gensym like functionality too
 <<global Symbol.nextsym>>=
 let nextsym = ref 0
 @
@@ -484,6 +499,7 @@ let symbol name =
     (name, !nextsym)
 @
 %todo: how this function is used? a bit weird to imagine
+% really need this uid?
 
 \subsection{Symbol table}
 
@@ -548,56 +564,63 @@ let new_scope env = {
 }
 @
 
-%XXX
+
 <<[[Symbol.table]] other fields>>=
 level  : int;
 @
-% level is for?
+% level is for? for stack frames because have nested func
+% that need to access data in previous frames so we need
+% to maintain in which level we currently are.
 
 %\section{Environment}
 % see later, but more local to one phase, so less need to expose it here
 
-\section{Intermediate tree representation}
+\section{Intermediate code}
 % linearized tree
-% (present in core DS because useful to know where we go)
+% (presented in core DS because it's useful to know where we go)
+
 
 <<type Tree.stm>>=
 type stm =
   | EXP    of exp
   | MOVE   of exp * exp
+
   | SEQ    of stm * stm
   | LABEL  of label
-  | CONT   of label * label list
   | JUMP   of exp
   | CJUMP  of exp * label * label
   | RET    of exp
   <<[[Tree.stm]] cases>>
 @
-% CONT?? JUMP?
+% CJUMP = conditional jmp
+% JUMP will be at the end of only a label or a const no?
 %compile: diff with before? have labels and jumps! so closer
 % to assembly. No more if, while, for.
+% also introduce a real stm type! start split for real expr and stmt.
 
 <<type Tree.label>>=
 type label = Symbol.symbol
 @
-
+% labelization
 
 <<type Tree.exp>>=
 and exp =
   | CONST of int
   | BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
-  | MEM   of exp * bool
-  | TEMP  of temp * bool
-  | ESEQ  of stm * exp
+
   | NAME  of label
+  | TEMP  of temp * bool
+  | MEM   of exp * bool (* dereference? *x ? *)
+
+  | ESEQ  of stm * exp
   | CALL  of exp * exp list * string option * label option * bool
 @
 %compile: diff with before? Not much yet.
 % hmm not really linearized. 
 % unless linearize() actually (ab)use the same structure but with
 % extra postconditions on the form of the tree.
-
+%ugly to have ESEQ here, can have many different forms, EXP ESEQ SEQ ESEQ ...
 
 <<type Tree.temp>>=
 and  temp  = Symbol.symbol
@@ -610,6 +633,12 @@ and  temp  = Symbol.symbol
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE   | LT | GT | LE | GE
 @
+
+% actually after linearize have this invariant:
+%%The tree contains no [[SEQ]] or [[ESEQ]] nodes.
+% which is why linearize return a stm list;
+%%The parent of every [[CALL]] node is either an [[EXP]] or a
+%%[[MOVE(...,TEMP _)]].
 
 \section{Stack frames}
 
@@ -624,7 +653,9 @@ type frame = {
   <<[[Frame.frame]] other fields>>
 }
 @
-% bool? is_ptr?
+% the 3 essential things in a stack! params, locals, temps
+% bool? is_ptr
+%less: typedef!
 % note that mutable!
 
 % A function is really a linearized body and frame information.
@@ -633,7 +664,6 @@ type frame = {
 <<[[Frame.frame]] other fields>>=
 name           : Tree.label;
 level          : int;
-mutable size   : int;
 @
 
 
@@ -714,6 +744,7 @@ let compile ch =
 
   (* compiling part2 and generating *)
   <<[[Main.compile()]] generate headers>>
+  <<[[Main.compile()]] generate data before functions>>
   xs |> List.iter emit_function 
 @
 
@@ -753,7 +784,7 @@ let emit_function (frm, ex) =
   let ltree = Canonical.linearize (Tree.EXP ex) in
   <<[[Main.emit_function()]] if dump linearized tree>>
   ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
-    Frame.alloc_temp frm x p |> ignore
+    Frame.alloc_temp frm x p
   );
 
   (* generating *)
@@ -771,7 +802,9 @@ val linearize : Tree.stm -> Tree.stm list
 <<signature function Tree.find_temps>>=
 val find_temps : stm list -> (temp * bool) list
 @
-% bool?
+% bool? is_pointer
+%less: typedef?
+%why do that at the end? why not call those alloc_temp before?
 
 <<signature function Frame.output_header>>=
 val output_header  : frame -> unit
@@ -1257,7 +1290,7 @@ fun_dec:
 <<subrules for expr>>=
 /* Literals */
 literal:
-   NIL    { mkNilExp }
+   NIL    { A.NilExp }
  | INT    { mkIntExp $1 }
  | STRING { mkStringExp $1 }
 @
@@ -1529,7 +1562,6 @@ let mkSimpleVar v         = A.SimpleVar(v, getpos())
 let mkFieldVar v t        = A.FieldVar(v, t, getpos())
 let mkSubscriptVar v e    = A.SubscriptVar(v, e, getpos())
 
-let mkNilExp              = A.NilExp
 let mkVarExp v            = A.VarExp(v)
 let mkIntExp i            = A.IntExp(i)
 let mkStringExp s         = A.StringExp(s, getpos())
@@ -1571,11 +1603,11 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 \chapter{Checking}
 
-% Typechecking and IR code generation are done together in tigerc
-% (as opposed to ocaml where have typechecking returning a typed
-% and named tree first), but they can be untangled. Most
+% Typechecking and intermediate code generation are done together in tigerc,
+% as opposed to ocaml where have typechecking returning a typed
+% (and named) tree first. But fortunately things are well separated and most
 % of the typechecking related functions are in Semantics and the
-% intermediate code generation is in Trans
+% intermediate code generation is in Trans.
 
 
 %rappel:
@@ -1590,9 +1622,9 @@ let translate env ast =
   if mainty <> INT && mainty <> UNIT 
   then E.type_err 0 "tiger program must return INT or UNIT";
 
-  <<[[Semantics.translate()]] returned translated functions>>
+  <<[[Semantics.translate()]] return translated functions>>
 @
-% type of mainex?
+% type of mainex? Tree.exp
 % generate final implicit "tiger_main" function for the final expression
 %  (See the env created in new_env())
 % alt: toplevel expr scheme of ocaml, not toplevel complex expr of C
@@ -1623,9 +1655,9 @@ in match node with
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.LetExp(decls, body, _) ->
-      let trns x    = trans (Env.new_scope env) x in
-      let decs    = List.map (fun d -> fst (trns (DEC d))) decls in
-      let bex,bty = trns (EXP body) in
+      let env' = Env.new_scope env in
+      let decs = decls |> List.map (fun d -> fst (trans env' (DEC d))) in
+      let bex,bty = trans env' (EXP body) in
       (Trans.sequence (decs @ [bex]), bty)
 @ 
 
@@ -1633,7 +1665,7 @@ in match node with
 
 % code generation stuff, but important to see now.
 
-<<[[Semantics.translate()]] returned translated functions>>=
+<<[[Semantics.translate()]] return translated functions>>=
 add_function (Env.frame env) (mainex, mainty);
 List.rev !functions
 @
@@ -1645,9 +1677,9 @@ let functions                 = ref []
 
 <<function Semantics.add_function>>=
 let add_function frm (ex,typ) =
-  functions := (frm, Trans.func frm ex (is_ptr typ)) :: !functions
+  functions := (frm, Trans.func ex (is_ptr typ)) :: !functions
 @
-
+% nested functions are put in flat format here
 
 %XXX
 <<[[Environment.t]] other fields>>=
@@ -1684,11 +1716,10 @@ type t = {
 <<type Environment.enventry>>=
 type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
-  | FunEntry of (Ast.name * string option * Frame.frame * 'ty list * 'ty)
+  | FunEntry of (Tree.label * string option * Frame.frame * 'ty list * 'ty)
 @ 
-% the symbol is? symbol for frame? so maybe should use Tree.label?
+% label for labelization, frame for frameization
 % string option = storage, for instance "C"
-
 % Frame stuff again. codegen and typechecking mixed together.
 
 
@@ -1699,11 +1730,6 @@ let new_scope env = { env with
                       venv = S.new_scope env.venv }
 @
 
-%XXX
-<<[[Environment.t]] other fields>>=
-break_label : Tree.label option;
-@
-% for labelization algorithm
 
 \subsection{Lookups}
 
@@ -2212,11 +2238,16 @@ in
 
 \subsection{Loops}
 
+<<[[Environment.t]] other fields>>=
+break_label : Tree.label option;
+@
+% for labelization algorithm
+
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.WhileExp(test, body, pos) ->
       let body_env = Env.new_break_label env in
-      let tex,tty = trexp test
-      and bex,bty = trans body_env (EXP body) in
+      let tex,tty = trexp test in
+      let bex,bty = trans body_env (EXP body) in
       check_type_int pos "while condition" tty;
       check_type_eq  pos "body of while has type %s, must be %s" bty UNIT;
       (Trans.loop tex bex (Env.break_label body_env), UNIT)
@@ -2240,8 +2271,361 @@ in
      <<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>
 @
 
-% for (i := <lo> to <hi> do <body>) ==> 
-% let var i := <lo> in while v < <hi> do <body>; i := i + 1; done
+
+
+
+
+
+
+
+\chapter{Intermediate Representation Generation}
+%IR generation
+
+% Here we will compile:
+% - "labelization"
+% - "frameization"
+% - "layouting"?
+
+<<function Semantics.is_ptr>>=
+let is_ptr = function
+    INT | UNIT -> false
+  | NIL | RECORD _ | STRING | ARRAY _ -> true
+  | _ -> E.internal "non-base type for variable"
+@
+% Need to carry this information a lot. Need to tag memory, params
+% locals, temps, with it.
+% Why ?? codegen differences?
+
+\section{Function definitions}
+
+<<signature functions Translate.xxx>>=
+val func          : Tree.exp -> bool -> Tree.exp
+@
+<<function Translate.func>>=
+let func ex ptr =
+  let tmp = temp ptr in
+  eseq nil [ex => tmp; T.RET tmp]
+@
+% function foo() { 1 } ==> tmp_ = 1; return tmp_
+%less: rename func_body? 
+%less: need eseq? could just finish with a RET no? no because
+% most of our function need to return a Tree.exp, not a Tree.stm
+%old: use to take a frame, but was unused
+
+%\section{Helpers}
+
+<<function Translate.temp>>=
+let temp ptr = 
+  T.TEMP (T.new_temp(), ptr)
+@
+<<function Tree.new_temp>>=
+let new_temp () = 
+  S.new_symbol "temp"
+@
+
+<<function Translate.eseq>>=
+let eseq exp stmts = 
+  T.ESEQ (seq stmts, exp)
+@
+% expression sequence
+
+<<function Translate.seq>>=
+let rec seq = function
+    []        -> E.internal "nil passed to seq"
+  | x :: []   -> x
+  | x :: rest -> T.SEQ(x, seq rest)
+@ 
+% statement sequence
+
+\section{Expressions}
+
+\subsection{Literals}
+
+<<signature functions Translate.xxx>>=
+val nil           : Tree.exp
+val int_literal   : int -> Tree.exp
+val str_literal   : string -> Tree.exp
+@
+<<functions Translate.xxx literals>>=
+let nil           = T.CONST 0
+let int_literal i = T.CONST i
+let str_literal s = T.NAME (F.alloc_string s)
+@
+
+% which globals does alloc_string modifies? Frame.strings
+% and then see code generation about output_strings()
+
+<<global Frame.strings>>=
+let strings = H.create 20
+@
+<<function Frame.alloc_string>>=
+let alloc_string s =
+  try H.find strings s
+  with Not_found ->
+    let lbl = T.new_label "gbl" in
+    (H.add strings s lbl; lbl)
+@
+%hmm opti where same strings are shared, but if can allow people
+% to modify the strings, then pb! because shared.
+
+\subsection{Variable, array and field accesses}
+
+\subsubsection{Offsetization}
+
+<<signature functions Translate.xxx>>=
+val field_var     : Tree.exp -> int -> bool -> Tree.exp
+@
+<<function Translate.field_var>>=
+let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
+@ 
+% has already done offsetization in caller 
+% (but assume all fields have the same width, hmmm)
+
+<<function Translate.angles_xxx>>=
+let (<+>) = simplify T.PLUS  ( + )
+let (<->) = simplify T.MINUS ( - )
+let (<*>) = simplify T.MUL   ( * )
+@
+
+% a form of opti, partial evaluation
+<<function Translate.simplify>>=
+let simplify tig_op op = 
+ fun x y ->
+  match (x,y) with
+    (T.CONST x, T.CONST y) -> T.CONST (op x y)
+  | _                      -> T.BINOP (tig_op, x, y)
+@
+
+<<constant Translate.ws>>=
+let  ws    = Sys.word_size / 8
+@
+%less: hmm size in bytes so rename wsb?
+
+
+
+
+<<signature functions Translate.xxx>>=
+val subscript_var : Tree.exp -> Tree.exp -> bool -> int -> Tree.exp
+@
+<<function Translate.subscript_var>>=
+let subscript_var e1 e2 ptr pos =
+  let check = ext_c_call "bounds_check"
+                        [e1;e2;T.CONST(fst (Error.line_number pos))] in
+  let offset = (e2 <+> T.CONST 1) <*> T.CONST ws in
+  eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
+@
+
+
+
+
+
+\subsubsection{Frameization}
+
+<<signature functions Translate.xxx>>=
+val simple_var    : Frame.frame -> Frame.access -> Tree.exp
+@
+<<function Translate.simple_var>>=
+let simple_var frm = function
+  | F.Stack(var_frm, offset, ptr) ->
+      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
+@ 
+%old:  | F.Temp lbl ->   T.NAME lbl
+
+% alloc_xxx
+<<type Frame.access>>=
+type access =
+    Stack of frame * int * bool
+@
+%old:  | Temp  of Tree.label
+% but useless because can't have Temp in Translation phase.
+
+% Semantics.trans.trdec -> Environment.enter_local -> <>
+<<function Frame.alloc_local>>=
+let alloc_local frm name ptr =
+  frm.vars <- (name,ptr) :: frm.vars;
+  stack_alloc frm ptr
+@
+% Semantics.trans.trdec.mk_param -> Environment.enter_param -> <>
+<<function Frame.alloc_param>>=
+let alloc_param frm name ptr =
+  frm.params <- frm.params @ [(name,ptr)];
+  stack_alloc frm ptr
+@
+
+<<function Frame.stack_alloc>>=
+let stack_alloc frm ptr =
+  let v = Stack(frm, frm.size, ptr) in
+  frm.size <- frm.size + 1; 
+  v
+@
+
+<<[[Frame.frame]] other fields>>=
+mutable size   : int;
+@
+%todo: who will use that?
+
+
+<<function Translate.getfp>>=
+let getfp frm parent_frm =
+  let diff = F.level frm  - F.level parent_frm in
+  let rec deref = function
+      0 -> F.fp frm
+    | x -> T.MEM (deref (x-1), true)
+  in 
+  assert (diff >= 0);
+  deref diff
+@
+% nested function!
+
+<<function Frame.fp>>=
+let fp    frm = 
+  T.NAME (S.symbol "fp")
+@
+
+
+
+\subsection{Constructions}
+
+<<signature functions Translate.xxx>>=
+val new_record    : (Tree.exp * bool) list -> Tree.exp
+val new_array     : Tree.exp -> Tree.exp -> bool -> Tree.exp
+@
+
+<<function Translate.new_record>>=
+let new_record init =
+  let tmp  = temp true in
+  let size = T.CONST (List.length init) in
+  let rec initialize offset = function
+      []             -> []
+    | (ex,ptr)::rest -> (ex => field_var tmp offset ptr)
+                        :: initialize (offset+1) rest
+  in
+  eseq tmp ((alloc size => tmp) :: initialize 0 init)
+@
+% we will see alloc() later in Runtime chapter.
+
+
+<<function Translate.new_array>>=
+let new_array sizeEx initEx ptr = 
+  let ary  = temp true in
+  let i    = temp false in
+  let lbeg = T.new_label "init_start" in
+  let lend = T.new_label "init_end" in
+  eseq ary
+    [ alloc (sizeEx <+> T.CONST 1) => ary;
+      sizeEx => T.MEM(ary, false);
+      T.CONST 1 => i;
+      T.LABEL lbeg;
+      initEx => T.MEM (ary <+> (i <*> T.CONST ws), ptr);
+      i <+> T.CONST 1 => i;
+      T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
+      T.LABEL lend ]
+@
+% sizeEx + 1? why?
+
+% dynamic arrays!
+
+\subsection{Operators}
+
+<<signature functions Translate.xxx>>=
+val arithmetic    : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
+val compare_int   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
+val compare_str   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
+@
+
+\subsection{Function calls}
+
+<<signature functions Translate.xxx>>=
+val call          : 
+  Frame.frame -> Tree.label -> string option -> Frame.frame -> 
+  Tree.exp list -> Tree.label option -> bool -> 
+  Tree.exp
+@
+<<function Translate.call>>=
+let call myfrm lbl cc frm args k ptr =
+  let args =
+    if F.level frm == 0 
+    then args
+    else 
+      let pfp =
+        if (F.level frm) > (F.level myfrm) 
+        then F.fp frm
+        else T.MEM(getfp myfrm frm, true)
+      in 
+      pfp  :: args
+  in
+  match cc with
+    None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
+  | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
+  | Some _ ->
+      let tmp1      = temp ptr
+      and tmp2      = temp ptr
+      in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
+                     T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
+                     T.MOVE(tmp1, alloc_ptr) ]
+@
+
+
+
+<<functions Translate.ext_xxx_call>>=
+let ext_call cc name args =
+  call F.base_frame (S.symbol name) cc
+       F.base_frame args None false
+
+let ext_c_call   = ext_call (Some "C")
+let ext_gc_call  = ext_call  None (* (Some "gc") *)
+let ext_cmm_call = ext_call  None
+@
+
+\section{Statements and labelization}
+
+\subsection{Sequence}
+
+<<signature functions Translate.xxx>>=
+val sequence      : Tree.exp list -> Tree.exp
+@
+
+<<function Translate.sequence>>=
+let rec sequence = function
+   []       -> nil
+  | e :: [] -> e
+  | e :: es -> T.ESEQ((T.EXP e), (sequence es))
+@
+
+\subsection{Assignments}
+
+<<signature functions Translate.xxx>>=
+val assign        : Tree.exp -> Tree.exp -> Tree.exp
+@
+<<function Translate.assign>>=
+let assign v e = 
+  eseq nil [e => v]
+@
+
+\subsection{Conditionals}
+
+% note that if are expressions in Tiger!
+
+<<signature functions Translate.xxx>>=
+val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> bool -> Tree.exp
+@
+
+<<function Translate.ifexp>>=
+let ifexp test thn els ptr =
+  let tmp  = temp ptr in
+  let tru  = T.new_label "ifTrue" in
+  let fls  = T.new_label "ifFalse" in
+  let end' = T.new_label "ifEnd" in
+  eseq tmp [ T.CJUMP(test, tru, fls);
+             T.LABEL tru; thn => tmp; goto end';
+             T.LABEL fls; els => tmp;
+             T.LABEL end']
+@
+% nice looking code
+
+
+\subsection{Loops}
+
 
 <<[[Semantics.trans.trexp()]] ForExp case, unsugaring for in while>>=
  let v            = A.SimpleVar(sym, pos) in
@@ -2261,35 +2645,177 @@ in
 % opti opportunity here! if complex expression that does not change
 % can precompute it once and for all
 
-\chapter{Intermediate Representation Generation}
-%IR generation
 
-% first part. Here will compile:
-% - structured statements in labels/jmp ("labelization")
-% - "frameization"?
-% - "layouting"?
 
-<<function Semantics.is_ptr>>=
-let is_ptr = function
-    INT | UNIT -> false
-  | NIL | RECORD _ | STRING | ARRAY _ -> true
-  | _ -> E.internal "non-base type for variable"
+
+
+<<signature functions Translate.xxx>>=
+val loop          : Tree.exp -> Tree.exp -> Tree.label -> Tree.exp
+@
+
+% for while and for (unsugared in while)
+<<function Translate.loop>>=
+let loop test body lend = 
+  let lbeg = T.new_label "loop_start"
+  and lbdy = T.new_label "loop_body" in
+  eseq nil [ T.LABEL lbeg;
+             T.CJUMP(test, lbdy, lend);
+             T.LABEL lbdy; T.EXP body; goto lbeg;
+             T.LABEL lend ]
+@
+
+<<signature functions Translate.xxx>>=
+val break         : Tree.label -> Tree.exp
+@
+<<function Translate.break>>=
+let break lbl = eseq nil [goto lbl]
 @
 
 
 \chapter{Linearization}
 
-% here will compile:
-% - complex expressions in basic 3 address like code
+% here we will compile:
+% - complex expressions to basic 3 address like code
+
+
+% compile -> emit_function -> <>
+<<function Canonical.linearize>>=
+let linearize stm0 =
+
+  let rec reorder = function
+      T.CALL(_,_,_,_,ptr) as call :: rest ->
+        let t = T.TEMP(T.new_temp(), ptr)
+        in reorder(T.ESEQ(T.MOVE(call, t), t) :: rest)
+    | a :: rest ->
+        let (stms,e) = do_exp a
+        and (stms',el) = reorder rest in
+        if commute(stms',e)
+        then (stms % stms',e::el)
+        else let t = T.TEMP(T.new_temp(), T.is_ptr e) in 
+        (stms % T.MOVE(e, t) % stms', t :: el)
+    | [] -> (nop,[])
+
+  and reorder_exp(el,build) = 
+    let (stms,el') = reorder el
+    in (stms, build el')
+
+  and reorder_stm(el,build) =
+    let (stms,el') = reorder el
+    in stms % (build el')
+
+  and do_stm = function
+      T.SEQ(a,b) ->
+        do_stm a % do_stm b
+    | T.JUMP e ->
+        let f l = T.JUMP (List.hd l)
+        in reorder_stm([e], f)
+    | T.CJUMP(e,t,f) ->
+        let f l = T.CJUMP(List.hd l, t, f)
+        in reorder_stm([e], f)
+    | T.MOVE(T.CALL(e,el,ext,k,ptr),T.TEMP(t,_)) ->
+        let f l = T.MOVE(T.CALL(List.hd l, List.tl l, ext, k, ptr), T.TEMP(t,ptr))
+        in reorder_stm(e :: el, f)
+    | T.MOVE(b,T.TEMP(t,ptr)) ->
+        let f l = T.MOVE(List.hd l, T.TEMP(t,ptr))
+        in reorder_stm([b], f)
+    | T.MOVE(b,T.NAME n) ->
+        let f l = T.MOVE(List.hd l, T.NAME n)
+        in reorder_stm([b], f)
+    | T.MOVE(T.ESEQ(s,e), b) ->
+        do_stm(T.SEQ(s,T.MOVE(e,b)))
+    | T.MOVE(b,T.MEM(e,ptr)) ->
+        let f l = T.MOVE(List.hd l, T.MEM(List.nth l 1, ptr))
+        in reorder_stm([b ; e], f)
+    | T.MOVE(b,T.ESEQ(s,e)) ->
+        do_stm(T.SEQ(s,T.MOVE(b,e)))
+    | T.EXP(T.CALL(e,el,ext,k,ptr)) ->
+        let f l = T.EXP(T.CALL(List.hd l, List.tl l, ext, k, ptr))
+        in reorder_stm(e :: el, f)
+    | T.EXP e ->
+        let f l = T.EXP (List.hd l)
+        in reorder_stm([e], f)
+    | s ->
+        let f l = s
+        in reorder_stm([], f)
+
+  and do_exp = function
+      T.BINOP(p,a,b) ->
+        let f l = T.BINOP(p, List.hd l, List.nth l 1)
+        in reorder_exp([a ; b], f)
+    | T.RELOP(p,a,b) ->
+        let f l = T.RELOP(p, List.hd l, List.nth l 1)
+        in reorder_exp([a ; b], f)
+    | T.MEM(a,ptr) ->
+        let f l = T.MEM (List.hd l,ptr)
+        in reorder_exp([a], f)
+    | T.ESEQ(s,e) ->
+        let stms = do_stm s
+        and (stms',e) = do_exp e
+        in (stms%stms',e)
+    | T.CALL(e,el,ext,k,ptr) ->
+        let f l = T.CALL(List.hd l, List.tl l, ext, k, ptr)
+        in reorder_exp(e :: el, f)
+    | e ->
+        let f l = e
+        in reorder_exp([], f)
+
+  (* linear gets rid of the top-level SEQ's, producing a list *)
+  and linear = function
+      (T.SEQ(a,b),l) -> linear(a,linear(b,l))
+    | (s,l) -> s :: l
+
+ in (* body of linearize *)
+ linear(do_stm stm0, [])
+@
+
+<<function Canonical.commute>>=
+let commute = function
+    (T.EXP(T.CONST _), _) -> true
+  | (_, T.NAME _) -> true
+  | (_, T.CONST _) -> true
+  | _ -> false
+@
+
+<<function Canonical.percent>>=
+let ( % ) x y =
+  match (x,y) with
+    (T.EXP(T.CONST _), _) -> y
+  | (_, T.EXP(T.CONST _)) -> x
+  | _ -> T.SEQ(x,y)
+
+@
+
+<<constant Canonical.nop>>=
+let nop = T.EXP(T.CONST 0)
+@
 
 \chapter{[[C--]] Generation}
 
-\section{Header generation}
+\section{File header}
 
 <<[[Main.compile()]] generate headers>>=
 Codegen.output_file_header imports;
+@
+
+\section{Data}
+
+% main -> compile -> <>
+<<[[Main.compile()]] generate data before functions>>=
 Frame.output_strings();
 @
+
+\section{Function header}
+
+% main -> compile -> emit_function -> <>
+
+\section{Function body}
+
+\section{Function footer}
+
+% main -> compile -> emit_function -> <>
+
+
+
 
 \chapter{Runtime}
 
@@ -2297,7 +2823,30 @@ Frame.output_strings();
 
 \section{Startup code}
 
+\section{Memory allocation}
+
+%less: mv later when talk about gc?
+% (Translate.new_record | Translate.new_array) -> <>
+<<function Translate.alloc>>=
+let alloc size =
+  let size = (size <+> T.CONST 1) <*> T.CONST ws in
+  let test = T.RELOP(T.GT, alloc_ptr <+> size, space_end) in
+  let tmp  = temp true in
+  let tru  = T.new_label "alc_gc" in
+  let fls  = T.new_label "alc" in
+  eseq tmp [ T.CJUMP(test, tru, fls);
+             T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
+             T.LABEL fls;
+             size => T.MEM(alloc_ptr, true);
+             (alloc_ptr <+> T.CONST ws) => tmp;
+             (alloc_ptr <+> size) => alloc_ptr
+            ]
+@
+%                (* ; T.EXP (ext_gc_call "call_gc" []) *)
+% GC interface here!!
+
 \section{Garbage collection}
+
 
 \chapter{Advanced Features}
 
@@ -2433,8 +2982,53 @@ let enter_exn env sym = enter env.xenv sym (S.uid sym)
 
 % generating
 <<[[Tree.stm]] cases>>=
+  | CONT   of label * label list
   | TRY    of label
   | TRYEND of label
+@
+
+<<signature functions Translate.xxx>>=
+val try_block     : Tree.exp -> Tree.label -> (int *Tree.exp) list -> Tree.exp
+val raise_exn     : int -> Tree.exp
+@
+
+<<function Translate.try_block>>=
+let try_block exp exn_lbl hs =
+  let cont l = function
+      T.TEMP(t,_) -> T.CONT(l, [t])
+    | _           -> E.internal "non temp in continuation node"
+  in
+  let try_endl         = T.new_label "try_end"
+  and tmp              = temp false in
+  let handler (uid,ex) =
+    let hl = T.new_label "handle"
+    and sl = T.new_label "skip" in
+    [ T.CJUMP(T.RELOP(T.EQ, tmp, T.CONST uid), hl, sl);
+      T.LABEL hl; T.EXP ex; goto try_endl;
+      T.LABEL sl ]
+  in
+  let old            = temp false in
+  let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
+  and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
+  and not_unwind stm = if !Option.unwind then T.EXP nil else stm
+  in
+  eseq tmp [ T.TRY exn_lbl;
+             not_unwind set_handler;
+             exp => tmp;
+             not_unwind reset_handler;
+             T.TRYEND exn_lbl;
+             goto try_endl;
+             cont exn_lbl tmp;
+             not_unwind reset_handler;
+             seq (List.flatten (List.map handler hs));
+             T.LABEL try_endl ]
+
+@ 
+
+<<function Translate.raise_exn>>=
+let raise_exn uid =
+  let fn = if !Option.unwind then "unwind" else "raise" in
+  ext_cmm_call fn [T.CONST uid]
 @
 
 
@@ -2447,7 +3041,7 @@ let unwind = ref false
 
 
 \section{Spawn}
-% process? threads?
+% threads. But this is supported by c-- for free.
 
 %AST
 <<[[Ast.exp]] cases>>=
@@ -2468,19 +3062,28 @@ let unwind = ref false
 @
 %$
 
-%typechecking, generating
-
+%typechecking
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.SpawnExp(sym, pos) ->
-      begin match Env.lookup_value env sym pos with
+      (match Env.lookup_value env sym pos with
         Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
           if dec_args <> []
           then E.type_err pos "spawn function must take zero arguments."
-          else (Trans.spawn lbl,INT)
+          else (Trans.spawn lbl, INT)
       | _ ->
           E.type_err pos (S.name sym ^ " is not a function")
-      end
+      )
 @
+
+% generating
+<<signature functions Translate.xxx>>=
+val spawn         : Tree.label -> Tree.exp
+@
+<<function Translate.spawn>>=
+let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
+@
+
+
 
 \chapter{Advanced Topics}
 

@@ -55,12 +55,14 @@
 %<<type Error.ex>>
 %<<exception Error.Error>>
 %@
+
 %%When an exception is raised, the compiler driver will use this module
 %%to report the error. The [[handle_exception]] function will print a
 %%source line number and an error message, and then exit.
 <<error.mli>>=
 val handle_exception : ex -> unit
 @
+
 %%A few functions are defined for reporting warnings and raising common
 %%errors.
 <<error.mli>>=
@@ -91,11 +93,13 @@ val line_number : int -> int * int
 %<<global Error.source_map>>
 %<<function Error.add_source_mapping>>
 %@
+
 %%To compute the line number of a source position, we do a linear search
 %%through the pairs of integers.
 %<<error.ml>>=
 %<<function Error.line_number>>
 %@
+
 %%Errors are printed with a prefix that indicates the type of error. If
 %%the source line number can be computed, then it is also printed along
 %%with the error message.
@@ -104,12 +108,14 @@ val line_number : int -> int * int
 %
 %<<function Error.warning>>
 %@
+
 %%The exception handler is used by the compiler driver
 %%(Section~\ref{sec:driver}) to print error messages and exit in the
 %%case of errors.
 %<<error.ml>>=
 %<<function Error.handle_exception>>
 %@
+
 %%Finally, here is the definition of the error raising functions.
 %<<error.ml>>=
 %<<function Error.type_err>>
@@ -231,6 +237,7 @@ val name       : symbol -> string
 val symbol     : string -> symbol
 val new_symbol : string -> symbol
 @
+
 %%Symbols are implemented as stamped strings---a pair containing a
 %%string and an int. The integer is used to identify the symbol. All
 %%symbols are held in a hash-table implemented by the standard library
@@ -272,6 +279,7 @@ val create : (string * 'a) list -> 'a table
 
 val new_scope : 'a table -> 'a table
 @
+
 %%The [[iter]] and [[fold]] functions perform the usual iteration and
 %%folding over a symbol table and its parents. The first parameter to
 %%the supplied functions gives to nesting level in which the current
@@ -280,6 +288,7 @@ val new_scope : 'a table -> 'a table
 val iter : (int -> symbol -> 'a -> unit) -> 'a table -> unit
 val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 @
+
 %%Symbol tables are implemented using the standard library [[Hashtbl]]
 %%module. Duplicate entries in the same table are disallowed.
 <<symbol.ml>>=
@@ -287,17 +296,20 @@ val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 
 <<function Symbol.enter>>
 @
+
 %%If a symbol is not found in a given symbol table, then its parent
 %%table is checked. If there is no parent table, then [[Not_found]] is
 %%raised.
 <<symbol.ml>>=
 <<function Symbol.look>>
 @
+
 %%The [[mem]] function can be used to determine if a symbol is defined
 %%in the current nesting level.
 <<symbol.ml>>=
 <<function Symbol.mem>>
 @
+
 %%Symbol tables are created from a list of initial mappings. All symbol
 %%tables are created with an initial nesting level of zero. As new
 %%nested scopes are created the level increases by one for each level.
@@ -306,6 +318,7 @@ val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 
 <<constructor Symbol.new_scope>>
 @
+
 %%Both [[iter]] and [[fold]] are implemented by lifting the
 %%corresponding [[Hashtbl]] functions up to our representation of symbol
 %%tables.
@@ -386,29 +399,34 @@ val print_tree : exp -> unit
 %<<type Ast.pos>>
 %<<type Ast.symbol>>
 %@
+
 %%The Tiger language allows declarations of functions, types, and
 %%variables. A function declaration may have a return type, but it is
 %%optional. Variable declaration also have an optional type.
 %<<types(ast.nw)>>=
 %<<type Ast.dec>>
 %@
+
 %%A type declaration may be either an alias (reference to a previously
 %%declared type), a record declaration, or an array declaration.
 %<<types(ast.nw)>>=
 %<<type Ast.ty>>
 %@
+
 %%Record and function definitions both take parameters of the form
 %%[[name : type]] where both [[name]] and [[type]] are symbols. These
 %%[[name]]-[[type]] pairs are represented by the Ocaml type [[field]].
 %<<types(ast.nw)>>=
 %<<type Ast.field>>
 %@
+
 %%A variable expressions is either a simple variable name, a field
 %%variable for referencing members of a record type, or a subscript
 %%variable for accessing the elements of an array.
 %<<types(ast.nw)>>=
 %<<type Ast.var>>
 %@
+
 %%Expressions in Tiger are described by the [[exp]] type below. The
 %%[[ArrayExp]] and [[RecordExp]] types are used for anonymous arrays and
 %%records respectively. The first element of both the [[ArrayExp]] and
@@ -416,6 +434,7 @@ val print_tree : exp -> unit
 %<<types(ast.nw)>>=
 %<<type Ast.exp>>
 %@
+
 %%Finally, the valid operators in the Tiger language are
 %%[[+,-,*,/,=,<>,<,<=,>,]] and [[>=]].
 %<<types(ast.nw)>>=
@@ -440,6 +459,7 @@ module S = Symbol
 
 <<function Ast.opname>>
 @
+
 %%The tree printer itself consists of four functions for printing
 %%declarations, types, variables, and expressions. Each Tiger program is
 %%an expression, and an outer function starts the process by calling the
@@ -624,6 +644,7 @@ let frame env = env.frame
 <<environment.ml>>=
 <<functions Environment.lookup_xxx>>
 @
+
 %%Entering new types, exceptions, and values into the environment is
 %%also implemented with the symbol table functions. In this case, we may
 %%raise a duplicate symbol error if a name is defined twice in a source
@@ -645,11 +666,6 @@ let frame env = env.frame
 %%environment, we return the new function environment to the caller.
 %<<environment.ml>>=
 %let enter_fun env sym cc args result =
-%  let lbl = S.new_symbol (S.name sym) in
-%  let fenv = new_frame env lbl in
-%  let fe = FunEntry (lbl, cc, fenv.frame, args, result) in
-%  enter env.venv sym fe;
-%  fenv
 %@ 
 
 
@@ -658,12 +674,14 @@ let frame env = env.frame
 <<environment.ml>>=
 <<function Environment.enter_param>>
 @
+
 %%When a new local variable is entered into the environment, we first
 %%allocate space in the current frame to hold a new temporary and then
 %%enter it into the value table.
 <<environment.ml>>=
 <<function Environment.enter_local>>
 @
+
 %%To create a new break label, we generate a new label and store it in
 %%the environment. When the break label is requested, the
 %%[[break_label]] function will raise [[Not_Found]] if there is no
@@ -677,6 +695,7 @@ let break_label env =
 let new_break_label env =
   { env with break_label = Some(T.new_label "loop_end") }
 @
+
 %%The implementation for exception labels is similar. However, the
 %%[[exn_label]] function will not raise an exception if there is no
 %%current exception label. Instead, this function returns an option
@@ -718,6 +737,7 @@ let new_exn_label env =
 %<<semantics.mli>>=
 %<<signature function Semantics.translate>>
 %@
+
 %%The [[Semantics]] module implementation consists of a definition of
 %%the type system used internally in the compiler, the [[translate]]
 %%function entry point, and a private translator function for each type
@@ -1076,6 +1096,7 @@ module S = Symbol
 %<<types(tree.nw)>>=
 %<<type Tree.stm>>
 %@
+
 %%The abstract syntax of expressions is represented by the [[exp]] type.
 %%Many expressions carry a boolean flag that is true if the expression
 %%results in a pointer value. The [[CALL]] constructor also takes an
@@ -1121,6 +1142,7 @@ val relop_inverse  : relop -> relop
 val cmm_binop      : binop -> string
 val cmm_relop      : relop -> string
 @
+
 %%In Tiger, each expression results in a value that is either a machine
 %%word, or a pointer to a data structure. The [[is_ptr]] function
 %%returns true if a given expression will return a pointer. A related
@@ -1144,9 +1166,14 @@ val print_exp : exp -> unit
 %%New labels and temporaries are generated using the [[new_symbol]]
 %%function from the [[Symbol]] module.
 <<tree.ml>>=
-let new_label s = S.new_symbol ("L" ^ s)
-let new_temp () = S.new_symbol "temp"
+<<function Tree.new_label>>
+<<function Tree.new_temp>>
 @ 
+
+<<function Tree.new_label>>=
+let new_label s = 
+  S.new_symbol ("L" ^ s)
+@
 
 %%The functions for binary operators are simple mappings.
 <<tree.ml>>=
@@ -1170,6 +1197,7 @@ let cmm_relop = function
   | LE -> "le"
   | GE -> "ge"
 @
+
 %%The [[is_ptr]] function is implemented by returning the appropriate
 %%field from each of the expression types. Expression types that do not
 %%have a pointer field are known to {\em not} be pointers.
@@ -1184,6 +1212,7 @@ let rec is_ptr = function
   | CONST _         -> false
   | CALL(_,_,_,_,p) -> p
 @
+
 %%In order to implement the [[find_temps]] function, we build a set of
 %%temporary variables and then convert the set into a list. We use the
 %%standard library set implementation to build a unique set of
@@ -1200,7 +1229,6 @@ module TempSet = Set.Make(
 %%relatively easy.
 <<tree.ml>>=
 let find_temps stmts =
-  let foldl = List.fold_left in
   let rec stm set = function
       SEQ(a,b)     -> stm (stm set a) b
     | LABEL _      -> set
@@ -1220,9 +1248,9 @@ let find_temps stmts =
     | ESEQ(s,e)        -> exp (stm set s) e
     | NAME _           -> set
     | CONST _          -> set
-    | CALL(e,el,_,_,_) -> foldl exp set (e :: el)
+    | CALL(e,el,_,_,_) -> List.fold_left exp set (e :: el)
   in
-  TempSet.elements (foldl stm TempSet.empty stmts)
+  TempSet.elements (List.fold_left stm TempSet.empty stmts)
 @ 
 
 
@@ -1266,32 +1294,8 @@ let find_temps stmts =
 %%translation function is defined for each of the different types of
 %%abstract syntax fragments that need to be translated.
 <<translate.mli>>=
-type exp   = Tree.exp
-type label = Tree.label
 
-val nil           : exp
-val int_literal   : int -> exp
-val str_literal   : string -> exp
-val simple_var    : Frame.frame -> Frame.access -> exp
-val field_var     : exp -> int -> bool -> exp
-val subscript_var : exp -> exp -> bool -> int -> exp
-val assign        : exp -> exp -> exp
-val call          : Frame.frame -> label -> string option ->
-                    Frame.frame -> exp list -> label option -> bool -> exp
-val arithmetic    : Ast.oper -> exp -> exp -> exp
-val compare_int   : Ast.oper -> exp -> exp -> exp
-val compare_str   : Ast.oper -> exp -> exp -> exp
-val ifexp         : exp -> exp -> exp -> bool -> exp
-val loop          : exp -> exp -> label -> exp
-val break         : label -> exp
-val new_record    : (exp * bool) list -> exp
-val new_array     : exp -> exp -> bool -> exp
-val sequence      : exp list -> exp
-val func          : Frame.frame -> exp -> bool -> exp
-
-val try_block     : exp -> label -> (int *exp) list -> exp
-val raise_exn     : int -> exp
-val spawn         : label -> exp
+<<signature functions Translate.xxx>>
 @
 
 \subsection{Translation Implementation}
@@ -1303,46 +1307,67 @@ module S = Symbol
 module T = Tree
 module F = Frame
 
-type exp   = Tree.exp
-type label = Tree.label
+<<constant Translate.ws>>
 
-let  ws    = Sys.word_size / 8
+<<function Translate.temp>>
+
+<<function Translate.seq>>
+<<function Translate.eseq>>
+
+<<function Translate.simplify>>
+<<function Translate.angles_xxx>>
+
+<<function Translate.getfp>>
 
 <<utilities>>
-<<literals>>
-<<function calls(translate.nw)>>
-<<variables>>
+
+
+<<functions Translate.xxx literals>>
+<<function Translate.call>>
+
+<<functions Translate.ext_xxx_call>>
+
+<<function Translate.field_var>>
+<<function Translate.subscript_var>>
+<<function Translate.simple_var>>
+
 <<operator expressions(translate.nw)>>
-<<conditionals(translate.nw)>>
-<<loops(translate.nw)>>
-<<records and arrays>>
-<<sequences(translate.nw)>>
-<<functions>>
-<<exceptions(translate.nw)>>
-<<threads(translate.nw)>>
+<<function Translate.assign>>
+<<function Translate.ifexp>>
+<<function Translate.loop>>
+<<function Translate.break>>
+
+<<function Translate.alloc>>
+
+<<function Translate.new_record>>
+<<function Translate.new_array>>
+
+<<function Translate.sequence>>
+
+<<function Translate.func>>
+
+<<function Translate.try_block>>
+<<function Translate.raise_exn>>
+
+<<function Translate.spawn>>
 @
+
 %%\paragraph{Utilities}
 %%A few small utility functions are defined to make the [[Translate]]
 %%module more readable. The [[seq]] function converts a list of
 %%statements into a tree of [[SEQ]] nodes.
-<<utilities>>=
-let rec seq = function
-    []        -> E.internal "nil passed to seq"
-  | x :: []   -> x
-  | x :: rest -> T.SEQ(x, seq rest)
-@ 
+%<<utilities>>=
 
 %%The [[eseq]] function produces an expression from and expression and a
 %%list of statements. The list of statement is executed first, then the
 %%expression is evaluated.
-<<utilities>>=
-let eseq exp stmts = T.ESEQ (seq stmts, exp)
-@
+%<<utilities>>=
+
+
 %%During translation we often need to allocate new temporary variables.
 %%The [[temp]] function produces a fresh temporary variable.
-<<utilities>>=
-let temp ptr = T.TEMP (T.new_temp(), ptr)
-@
+%<<utilities>>=
+
 %%The Tiger compiler uses static links to manage nested functions. Each
 %%generated function has a frame pointer that points to the top of the
 %%function's stack frame. The first word in each stack frame is the
@@ -1351,13 +1376,9 @@ let temp ptr = T.TEMP (T.new_temp(), ptr)
 %%pointer. The [[getfp]] function generates an expression that fetches
 %%the frame pointer of one frame relative to another.
 <<utilities>>=
-let getfp frm parent_frm =
-  let diff = F.level frm  - F.level parent_frm in
-  let rec deref = function
-      0 -> F.fp frm
-    | x -> T.MEM (deref (x-1), true)
-  in assert (diff >= 0); deref diff
+<<function Translate.getfp>>
 @
+
 %%Finally, we define a few functions for constructing tree expressions
 %%and statements. For the binary operators, we simplify expressions when
 %%possible.
@@ -1367,14 +1388,10 @@ let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
 let goto lbl  = T.JUMP (T.NAME lbl)
 let ( =>) e v = T.MOVE (e, v)
 
-let simplify tig_op op x y =
-  match (x,y) with
-    (T.CONST x, T.CONST y) -> T.CONST (op x y)
-  | _                      -> T.BINOP (tig_op, x, y)
-let (<+>) = simplify T.PLUS  ( + )
-let (<->) = simplify T.MINUS ( - )
-let (<*>) = simplify T.MUL   ( * )
+<<function Translate.simplify>>
+<<function Translate.angles_xxx>>
 @
+
 %%\paragraph{Literals}
 %%In Tiger, there are three types of literal value: nil, integers, and
 %%strings. For strings literals, we must output the string as read-only
@@ -1382,11 +1399,8 @@ let (<*>) = simplify T.MUL   ( * )
 %%literals is handled by the [[Frame]] module (Section~\ref{sec:frame}).
 %%This module gets a label from the [[Frame]] module and generates a
 %%reference to the label using a [[NAME]] expression.
-<<literals>>=
-let nil           = T.CONST 0
-let int_literal i = T.CONST i
-let str_literal s = T.NAME (F.alloc_string s)
-@
+%<<literals>>=
+
 %%\paragraph{Function Calls}
 %%Each Tiger function will eventually be translated into a [[C--]]
 %%function. In addition, there are functions defined in the standard
@@ -1398,80 +1412,42 @@ let str_literal s = T.NAME (F.alloc_string s)
 %%calling a nested function, then we pass the current frame pointer.
 %%Otherwise, we compute the frame pointer of the enclosing function
 %%using [[getfp]].
-<<function calls(translate.nw)>>=
-let call myfrm lbl cc frm args k ptr =
-  let args =
-    if F.level frm == 0 then args
-    else let pfp =
-      if (F.level frm) > (F.level myfrm) then F.fp frm
-      else T.MEM(getfp myfrm frm, true)
-    in pfp  :: args
-  in
-@
+%<<function calls(translate.nw)>>=
+
 %%If we are calling a foreign function (a function not written in
 %%[[C--]]), then we need to save and restore the global register
 %%variables. In Tiger, we only have one global register variable---the
 %%allocation pointer.
-<<function calls(translate.nw)>>=
-  match cc with
-    None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-  | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-  | Some _ ->
-      let tmp1      = temp ptr
-      and tmp2      = temp ptr
-      in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
-                     T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
-                     T.MOVE(tmp1, alloc_ptr) ]
-@
+%<<function calls(translate.nw)>>=
+
 %%For internal use, we define a few abbreviations for calling both [[C]]
 %%and [[C--]] functions from the standard library.
-<<function calls(translate.nw)>>=
-let ext_call cc name args =
-  call F.base_frame (S.symbol name) cc
-       F.base_frame args None false
+%<<function calls(translate.nw)>>=
 
-let ext_c_call   = ext_call (Some "C")
-let ext_gc_call  = ext_call  None (* (Some "gc") *)
-let ext_cmm_call = ext_call  None
-@
 %%\paragraph{Variables}
 %%There are three types of variable access expressions: simple
 %%variables, record fields, and array indices. Simple variables can live
 %%on the stack, or in [[C--]] local variables. We generate a memory
 %%access for stack variables, and for local variables we just output
 %%their name.
-<<variables>>=
-let simple_var frm = function
-    F.Temp lbl                    -> T.NAME lbl
-  | F.Stack(var_frm, offset, ptr) ->
-      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
-@ 
+%<<variables>>=
 
 %%Record fields always live in a memory location. For record field
 %%variables, we generate a memory access at an offset from the beginning
 %%of the record.
-<<variables>>=
-let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
-@ 
+%<<variables>>=
 
 %%Array subscripts also always live in a memory location. However,
 %%before accessing an array element, we first do an array bounds check.
 %%There is a small optimization when the array index expression is a
 %%constant, in that we can compute the offset into memory at compile
 %%time.
-<<variables>>=
-let subscript_var e1 e2 ptr pos =
-  let check = ext_c_call "bounds_check"
-                        [e1;e2;T.CONST(fst (Error.line_number pos))]
-  and offset = (e2 <+> T.CONST 1) <*> T.CONST ws
-  in
-  eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
-@
+%<<variables>>=
+
 %%Finally, any variable expression can be updated with a [[MOVE]] node.
-<<variables>>=
-let assign v e = eseq nil [e => v]
-@
-%%
+%<<variables>>=
+
+
 %%\paragraph{Operator Expressions}
 %%There are three types of operator expressions: arithmetic, integer
 %%comparison, and string comparison. Arithmetic operations are
@@ -1479,13 +1455,15 @@ let assign v e = eseq nil [e => v]
 %%translated into [[RELOP]] nodes.
 <<operator expressions(translate.nw)>>=
 let arithmetic op ex1 ex2 =
-  let oper = match op with
-    A.PlusOp   -> T.PLUS
-  | A.MinusOp  -> T.MINUS
-  | A.TimesOp  -> T.MUL
-  | A.DivideOp -> T.DIV
-  | _          -> E.internal "relop used as binop"
-  in T.BINOP(oper, ex1, ex2)
+  let oper = 
+    match op with
+      A.PlusOp   -> T.PLUS
+    | A.MinusOp  -> T.MINUS
+    | A.TimesOp  -> T.MUL
+    | A.DivideOp -> T.DIV
+    | _          -> E.internal "relop used as binop"
+  in 
+  T.BINOP(oper, ex1, ex2)
 
 let compare_int op ex1 ex2 =
   let oper = match op with
@@ -1498,6 +1476,7 @@ let compare_int op ex1 ex2 =
   | _       -> E.internal "binop used as relop"
   in T.RELOP(oper, ex1, ex2)
 @
+
 %%String comparisons are translated into integer comparisons by first
 %%calling the standard library function [[compare_str]], which returns
 %%-1, 0, or 1. The result of this function is then compared to zero
@@ -1507,122 +1486,65 @@ let compare_str op ex1 ex2 =
   let result = ext_c_call "compare_str" [ex1;ex2] in
   compare_int op result (T.CONST 0)
 @
+
 %%\paragraph{Conditionals}
 %%To translate an if expression, we create a new temporary variable
 %%which becomes the result. The true and false expressions are converted
 %%into move statements that store values into the temporary.
-<<conditionals(translate.nw)>>=
-let ifexp test thn els ptr =
-  let tmp  = temp ptr
-  and tru  = T.new_label "ifTrue"
-  and fls  = T.new_label "ifFalse"
-  and end' = T.new_label "ifEnd" in
-  eseq tmp [ T.CJUMP(test, tru, fls);
-             T.LABEL tru; thn => tmp; goto end';
-             T.LABEL fls; els => tmp;
-             T.LABEL end']
-@
+%<<conditionals(translate.nw)>>=
+
 %%\paragraph{Loops}
 %%For each loop statement, the [[Semantics]] module will call the
 %%[[loop]] function with translated test and body expressions, and a
 %%break label. The break label is produced by the [[Semantics]] module
 %%and stored in the environment.
-<<loops(translate.nw)>>=
-let loop test body lend = 
-  let lbeg = T.new_label "loop_start"
-  and lbdy = T.new_label "loop_body" in
-  eseq nil [ T.LABEL lbeg;
-             T.CJUMP(test, lbdy, lend);
-             T.LABEL lbdy; T.EXP body; goto lbeg;
-             T.LABEL lend ]
-@
+%<<loops(translate.nw)>>=
+
 %%A [[break]] statement is translated as a jump to the current break
 %%label. The current break label is fetched from the environment and
 %%provided by the [[Semantics]] module.
-<<loops(translate.nw)>>=
-let break lbl = eseq nil [goto lbl]
-@
+%<<loops(translate.nw)>>=
+
 %%\paragraph{Records and Arrays}
 %%When new records and arrays are created, memory must be allocated on
 %%the heap for their storage. Memory is allocated by calling the
 %%[[alloc]] function defined below. This function generates code that
 %%checks for heap exhaustion, calls the garbage collector, and updates
 %%the allocation pointer.
-<<records and arrays>>=
-let alloc size =
-  let size = (size <+> T.CONST 1) <*> T.CONST ws in
-  let test = T.RELOP(T.GT, alloc_ptr <+> size, space_end)
-  and tmp  = temp true
-  and tru  = T.new_label "alc_gc"
-  and fls  = T.new_label "alc"
-  in eseq tmp [ T.CJUMP(test, tru, fls);
-                T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
-                T.LABEL fls;
-                size => T.MEM(alloc_ptr, true);
-                (alloc_ptr <+> T.CONST ws) => tmp;
-                (alloc_ptr <+> size) => alloc_ptr
-                (* ; T.EXP (ext_gc_call "call_gc" []) *)
-              ]
-@
+%<<records and arrays>>=
+%<<function Translate.alloc>>
+%@
+
 %%To initialize a new record, we must copy the results of the
 %%initializing expressions into the the record fields. The private
 %%function [[initialize]] creates a list of assignments to the record
 %%fields. The result of calling [[initialize]] is placed in sequence
 %%after an allocation statement, and a new temporary variable is
 %%returned that contains a pointer to the new record.
-<<records and arrays>>=
-let new_record init =
-  let tmp  = temp true
-  and size = T.CONST (List.length init) in
-  let rec initialize offset = function
-      []             -> []
-    | (ex,ptr)::rest -> (ex => field_var tmp offset ptr)
-                        :: initialize (offset+1) rest
-  in
-  eseq tmp ((alloc size => tmp) :: initialize 0 init)
-@
+%<<records and arrays>>=
+
 %%To initialize a new array, we must copy the result of the initializing
 %%expression into each array element. First, we allocate memory for the
 %%array and store the array size into the first element of the array.
 %%Then, we construct a small loop that initializes each element of the
 %%array.
-<<records and arrays>>=
-let new_array sizeEx initEx ptr = 
-  let ary  = temp true
-  and i    = temp false
-  and lbeg = T.new_label "init_start"
-  and lend = T.new_label "init_end" in
-  eseq ary
-    [ alloc (sizeEx <+> T.CONST 1) => ary;
-      sizeEx => T.MEM(ary, false);
-      T.CONST 1 => i;
-      T.LABEL lbeg;
-      initEx => T.MEM (ary <+> (i <*> T.CONST ws), ptr);
-      i <+> T.CONST 1 => i;
-      T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
-      T.LABEL lend ]
-@
+%<<records and arrays>>=
+
 %%\paragraph{Sequences}
 %%To translate a sequence of $n$ expressions, we convert the first $n-1$
 %%expressions into statements and execute them. Then, we evaluate the
 %%last expression and the result is used as the result of the whole
 %%sequence.
-<<sequences(translate.nw)>>=
-let rec sequence = function
-   []       -> nil
-  | e :: [] -> e
-  | e :: es -> T.ESEQ((T.EXP e), (sequence es))
-@
+%<<sequences(translate.nw)>>=
+
 %%\paragraph{Functions}
 %%Once a code fragment has been produced, the [[Semantics]] module will
 %%call [[func]] to transform it into a function. To produce a function,
 %%we allocate a temporary to store the result of evaluating the body.
 %%Then, we add a return node that returns the temporary.
-<<functions>>=
-let func frm ex ptr =
-  let tmp = temp ptr in
-  eseq nil [ex => tmp; T.RET tmp]
-@
+%<<functions>>=
+
+
 %%\paragraph{Exceptions}
 %%When a try block is encountered, first the expression within the block
 %%and all of the handlers will be translated. Then, the expression
@@ -1632,29 +1554,13 @@ let func frm ex ptr =
 %%takes a single parameter---the exception identifier. The private
 %%[[cont]] function constructs a continuation with the label [[l]] that
 %%accepts one parameter in the temporary [[t]].
-<<exceptions(translate.nw)>>=
-let try_block exp exn_lbl hs =
-  let cont l = function
-      T.TEMP(t,_) -> T.CONT(l, [t])
-    | _           -> E.internal "non temp in continuation node"
-  in
-@ 
+%<<exceptions(translate.nw)>>=
 
 %%Each handler must test the continuation parameter, and then either
 %%handle the exception or pass control down to the next handler. The
 %%[[handler]] function constructs this sequence of statements for a
 %%single handler.
-<<exceptions(translate.nw)>>=
-  let try_endl         = T.new_label "try_end"
-  and tmp              = temp false in
-  let handler (uid,ex) =
-    let hl = T.new_label "handle"
-    and sl = T.new_label "skip" in
-    [ T.CJUMP(T.RELOP(T.EQ, tmp, T.CONST uid), hl, sl);
-      T.LABEL hl; T.EXP ex; goto try_endl;
-      T.LABEL sl ]
-  in
-@ 
+%<<exceptions(translate.nw)>>=
 
 %%The complete try block consists of the expression within the try block
 %%followed by a new continuation and the handlers for the block. The
@@ -1663,37 +1569,20 @@ let try_block exp exn_lbl hs =
 %%exception handler. However, if we are generating code for the
 %%unwinding implementation, then we can omit these calls to
 %%[[set_handler]].
-<<exceptions(translate.nw)>>=
-  let old            = temp false in
-  let set_handler    = ext_cmm_call "set_handler" [T.NAME exn_lbl] => old
-  and reset_handler  = T.EXP (ext_cmm_call "set_handler" [old])
-  and not_unwind stm = if !Option.unwind then T.EXP nil else stm
-  in
-  eseq tmp [ T.TRY exn_lbl;
-             not_unwind set_handler;
-             exp => tmp;
-             not_unwind reset_handler;
-             T.TRYEND exn_lbl;
-             goto try_endl;
-             cont exn_lbl tmp;
-             not_unwind reset_handler;
-             seq (List.flatten (List.map handler hs));
-             T.LABEL try_endl ]
-@
+%<<exceptions(translate.nw)>>=
+
 %%When raising an exception, we will either call the [[raise]] function
 %%or the [[unwind]] function depending on how the compiler was called.
-<<exceptions(translate.nw)>>=
-let raise_exn uid =
-  let fn = if !Option.unwind then "unwind" else "raise" in
-  ext_cmm_call fn [T.CONST uid]
-@
+%<<exceptions(translate.nw)>>=
+
 %%\paragraph{Threads}
 %%All of the thread magic is in the runtime system. Here, we just make a
 %%call to the runtime system function ``tig_spawn'' passing it the label
 %%of a function.
-<<threads(translate.nw)>>=
-let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
-@
+%<<threads(translate.nw)>>=
+
+
+
 \section{[[frontend/canonical.nw]]}
 
 
@@ -1702,11 +1591,17 @@ let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 @
 
 <<frontend/canonical.ml>>=
-<<canonical.ml>>
+module T = Tree
+module S = Symbol
+
+<<constant Canonical.nop>>
+
+<<function Canonical.percent>>
+
+<<function Canonical.commute>>
+
+<<function Canonical.linearize>>
 @
-
-
-
 
 \section{Canonical Trees}
 %%\label{sec:canonical}
@@ -1727,111 +1622,8 @@ let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]
 %<<signature function Canonical.linearize>>
 %@
 
-<<canonical.ml>>=
-module T = Tree
-module S = Symbol
-
-let nop = T.EXP(T.CONST 0)
-
-let ( % ) x y =
-  match (x,y) with
-    (T.EXP(T.CONST _), _) -> y
-  | (_, T.EXP(T.CONST _)) -> x
-  | _ -> T.SEQ(x,y)
-
-let commute = function
-    (T.EXP(T.CONST _), _) -> true
-  | (_, T.NAME _) -> true
-  | (_, T.CONST _) -> true
-  | _ -> false
 
 
-let linearize stm0 =
-  let rec reorder = function
-      T.CALL(_,_,_,_,ptr) as call :: rest ->
-        let t = T.TEMP(T.new_temp(), ptr)
-        in reorder(T.ESEQ(T.MOVE(call, t), t) :: rest)
-    | a :: rest ->
-        let (stms,e) = do_exp a
-        and (stms',el) = reorder rest in
-        if commute(stms',e)
-        then (stms % stms',e::el)
-        else let t = T.TEMP(T.new_temp(), T.is_ptr e) in 
-        (stms % T.MOVE(e, t) % stms', t :: el)
-    | [] -> (nop,[])
-
-  and reorder_exp(el,build) = 
-    let (stms,el') = reorder el
-    in (stms, build el')
-
-  and reorder_stm(el,build) =
-    let (stms,el') = reorder el
-    in stms % (build el')
-
-  and do_stm = function
-      T.SEQ(a,b) ->
-        do_stm a % do_stm b
-    | T.JUMP e ->
-        let f l = T.JUMP (List.hd l)
-        in reorder_stm([e], f)
-    | T.CJUMP(e,t,f) ->
-        let f l = T.CJUMP(List.hd l, t, f)
-        in reorder_stm([e], f)
-    | T.MOVE(T.CALL(e,el,ext,k,ptr),T.TEMP(t,_)) ->
-        let f l = T.MOVE(T.CALL(List.hd l, List.tl l, ext, k, ptr), T.TEMP(t,ptr))
-        in reorder_stm(e :: el, f)
-    | T.MOVE(b,T.TEMP(t,ptr)) ->
-        let f l = T.MOVE(List.hd l, T.TEMP(t,ptr))
-        in reorder_stm([b], f)
-    | T.MOVE(b,T.NAME n) ->
-        let f l = T.MOVE(List.hd l, T.NAME n)
-        in reorder_stm([b], f)
-    | T.MOVE(T.ESEQ(s,e), b) ->
-        do_stm(T.SEQ(s,T.MOVE(e,b)))
-    | T.MOVE(b,T.MEM(e,ptr)) ->
-        let f l = T.MOVE(List.hd l, T.MEM(List.nth l 1, ptr))
-        in reorder_stm([b ; e], f)
-    | T.MOVE(b,T.ESEQ(s,e)) ->
-        do_stm(T.SEQ(s,T.MOVE(b,e)))
-    | T.EXP(T.CALL(e,el,ext,k,ptr)) ->
-        let f l = T.EXP(T.CALL(List.hd l, List.tl l, ext, k, ptr))
-        in reorder_stm(e :: el, f)
-    | T.EXP e ->
-        let f l = T.EXP (List.hd l)
-        in reorder_stm([e], f)
-    | s ->
-        let f l = s
-        in reorder_stm([], f)
-
-  and do_exp = function
-      T.BINOP(p,a,b) ->
-        let f l = T.BINOP(p, List.hd l, List.nth l 1)
-        in reorder_exp([a ; b], f)
-    | T.RELOP(p,a,b) ->
-        let f l = T.RELOP(p, List.hd l, List.nth l 1)
-        in reorder_exp([a ; b], f)
-    | T.MEM(a,ptr) ->
-        let f l = T.MEM (List.hd l,ptr)
-        in reorder_exp([a], f)
-    | T.ESEQ(s,e) ->
-        let stms = do_stm s
-        and (stms',e) = do_exp e
-        in (stms%stms',e)
-    | T.CALL(e,el,ext,k,ptr) ->
-        let f l = T.CALL(List.hd l, List.tl l, ext, k, ptr)
-        in reorder_exp(e :: el, f)
-    | e ->
-        let f l = e
-        in reorder_exp([], f)
-
-  (* linear gets rid of the top-level SEQ's, producing a list *)
-  and linear = function
-      (T.SEQ(a,b),l) -> linear(a,linear(b,l))
-    | (s,l) -> s :: l
-
- in (* body of linearize *)
-    linear(do_stm stm0, [])
-@
 \section{[[frontend/frame.nw]]}
 
 <<frontend/frame.mli>>=
@@ -1862,10 +1654,9 @@ let linearize stm0 =
 %%type [[access]].
 <<frame.mli>>=
 type frame
-type access =
-    Temp  of Tree.label
-  | Stack of frame * int * bool
+<<type Frame.access>>
 @
+
 %%This module provides functions for reading elements of a stack frame.
 %%There are functions for reading the frame pointer, the name of the
 %%function associated with the frame, and the nesting level.
@@ -1874,6 +1665,7 @@ val fp    : frame -> Tree.exp
 val name  : frame -> Tree.label
 val level : frame -> int
 @
+
 %%There are two functions for creating new stack frames. The
 %%[[base_frame]] function will create a stack frame for a top-level
 %%function, and [[new_frame]] will create a stack frame for a nested
@@ -1885,14 +1677,17 @@ val level : frame -> int
 val base_frame : frame
 val new_frame  : Tree.label -> frame -> frame
 @
+
 %%There are four functions for allocating new parameters, local
 %%variables, temporary variables, and string literals.
 <<frame.mli>>=
 val alloc_param  : frame  -> Tree.label -> bool -> access
 val alloc_local  : frame  -> Tree.label -> bool -> access
-val alloc_temp   : frame  -> Tree.label -> bool -> access
+
+val alloc_temp   : frame  -> Tree.label -> bool -> unit
 val alloc_string : string -> Tree.label
 @
+
 %%During code generation, this module will output a [[C--]] header and
 %%footer for each function that initializes the stack frame. In
 %%addition, this module will also output the string literals as
@@ -1900,6 +1695,7 @@ val alloc_string : string -> Tree.label
 <<frame.mli>>=
 <<signature function Frame.output_header>>
 <<signature function Frame.output_footer>>
+
 val output_strings : unit  -> unit
 @
 
@@ -1918,19 +1714,21 @@ module H = Hashtbl
 %%true if the variable holds a pointer.
 <<frame.ml>>=
 <<type Frame.frame>>
-type access =
-    Temp  of T.label
-  | Stack of frame * int * bool
+<<type Frame.access>>
 @
+
 %%The accessor functions for frames just read the appropriate elements
 %%from the record. In the case of the frame pointer, we return the name
 %%of the variable that holds the frame pointer. The name of the frame
 %%pointer variable is always [[fp]].
 <<frame.ml>>=
-let fp    frm = T.NAME (S.symbol "fp")
-let name  frm = frm.name
-let level frm = frm.level
+<<function Frame.fp>>
+let name  frm = 
+  frm.name
+let level frm = 
+  frm.level
 @
+
 %%The base frame is a record with defaults for each field. Every
 %%function takes at least one parameter---its parent's frame pointer
 %%[[pfp]]. To create a new nested frame, we need to get the nesting
@@ -1948,6 +1746,7 @@ let new_frame lbl parent = { base_frame with
                              name  = lbl;
                              level = parent.level + 1 }
 @
+
 %%Allocated parameters and local variables both end up on the stack. In
 %%theory, a local variable could be allocated as a temporary variable as
 %%long as it is not referenced by a nested function. However, this
@@ -1958,26 +1757,20 @@ let new_frame lbl parent = { base_frame with
 %%increment the stack size and return a stack access specification.
 %%Function parameters must be kept in order they are allocated.
 <<frame.ml>>=
-let stack_alloc frm ptr =
-  let v = Stack(frm, frm.size, ptr) in
-  frm.size <- frm.size + 1; v
+<<function Frame.stack_alloc>>
 
-let alloc_param frm name ptr =
-  frm.params <- frm.params @ [(name,ptr)];
-  stack_alloc frm ptr
+<<function Frame.alloc_param>>
 
-let alloc_local frm name ptr =
-  frm.vars <- (name,ptr) :: frm.vars;
-  stack_alloc frm ptr
+<<function Frame.alloc_local>>
 @
+
 %%Allocating temporaries is similar, but we return an access
 %%specification for a temporary variable. A temporary variable is just a
 %%[[C--]] local variable, and we only need to remember the name of the
 %%variable.
 <<frame.ml>>=
 let alloc_temp frm name ptr =
-  frm.temps <- (name,ptr) :: frm.temps;
-  Temp name
+  frm.temps <- (name,ptr) :: frm.temps
 @ 
 
 %%When a new string literal is allocated, we first check to see if the
@@ -1987,12 +1780,8 @@ let alloc_temp frm name ptr =
 %%the standard library [[Hashtbl]] module to store the set of allocated
 %%strings.
 <<frame.ml>>=
-let strings = H.create 20
-let alloc_string s =
-  try H.find strings s
-  with Not_found ->
-    let lbl = T.new_label "gbl" in
-    (H.add strings s lbl; lbl)
+<<global Frame.strings>>
+<<function Frame.alloc_string>>
 @ 
 
 %%The output functions are a bit tedious to write and even more tedious
@@ -2006,6 +1795,7 @@ let iter_ndx f   = let n   = ref(-1) in
                    let g x = incr n; f !n x in
                    List.iter g
 @
+
 %%For each function header, we output the function name and parameters.
 %%The function body is enclosed in a span that references the pointer
 %%data for the garbage collector. The body of each function begins by
@@ -2023,6 +1813,7 @@ let output_header frm =
   iter_ndx  init frm.params;
   List.iter temp frm.temps
 @
+
 %%Each function is followed by the pointer information for the stack
 %%data and the [[C--]] variables. The stack data information is output
 %%first as an array of [[bits32]]. A second array follows with the
@@ -2041,6 +1832,7 @@ let output_footer frm =
   pf "   bits32[] { %s };\n" (var_data (frm.params @ frm.temps));
   pf "}\n\n"
 @
+
 %%For the string literals, we output a data section containing a label
 %%and initialized data for each string.
 <<frame.ml>>=
@@ -2093,6 +1885,7 @@ let pf           = Printf.printf
 let spf          = Printf.sprintf
 let join_map f l = String.concat "," (List.map f l)
 @
+
 %%In the file header we declare our [[C--]] program to be little endian,
 %%import all of the external functions, and export the [[tiger_main]]
 %%function. In addition, we must declare the [[alloc_ptr]] global to be
@@ -2109,6 +1902,7 @@ let output_file_header imports =
   pf "bits32 alloc_ptr;\n";
   pf "import space_end;\n\n"
 @
+
 %%The heart of the code generator is the [[emit]] function that converts
 %%a list of [[Tree]] statements (Section~\ref{sec:tree}) into [[C--]].
 %%The [[emit]] function uses three private functions for converting
@@ -2123,6 +1917,7 @@ let emit exl =
   let code = List.map stm exl in
   List.iter (fun x -> pf "  %s\n" x) code
 @
+
 %%Generating [[C--]] code from our intermediate representation is
 %%relatively easy. However, when generating code for [[Tree]]
 %%statements, there is one small subtlety; we always wrap try blocks
@@ -2148,6 +1943,7 @@ let emit exl =
     | T.RET e              -> spf "return(%s);" (valexp e)
     | T.SEQ _              -> E.internal "SEQ node found in code gen"
 @
+
 %%Generating [[C--]] code for [[Tree]] expressions is also quite simple.
 %%The [[CALL]] nodes require a little bit of work to get all of the
 %%annotations correct, but there are not any surprises.
@@ -2207,6 +2003,7 @@ import bits32 tig_gc;
 export tig_alloc;
 export tig_call_gc;
 @
+
 %%The [[call_gc]] function is a small [[C--]] proxy for the garbage
 %%collector which is written in [[C]]. The [[call_gc]] function is called
 %%with the [[gc]] callling convention. Be sure to recompile this code
@@ -2227,6 +2024,7 @@ continuation k():
   return;
 }
 @
+
 %%This is an example allocator---it is {\em not called by compiled
 %%code}. The Tiger compiler in-lines allocations which are roughly
 %%equivalent to a call to this function, but they are more efficient.
@@ -2258,6 +2056,7 @@ tig_alloc(bits32 size) {
 void* gc_init(int heap_size);
 void* tig_gc(Cmm_Cont*);
 @
+
 %%The Tiger garbage collector is a very simple copying collector. Most
 %%of the code is generic in that it is not specific to either Tiger or
 %%[[C--]].
@@ -2649,6 +2448,7 @@ section "data" {
 }
 <<C-- functions>>
 @
+
 %%\paragraph{Library Functions}
 %%To start off, we will define the easy one line C functions.
 <<C functions>>=
@@ -2674,6 +2474,7 @@ new_string(bits32 size) {
   return(str_ptr);
 }
 @
+
 %%The [[chr]] and [[getchar]] functions both allocate a string of length
 %%1. In Tiger, [[EOF]] is equivalent to the empty string.
 <<C-- functions>>=
@@ -2816,6 +2617,7 @@ tig_raise(bits32 exn_id) {
   return;
 }
 @
+
 %%The second implementation unwinds the stack using the [[C--]] runtime
 %%interface.
 <<C-- functions>>=
@@ -2877,6 +2679,7 @@ module T = Environment
 
 <<toplevel Main._>>
 @
+
 %%\paragraph{Standard Basis}
 %%The standard basis consist of a set of initial type definitions, a set
 %%of initial functions, and a set of imports. There are only two initial
@@ -2884,12 +2687,14 @@ module T = Environment
 %<<standard basis>>=
 %<<constant Main.base_tenv>>
 %@
+
 %%The set of initial functions includes all of the functions in the
 %%Tiger standard library. For each function, we give the function name,
 %%the calling convention, and the argument and return types.
 %<<standard basis>>=
 %<<constant Main.base_venv>>
 %@
+
 %%The set of imports includes all of the functions that may be called
 %%from compiled code. This includes the standard library functions as
 %%well as other internal functions such as the garbage collector and
@@ -2897,6 +2702,7 @@ module T = Environment
 %<<standard basis>>=
 %<<constant Main.imports>>
 %@
+
 %%\paragraph{Compiler Driver}
 %%The compiler driver is relatively simple. First, the command line
 %%options are parsed. Then, the input program is parsed, type checked,

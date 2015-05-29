@@ -12,17 +12,24 @@ type frame = {
   (*s: [[Frame.frame]] other fields *)
   name           : Tree.label;
   level          : int;
+  (*x: [[Frame.frame]] other fields *)
   mutable size   : int;
   (*e: [[Frame.frame]] other fields *)
 }
 (*e: type Frame.frame *)
+(*s: type Frame.access *)
 type access =
-    Temp  of T.label
-  | Stack of frame * int * bool
+    Stack of frame * int * bool
+(*e: type Frame.access *)
 (*x: frame.ml *)
-let fp    frm = T.NAME (S.symbol "fp")
-let name  frm = frm.name
-let level frm = frm.level
+(*s: function Frame.fp *)
+let fp    frm = 
+  T.NAME (S.symbol "fp")
+(*e: function Frame.fp *)
+let name  frm = 
+  frm.name
+let level frm = 
+  frm.level
 (*x: frame.ml *)
 let base_frame = { name   = (S.symbol "frame0")
                  ; level  = 0
@@ -35,28 +42,38 @@ let new_frame lbl parent = { base_frame with
                              name  = lbl;
                              level = parent.level + 1 }
 (*x: frame.ml *)
+(*s: function Frame.stack_alloc *)
 let stack_alloc frm ptr =
   let v = Stack(frm, frm.size, ptr) in
-  frm.size <- frm.size + 1; v
+  frm.size <- frm.size + 1; 
+  v
+(*e: function Frame.stack_alloc *)
 
+(*s: function Frame.alloc_param *)
 let alloc_param frm name ptr =
   frm.params <- frm.params @ [(name,ptr)];
   stack_alloc frm ptr
+(*e: function Frame.alloc_param *)
 
+(*s: function Frame.alloc_local *)
 let alloc_local frm name ptr =
   frm.vars <- (name,ptr) :: frm.vars;
   stack_alloc frm ptr
+(*e: function Frame.alloc_local *)
 (*x: frame.ml *)
 let alloc_temp frm name ptr =
-  frm.temps <- (name,ptr) :: frm.temps;
-  Temp name
+  frm.temps <- (name,ptr) :: frm.temps
 (*x: frame.ml *)
+(*s: global Frame.strings *)
 let strings = H.create 20
+(*e: global Frame.strings *)
+(*s: function Frame.alloc_string *)
 let alloc_string s =
   try H.find strings s
   with Not_found ->
     let lbl = T.new_label "gbl" in
     (H.add strings s lbl; lbl)
+(*e: function Frame.alloc_string *)
 (*x: frame.ml *)
 let pf           = Printf.printf
 let spf          = Printf.sprintf

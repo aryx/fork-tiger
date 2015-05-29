@@ -9,13 +9,14 @@ and  temp  = Symbol.symbol
 type stm =
   | EXP    of exp
   | MOVE   of exp * exp
+
   | SEQ    of stm * stm
   | LABEL  of label
-  | CONT   of label * label list
   | JUMP   of exp
   | CJUMP  of exp * label * label
   | RET    of exp
   (*s: [[Tree.stm]] cases *)
+    | CONT   of label * label list
     | TRY    of label
     | TRYEND of label
   (*e: [[Tree.stm]] cases *)
@@ -25,10 +26,12 @@ and exp =
   | CONST of int
   | BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
-  | MEM   of exp * bool
-  | TEMP  of temp * bool
-  | ESEQ  of stm * exp
+
   | NAME  of label
+  | TEMP  of temp * bool
+  | MEM   of exp * bool (* dereference? *x ? *)
+
+  | ESEQ  of stm * exp
   | CALL  of exp * exp list * string option * label option * bool
 (*e: type Tree.exp *)
 (*s: types Tree.xxxop *)

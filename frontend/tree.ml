@@ -11,13 +11,14 @@ and  temp  = Symbol.symbol
 type stm =
   | EXP    of exp
   | MOVE   of exp * exp
+
   | SEQ    of stm * stm
   | LABEL  of label
-  | CONT   of label * label list
   | JUMP   of exp
   | CJUMP  of exp * label * label
   | RET    of exp
   (*s: [[Tree.stm]] cases *)
+    | CONT   of label * label list
     | TRY    of label
     | TRYEND of label
   (*e: [[Tree.stm]] cases *)
@@ -27,10 +28,12 @@ and exp =
   | CONST of int
   | BINOP of binop * exp * exp
   | RELOP of relop * exp * exp
-  | MEM   of exp * bool
-  | TEMP  of temp * bool
-  | ESEQ  of stm * exp
+
   | NAME  of label
+  | TEMP  of temp * bool
+  | MEM   of exp * bool (* dereference? *x ? *)
+
+  | ESEQ  of stm * exp
   | CALL  of exp * exp list * string option * label option * bool
 (*e: type Tree.exp *)
 (*s: types Tree.xxxop *)
@@ -39,8 +42,14 @@ and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
 
 (*s: tree.ml *)
-let new_label s = S.new_symbol ("L" ^ s)
-let new_temp () = S.new_symbol "temp"
+(*s: function Tree.new_label *)
+let new_label s = 
+  S.new_symbol ("L" ^ s)
+(*e: function Tree.new_label *)
+(*s: function Tree.new_temp *)
+let new_temp () = 
+  S.new_symbol "temp"
+(*e: function Tree.new_temp *)
 (*x: tree.ml *)
 let relop_inverse = function
     EQ  -> NE
@@ -79,7 +88,6 @@ module TempSet = Set.Make(
   end)
 (*x: tree.ml *)
 let find_temps stmts =
-  let foldl = List.fold_left in
   let rec stm set = function
       SEQ(a,b)     -> stm (stm set a) b
     | LABEL _      -> set
@@ -99,9 +107,9 @@ let find_temps stmts =
     | ESEQ(s,e)        -> exp (stm set s) e
     | NAME _           -> set
     | CONST _          -> set
-    | CALL(e,el,_,_,_) -> foldl exp set (e :: el)
+    | CALL(e,el,_,_,_) -> List.fold_left exp set (e :: el)
   in
-  TempSet.elements (foldl stm TempSet.empty stmts)
+  TempSet.elements (List.fold_left stm TempSet.empty stmts)
 (*x: tree.ml *)
 (*s: function Tree.print_stm *)
 let print_stm =

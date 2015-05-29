@@ -1,24 +1,31 @@
 (*s: frontend/canonical.ml *)
-(*s: canonical.ml *)
 module T = Tree
 module S = Symbol
 
+(*s: constant Canonical.nop *)
 let nop = T.EXP(T.CONST 0)
+(*e: constant Canonical.nop *)
 
+(*s: function Canonical.percent *)
 let ( % ) x y =
   match (x,y) with
     (T.EXP(T.CONST _), _) -> y
   | (_, T.EXP(T.CONST _)) -> x
   | _ -> T.SEQ(x,y)
 
+(*e: function Canonical.percent *)
+
+(*s: function Canonical.commute *)
 let commute = function
     (T.EXP(T.CONST _), _) -> true
   | (_, T.NAME _) -> true
   | (_, T.CONST _) -> true
   | _ -> false
+(*e: function Canonical.commute *)
 
-
+(*s: function Canonical.linearize *)
 let linearize stm0 =
+
   let rec reorder = function
       T.CALL(_,_,_,_,ptr) as call :: rest ->
         let t = T.TEMP(T.new_temp(), ptr)
@@ -102,6 +109,6 @@ let linearize stm0 =
     | (s,l) -> s :: l
 
  in (* body of linearize *)
-    linear(do_stm stm0, [])
-(*e: canonical.ml *)
+ linear(do_stm stm0, [])
+(*e: function Canonical.linearize *)
 (*e: frontend/canonical.ml *)

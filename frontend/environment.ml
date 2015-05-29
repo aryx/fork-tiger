@@ -27,7 +27,7 @@ type vartype =
 (*s: type Environment.enventry *)
 type 'ty enventry =
     VarEntry of (Frame.access * 'ty)
-  | FunEntry of (Ast.name * string option * Frame.frame * 'ty list * 'ty)
+  | FunEntry of (Tree.label * string option * Frame.frame * 'ty list * 'ty)
 (*e: type Environment.enventry *)
 (*s: type Environment.t *)
 type t = {
