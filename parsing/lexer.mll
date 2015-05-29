@@ -3,38 +3,48 @@
 module E = Error
 module P = Parser
 
+(*s: global Lexer.keyword_table *)
 (* The table of keywords *)
 let keyword_table = Hashtbl.create 22;;
 List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
   [
-   "and",       P.AND;
-   "array",     P.ARRAY;
-   "break",     P.BREAK;
-   "do",        P.DO;
-   "else",      P.ELSE;
-   "end",       P.END;
-   "exception", P.EXCEPTION;
-   "for",       P.FOR;
-   "function",  P.FUNCTION;
-   "handle",    P.HANDLE;
    "if",        P.IF;
-   "in",        P.IN;
-   "let",       P.LET;
-   "nil",       P.NIL;
-   "of",        P.OF;
-   "or",        P.OR;
-   "raise",     P.RAISE;
-   "spawn",     P.SPAWN;
    "then",      P.THEN;
-   "to",        P.TO;
-   "try",       P.TRY;
-   "type",      P.TYPE;
-   "var",       P.VAR;
+   "else",      P.ELSE;
    "while",     P.WHILE;
- ];;
-  
-(* To buffer string literals *)
+   "do",        P.DO;
+   "for",       P.FOR;
+   "to",        P.TO;
+   "end",       P.END;
+   "break",     P.BREAK;
 
+   "function",  P.FUNCTION;
+   "var",       P.VAR;
+   "let",       P.LET;
+   "in",        P.IN;
+
+   "type",      P.TYPE;
+   "of",        P.OF;
+   "array",     P.ARRAY;
+
+   "and",       P.AND;
+   "or",        P.OR;
+
+   "nil",       P.NIL;
+
+   (*s: [[Lexer.keyword_table]] entries *)
+   "exception", P.EXCEPTION;
+
+   "try",       P.TRY;
+   "handle",    P.HANDLE;
+   "raise",     P.RAISE;
+   (*x: [[Lexer.keyword_table]] entries *)
+   "spawn",     P.SPAWN;
+   (*e: [[Lexer.keyword_table]] entries *)
+ ]
+(*e: global Lexer.keyword_table *)
+(*s: function Lexer.escape *)
+(* To buffer string literals *)
 let escape c = 
   match c with
   | 'n' -> '\n'
@@ -42,64 +52,85 @@ let escape c =
   | 'b' -> '\b'
   | 't' -> '\t'
   | _ -> c
-
+(*e: function Lexer.escape *)
+(*s: Lexer globals *)
 let line_num = ref 0
+(*x: Lexer globals *)
+let comment_pos = Stack.create()
+(*x: Lexer globals *)
 let string_start_pos = ref 0
 let buffer = Buffer.create 30
-let comment_pos = Stack.create()
+(*e: Lexer globals *)
 }
 
+(*s: Lexer aliases *)
 let nl = ['\010' '\013']
 let blank = [' ' '\009' '\012']
+(*x: Lexer aliases *)
 let letter = ['A'-'Z' 'a'-'z']
-let number = ['0'-'9']
 let identchar = ['A'-'Z' 'a'-'z' '_' '0'-'9']
+(*x: Lexer aliases *)
+let number = ['0'-'9']
+(*e: Lexer aliases *)
 
+(*s: rule token *)
 rule token = parse
-    nl   { incr line_num;
+  (*s: [[Lexer.token]] cases *)
+  |  nl   { incr line_num;
            E.add_source_mapping (Lexing.lexeme_end lexbuf) !line_num;
            token lexbuf }
   | blank + { token lexbuf }
+  (*x: [[Lexer.token]] cases *)
+  | "/*" { comment lexbuf; token lexbuf }
+  (*x: [[Lexer.token]] cases *)
   | letter identchar *
       { let s = Lexing.lexeme lexbuf in
         try
           Hashtbl.find keyword_table s
         with Not_found ->
-          P.ID s }
-  | number +
-      { P.INT (int_of_string(Lexing.lexeme lexbuf)) }
-  | "\"" 
-      { string_start_pos := Lexing.lexeme_start lexbuf;
-        P.STRING (string lexbuf) }
-  | "/*" { comment lexbuf; token lexbuf }
+          P.ID s 
+      }
+  (*x: [[Lexer.token]] cases *)
+  | "+"  { P.PLUS }
+  | "-"  { P.MINUS }
+  | "*"  { P.TIMES }
+  | "/"  { P.DIVIDE }
+
   | "&"  { P.AND }
+  | "|"  { P.OR }
+
+  | "="  { P.EQ }
+  | "<>" { P.NEQ }
+
+  | ">"  { P.GT }
+  | "<"  { P.LT }
+  | ">=" { P.GE }
+  | "<=" { P.LE }
+  (*x: [[Lexer.token]] cases *)
   | ":=" { P.ASSIGN }
   | ":"  { P.COLON }
   | ","  { P.COMMA }
-  | "/"  { P.DIVIDE }
   | "."  { P.DOT }
-  | "="  { P.EQ }
-  | ">=" { P.GE }
-  | ">"  { P.GT }
-  | "{"  { P.LBRACE }
-  | "["  { P.LBRACK }
-  | "<=" { P.LE }
-  | "("  { P.LPAREN }
-  | "<"  { P.LT }
-  | "-"  { P.MINUS }
-  | "<>" { P.NEQ }
-  | "|"  { P.OR }
-  | "+"  { P.PLUS }
-  | "}"  { P.RBRACE }
-  | "]"  { P.RBRACK }
-  | ")"  { P.RPAREN }
   | ";"  { P.SEMICOLON }
-  | "*"  { P.TIMES }
+
+  | "{"  { P.LBRACE } | "}"  { P.RBRACE }
+  | "["  { P.LBRACK } | "]"  { P.RBRACK }
+  | "("  { P.LPAREN } | ")"  { P.RPAREN }
+  (*x: [[Lexer.token]] cases *)
+  | number +
+      { P.INT (int_of_string(Lexing.lexeme lexbuf)) }
+  (*x: [[Lexer.token]] cases *)
+  | "\"" 
+      { string_start_pos := Lexing.lexeme_start lexbuf;
+        Buffer.clear buffer;
+        P.STRING (string lexbuf) }
+  (*e: [[Lexer.token]] cases *)
   | eof  { P.EOF }
   | _
       { raise (E.Error(E.Illegal_character (Lexing.lexeme_char lexbuf 0),
                        Lexing.lexeme_start lexbuf)) }
-
+(*e: rule token *)
+(*s: rule comment *)
 and comment = parse
     "/*" { Stack.push (Lexing.lexeme_start lexbuf) comment_pos;
            comment lexbuf; }
@@ -111,11 +142,11 @@ and comment = parse
   | eof  { let st = Stack.top comment_pos in
            raise (E.Error(E.Unterminated_comment, st)) }
   | _    { comment lexbuf }
-
+(*e: rule comment *)
+(*s: rule string *)
 and string = parse
     '"'
-      { let s = Buffer.contents buffer in
-        (Buffer.clear buffer; s) }
+      { Buffer.contents buffer }
   | '\\' ['\\' '\'' '"' 'n' 't' 'b' 'r']
       { Buffer.add_char buffer (escape (Lexing.lexeme_char lexbuf 1));
         string lexbuf }
@@ -124,4 +155,5 @@ and string = parse
         string lexbuf }
   | eof
       { raise (E.Error(E.Unterminated_string, !string_start_pos)) }
+(*e: rule string *)
 (*e: lexer.mll *)

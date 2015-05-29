@@ -152,6 +152,7 @@ SRC_VIEWS= \
  backend/codegen.mli\
  backend/codegen.ml\
  main.ml\
+ parsing/lexer.mll
 
 # -lang C
 #alloc.c--
@@ -159,4 +160,13 @@ SRC_VIEWS= \
 #gc.c
 #gc.h
 #runtime.c--
+
+sync::
+	$(MAKE) sync2
+
+sync2:
+	$(MAKE) LANG=ocamlyacc sync3
+
+sync3:
+	$(SYNCWEB) $(SRC_ORIG) parsing/parser.mly
 

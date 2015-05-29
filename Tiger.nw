@@ -32,6 +32,7 @@
 %   the order of the file imposed by the compiler.
 % - I think he often just paraphrases the code. I'd rather comment
 %   subtleties, history notes, design alternatives, bugfixes
+% - TODO more examples of values, like in THIH
 
 %thx to codemap/codegraph/scheck:
 % - TODO use cg to reduce backward deps, introduce globals.c, utils.c,
@@ -396,8 +397,17 @@ and exp =
 % note that VarExp contains the field and array elt access.
 % RecordExp and ArrayExp are "constructors" not accessors.
 
+% =~ rvalue and lvalue
+<<type Ast.var>>=
+and var =
+    SimpleVar    of name * pos
+  | FieldVar     of var * name * pos
+  | SubscriptVar of var * exp * pos
+@
+% recursif! so can do x.f.y.w (which is ((x.f).y).w
+% no pointer here
 
-%Ast.var here? =~ lvalue
+
 %Ast.oper here?
 
 \subsection{Statements}
@@ -1021,7 +1031,7 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
    "nil",       P.NIL;
 
    <<[[Lexer.keyword_table]] entries>>
- ];;
+ ]
 @
 % no pointers, no class, no ADTs, very basic indeed.
 
@@ -1082,6 +1092,7 @@ let number = ['0'-'9']
 <<[[Lexer.token]] cases>>=
 | "\"" 
     { string_start_pos := Lexing.lexeme_start lexbuf;
+      Buffer.clear buffer;
       P.STRING (string lexbuf) }
 @
 
@@ -1155,7 +1166,8 @@ module S = Symbol
 %%
 <<grammar>>
 @ 
-% 63 conflicts??? actually gets 66
+% 63 conflicts??? actually gets 66.
+%todo: remove all those conflicts, no reason.
 
 
 <<grammar>>=
@@ -1173,7 +1185,6 @@ module S = Symbol
 
 /* Types */
 <<rule ty>>
-<<subrules for ty>>
 
 /* Names */
 <<rule id>>
@@ -1249,11 +1260,6 @@ dec:
 @
 
 
-<<rule id>>=
-/* Symbols are created in this rule only */
-id: ID { S.symbol $1 };
-@
-%$
 
 \subsection{Variables}
 
@@ -1265,6 +1271,12 @@ id: ID { S.symbol $1 };
 var_dec:
    VAR id ASSIGN expr          { mkVarDec $2 None $4 }
  | VAR id COLON id ASSIGN expr { mkVarDec $2 (Some $4) $6 }
+@
+%$
+
+<<rule id>>=
+/* Symbols are created in this rule only */
+id: ID { S.symbol $1 };
 @
 %$
 
@@ -1351,15 +1363,6 @@ literal:
 %| VarExp    of var
 %@
 
-% =~ rvalue and lvalue
-<<type Ast.var>>=
-and var =
-    SimpleVar    of name * pos
-  | FieldVar     of var * name * pos
-  | SubscriptVar of var * exp * pos
-@
-% no pointer here
-
 <<rule lvalue>>=
 /* Variables (L-values) 
    This rule is overly explicit to avoid conflicts with 
@@ -1373,6 +1376,7 @@ lvalue:
  | lvalue LBRACK expr RBRACK { mkSubscriptVar $1 $3 }
 @
 %$
+% ??? introduce conflicts no? id DOT id is useless?
 
 \subsection{Arithmetic}
 

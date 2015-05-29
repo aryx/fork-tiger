@@ -3,7 +3,8 @@
 # Generic Literate programming variables
 ##############################################################################
 
-SYNCFLAGS=-md5sum_in_auxfile -less_marks -lang ocaml
+LANG=ocaml
+SYNCFLAGS=-md5sum_in_auxfile -less_marks -lang $(LANG)
 #SYNCFLAGS=-less_marks -lang C
 
 # .opt
@@ -22,7 +23,7 @@ clean::
 	rm -f *.aux *.toc *.log *.brf *.out
 
 
-sync:
+sync::
 	for i in $(SRC_VIEWS); do echo $$i; $(SYNCWEB) $(SRC_ORIG) $$i || exit 1; done 
 
 pdf:
