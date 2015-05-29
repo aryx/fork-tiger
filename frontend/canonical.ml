@@ -108,7 +108,8 @@ let linearize stm0 =
       (T.SEQ(a,b),l) -> linear(a,linear(b,l))
     | (s,l) -> s :: l
 
- in (* body of linearize *)
+ in 
+ (* body of linearize *)
  linear(do_stm stm0, [])
 (*e: function Canonical.linearize *)
 (*e: frontend/canonical.ml *)
