@@ -2,20 +2,20 @@
 (*s: translate.mli *)
 
 (*s: signature functions Translate.xxx *)
-val func          : Tree.exp -> bool -> Tree.exp
+val func          : Tree.exp -> Tree.is_ptr -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val nil           : Tree.exp
 val int_literal   : int -> Tree.exp
 val str_literal   : string -> Tree.exp
 (*x: signature functions Translate.xxx *)
-val field_var     : Tree.exp -> int -> bool -> Tree.exp
+val field_var     : Tree.exp -> int -> Tree.is_ptr -> Tree.exp
 (*x: signature functions Translate.xxx *)
-val subscript_var : Tree.exp -> Tree.exp -> bool -> int -> Tree.exp
+val subscript_var : Tree.exp -> Tree.exp -> Tree.is_ptr -> int -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val simple_var    : Frame.frame -> Frame.access -> Tree.exp
 (*x: signature functions Translate.xxx *)
-val new_record    : (Tree.exp * bool) list -> Tree.exp
-val new_array     : Tree.exp -> Tree.exp -> bool -> Tree.exp
+val new_record    : (Tree.exp * Tree.is_ptr) list -> Tree.exp
+val new_array     : Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val arithmetic    : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
 val compare_int   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
@@ -23,14 +23,14 @@ val compare_str   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val call          : 
   Frame.frame -> Tree.label -> string option -> Frame.frame -> 
-  Tree.exp list -> Tree.label option -> bool -> 
+  Tree.exp list -> Tree.label option -> Tree.is_ptr -> 
   Tree.exp
 (*x: signature functions Translate.xxx *)
 val sequence      : Tree.exp list -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val assign        : Tree.exp -> Tree.exp -> Tree.exp
 (*x: signature functions Translate.xxx *)
-val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> bool -> Tree.exp
+val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val loop          : Tree.exp -> Tree.exp -> Tree.label -> Tree.exp
 (*x: signature functions Translate.xxx *)

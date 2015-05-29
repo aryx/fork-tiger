@@ -1051,8 +1051,12 @@ open Environment
 <<frontend/tree.mli>>=
 <<type Tree.label>>
 <<type Tree.temp>>
+
+<<type Tree.is_ptr>>
+
 <<type Tree.stm>>
 <<type Tree.exp>>
+
 <<types Tree.xxxop>>
 
 <<utility functions>>
@@ -1063,8 +1067,12 @@ module S = Symbol
 
 <<type Tree.label>>
 <<type Tree.temp>>
+
+<<type Tree.is_ptr>>
+
 <<type Tree.stm>>
 <<type Tree.exp>>
+
 <<types Tree.xxxop>>
 
 <<tree.ml>>
@@ -1150,7 +1158,7 @@ val cmm_relop      : relop -> string
 %%in a statement. With each temporary in the list is a boolean flag that
 %%is true only if the temporary variable holds a pointer.
 <<utility functions>>=
-val is_ptr     : exp -> bool
+val is_ptr     : exp -> is_ptr
 <<signature function Tree.find_temps>>
 @ 
 
@@ -1681,10 +1689,10 @@ val new_frame  : Tree.label -> frame -> frame
 %%There are four functions for allocating new parameters, local
 %%variables, temporary variables, and string literals.
 <<frame.mli>>=
-val alloc_param  : frame  -> Tree.label -> bool -> access
-val alloc_local  : frame  -> Tree.label -> bool -> access
+val alloc_param  : frame  -> Tree.label -> Tree.is_ptr -> access
+val alloc_local  : frame  -> Tree.label -> Tree.is_ptr -> access
 
-val alloc_temp   : frame  -> Tree.label -> bool -> unit
+val alloc_temp   : frame  -> Tree.label -> Tree.is_ptr -> unit
 val alloc_string : string -> Tree.label
 @
 

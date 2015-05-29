@@ -3,7 +3,7 @@
 type frame
 (*s: type Frame.access *)
 type access =
-    Stack of frame * int * bool
+    Stack of frame * int * Tree.is_ptr
 (*e: type Frame.access *)
 (*x: frame.mli *)
 val fp    : frame -> Tree.exp
@@ -13,10 +13,10 @@ val level : frame -> int
 val base_frame : frame
 val new_frame  : Tree.label -> frame -> frame
 (*x: frame.mli *)
-val alloc_param  : frame  -> Tree.label -> bool -> access
-val alloc_local  : frame  -> Tree.label -> bool -> access
+val alloc_param  : frame  -> Tree.label -> Tree.is_ptr -> access
+val alloc_local  : frame  -> Tree.label -> Tree.is_ptr -> access
 
-val alloc_temp   : frame  -> Tree.label -> bool -> unit
+val alloc_temp   : frame  -> Tree.label -> Tree.is_ptr -> unit
 val alloc_string : string -> Tree.label
 (*x: frame.mli *)
 (*s: signature function Frame.output_header *)

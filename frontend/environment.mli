@@ -7,8 +7,8 @@ type vartype =
   | STRING
 
   (* aggregate types *)
-  | ARRAY  of vartype
   | RECORD of (Ast.name * vartype) list
+  | ARRAY  of vartype
 
   (* other types *)
   (*s: [[Environment.vartype]] cases *)
@@ -70,10 +70,10 @@ val enter_fun   :
   t -> Ast.name -> string option -> vartype list -> vartype  -> t
 (*e: signature function Environment.enter_fun *)
 (*s: signature function Environment.enter_param *)
-val enter_param : t -> Ast.name -> vartype -> bool -> unit
+val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr-> unit
 (*e: signature function Environment.enter_param *)
 (*s: signature function Environment.enter_local *)
-val enter_local : t -> Ast.name -> vartype -> bool -> Frame.access
+val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
 (*e: signature function Environment.enter_local *)
 (*s: signature function Environment.enter_exn *)
 val enter_exn   : t -> Ast.name -> unit

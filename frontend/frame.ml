@@ -6,11 +6,12 @@ module H = Hashtbl
 (*x: frame.ml *)
 (*s: type Frame.frame *)
 type frame = { 
-  mutable params : (Tree.label * bool) list;
-  mutable vars   : (Tree.label * bool) list;
-  mutable temps  : (Tree.label * bool) list;
+  mutable params : (Tree.label * Tree.is_ptr) list;
+  mutable vars   : (Tree.label * Tree.is_ptr) list;
+  mutable temps  : (Tree.label * Tree.is_ptr) list;
   (*s: [[Frame.frame]] other fields *)
   name           : Tree.label;
+  (*x: [[Frame.frame]] other fields *)
   level          : int;
   (*x: [[Frame.frame]] other fields *)
   mutable size   : int;
@@ -19,7 +20,7 @@ type frame = {
 (*e: type Frame.frame *)
 (*s: type Frame.access *)
 type access =
-    Stack of frame * int * bool
+    Stack of frame * int * Tree.is_ptr
 (*e: type Frame.access *)
 (*x: frame.ml *)
 (*s: function Frame.fp *)

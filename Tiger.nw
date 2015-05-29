@@ -13,7 +13,8 @@
 
 %thx to LP, changed for the better a few things. 
 % - introduce extra types ('name', 'typename') to avoid overload 'symbol'
-%   so clearer types I think (symbol * symbol -> name * typename)
+%   so clearer types I think (symbol * symbol -> name * typename),
+%   introduced also is_ptr
 % - removed Temp useless constructor (also less confusing with Tree.TEMP)
 
 %Actually I re-lpized this document so here is what I think is now better:
@@ -21,7 +22,7 @@
 % - get first an overview of the main functions, the main concepts/types,
 %   so you know where you go. Easier to orientate yourself I think.
 % - LP split things (environment.t, Ast, vartype ...) so can expose
-%   first a simpler version
+%   first a simpler version, for instance present SEQ and ESEQ later
 % - AST is put closer to the grammar (update: actually was bad, but
 %   at least I aspectized a few constructions like Spawn, exns)
 % - I reordered AST elts, for instance CONST is before BINOP.
@@ -48,8 +49,11 @@
 % - scope handling (global for types only, as in ocaml)
 %   alt: mess as in C where structures can be nested which leads to
 %   complex edge cases. KISS!
-% - the main essential algorithms (labelization, frameization, offsetization,
-%   etc)
+% - type names in the right part of types are actually essential, not
+%   just for typedefs, but to handle mutually recursive or recursive
+%   data structure!
+% - the main essential compilation algorithms (labelization, frameization, 
+%   offsetization, etc)
 
 %history LP-ization:
 % - skeleton, mostly copy paste of Template.nw skeleton
@@ -222,17 +226,17 @@ License.
 % to compile is to translate from language A to language B.
 % In our case from Tiger (=~ C), to C-- (=~ Assembly).
 
-% The main compilation algorithms are:
+% The main compilation algorithms in our care are:
 %  - "labelization": structured nested statements (including functions) to 
-%     basic goto/labels (as well as flattenization of nested functions)
+%     basic flat goto/labels 
 %  - "linearization": complex "recursive" expressions to 
-%     basic instructions and the possible introduction of temporary variables
+%     basic flat instructions and the introduction of temporary variables
 %  - "frameization": structured entities with params, arguments, locals, to
 %     basic stack operations
+%  - "offsetization": structured access in records and array to
+%     basic memory offsets (a form of pointer arithmetic)
 %  - "layouting": structured data section and complex data initialization to
 %     basic bytes layout
-%  - "offsetization": structured access in records and array to
-%     basic memory offsets
 
 % Then in addition to that there is the lexing/parsing and typechecking.
 
@@ -269,9 +273,11 @@ end
 %    recursive functions
 %  - no modules (no qualifier), so name resolution simple (even though
 %    scoped/nested language), and no linking really. Compile a single file.
-%  - no float
+%  - no pointers
 %  - no union
 %  - no general polymorphic types (ANY??), have just polymorphic arrays
+%  - no float
+%  - no switch
 %  - no goto/labels (but generate code using goto/labels), goto considered
 %    harmful spirit I guess
 
@@ -280,6 +286,8 @@ end
 %    'var' keyword a la C++ auto
 %  - nested functions (but no closure, can't return or have variable
 %    holding functions)
+%  - statements are expressions. If is an expression :) no need ? : ugly 
+%    syntax.
 
 \section{Output C-- language}
 
@@ -290,7 +298,7 @@ end
 \section{Software architecture}
 
 % classic compiler archi:
-% lexer -> parser -> typechecker&IR-generator -> c-- generator 
+% lexer -> parser -> typechecker & IR-generator -> linearizer -> c-- generator 
 % and on the side have runtime and stdlib "linked" with the generated file.
 
 %###############################################################################
@@ -312,29 +320,28 @@ end
 type pos = int 
 @
 % for error reporting, int = charpos, see Error appendix
-% and the charpos -> line mapping table
 
-%alt: below he has added pos as an extra tuple element. Alternatives are:
-% the 'a wrap tech in pfff, the record_expr in OCaml.nw, the
+% below he has added pos as an extra tuple element.
+%alt: the 'a wrap tech in pfff, the record_expr in OCaml.nw, the
 % extra constructor ExpPos, etc.
 
-%alt: then alt to the line mapping table are:
-% have all info in the wrap in pfff, the linenum.mll in OCaml.nw, etc.
+% then there is an extra mapping table for the charpos -> line
+%alt: have all info in the wrap in pfff, the linenum.mll in OCaml.nw, etc.
 
 \subsection{Names}
 
 <<type Ast.name>>=
 type name = Symbol.symbol
 @
-% see below, =~ unique string
-%less: rename name? or ident?
-
-% for identifiers and also type names
-%less: same namespace?
+% see below, =~ string
+%old: was type symbol = Symbol.symbol but better rename name (or ident)
 
 <<type Ast.typename>>=
 type typename = Symbol.symbol
 @
+
+% same namespace? hmm have tenv and venv later so different namespace
+% and no parsing ambiguity because have 'var' or 'type' before.
 
 \subsection{Definitions}
 % Was Declarations but it's actually more definitions
@@ -348,9 +355,10 @@ type dec =
 <<[[Ast.dec]] cases>>
 @
 % list for TypeDec and FunctionDec so can have mutually recursive things
-% typename option so have a form of type inference!
+% typename option for VarDec so have a form of type inference!
 
-% need typename so need to introduce indirect name for everything
+% note that use typename so it forces to introduce a name for everything,
+% can't do var a : array int; have to introduce intermediate name.
 
 <<type Ast.field>>=
 and field = (name * typename * pos)
@@ -383,6 +391,12 @@ and exp =
 % also include stmt, expression language!
 %ex?
 
+% Nil?
+% CallExp of name, so no complex function call.
+% note that VarExp contains the field and array elt access.
+% RecordExp and ArrayExp are "constructors" not accessors.
+
+
 %Ast.var here? =~ lvalue
 %Ast.oper here?
 
@@ -413,10 +427,11 @@ and ty =
 % namety can be also for builtin types!
 % no size in ArrayTy, lose information when type
 % not a recursive type because force to name every intermediate
+% just array are polymorphics (like in C)
 
 %ex?
 
-% only polymorphic structure is the array (like in C).
+%less: Need Array? can be seen as some form of sugar?
 
 \section{Type system}
 % and the environment?
@@ -429,8 +444,8 @@ type vartype =
   | STRING
 
   (* aggregate types *)
-  | ARRAY  of vartype
   | RECORD of (Ast.name * vartype) list
+  | ARRAY  of vartype
 
   (* other types *)
   <<[[Environment.vartype]] cases>>
@@ -457,16 +472,19 @@ type vartype =
 <<type Symbol.symbol>>=
 type symbol = string * int
 @
-% int? a stamp to make sure things are unique?
-% but need that?
 % will be used for many things, for many "namespaces"
-%  - name (var ident, func ident, field ident, exn ident)
+%  - name (var ident, func ident)
+%  - field ident, 
+%  - exn ident
 %  - typename
-%  - label
-%  - temps
+%  - label in intermediate code
+%  - temps in intermediate code
+%  - frame pointer
+
+% int? a stamp to make sure things are unique?
+%todo: but need that??
 
 %note: no qualifier, no module system, no linking modules.
-
 
 
 % used for gensym like functionality too
@@ -478,6 +496,7 @@ let nextsym = ref 0
 let (hashtable: (string, int) Hashtbl.t) = Hashtbl.create 128
 @
 % get the current stamp given a symbol name
+%todo: need that again??
 
 <<function Symbol.name>>=
 let name = fst
@@ -485,7 +504,7 @@ let name = fst
 <<function Symbol.uid>>=
 let uid  = snd
 @
-%uid? unique id
+%uid = unique id (not user id)
 
 % both a constructor and accessor
 <<function Symbol.symbol>>=
@@ -503,7 +522,6 @@ let symbol name =
 
 \subsection{Symbol table}
 
-% nested scope so have a parent
 <<type Symbol.table>>=
 type 'a table = {
     tbl    : (symbol, 'a) Hashtbl.t;
@@ -536,6 +554,7 @@ let create l =
   l |> List.iter (fun (key, data) -> enter env (symbol key) data);
   env
 @
+%less: rename create_table?
 
 \subsection{Scope managment}
 
@@ -544,7 +563,7 @@ parent : 'a table option;
 @
 
 
-% different from mem() we've seen above
+% different from mem() we've seen above, here we recurse
 <<function Symbol.look>>=
 let rec look env sym =
   try Hashtbl.find env.tbl sym
@@ -569,8 +588,9 @@ let new_scope env = {
 level  : int;
 @
 % level is for? for stack frames because have nested func
-% that need to access data in previous frames so we need
-% to maintain in which level we currently are.
+% we sometimes need to access data in previous frames so we need
+% to maintain in which level we currently are (and store in which
+% level the variable we want to access lives)
 
 %\section{Environment}
 % see later, but more local to one phase, so less need to expose it here
@@ -585,7 +605,6 @@ type stm =
   | EXP    of exp
   | MOVE   of exp * exp
 
-  | SEQ    of stm * stm
   | LABEL  of label
   | JUMP   of exp
   | CJUMP  of exp * label * label
@@ -594,9 +613,17 @@ type stm =
 @
 % CJUMP = conditional jmp
 % JUMP will be at the end of only a label or a const no?
+% MOVE is src dst (src -> dst)
 %compile: diff with before? have labels and jumps! so closer
 % to assembly. No more if, while, for.
 % also introduce a real stm type! start split for real expr and stmt.
+
+
+% In the end we will generate for a function a list of stm.
+% See linearize type.
+
+%less: What EXP is for? dead code? for function call that don't return
+% anything? could remove?
 
 <<type Tree.label>>=
 type label = Symbol.symbol
@@ -610,17 +637,28 @@ and exp =
   | RELOP of relop * exp * exp
 
   | NAME  of label
-  | TEMP  of temp * bool
-  | MEM   of exp * bool (* dereference? *x ? *)
+  | TEMP  of temp * is_ptr
+  | MEM   of exp * is_ptr (* dereference? *x ? *)
 
-  | ESEQ  of stm * exp
-  | CALL  of exp * exp list * string option * label option * bool
+  | CALL  of exp * exp list * string option * label option * is_ptr
+  <<[[Tree.exp]] cases>>
 @
 %compile: diff with before? Not much yet.
 % hmm not really linearized. 
-% unless linearize() actually (ab)use the same structure but with
+% linearize() actually (ab)use the same structure but with
 % extra postconditions on the form of the tree.
-%ugly to have ESEQ here, can have many different forms, EXP ESEQ SEQ ESEQ ...
+
+% so foo(1,2) will be translated in 
+% CALL (NAME "foo", [CONST 1; CONST 2]).
+
+
+<<type Tree.is_ptr>>=
+type is_ptr = bool
+@
+% important in compilation context, will see later, no need to track
+% full type of data but important dichotomy to track is whether
+% pointer or word.
+%todo: why?
 
 <<type Tree.temp>>=
 and  temp  = Symbol.symbol
@@ -634,11 +672,28 @@ and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE   | LT | GT | LE | GE
 @
 
+%ex:
+
+
+<<[[Tree.stm]] cases>>=
+| SEQ    of stm * stm
+@
+% this will disappear after linearization
+
+<<[[Tree.exp]] cases>>=
+| ESEQ  of stm * exp
+@
+% Ugly to have ESEQ here, can have many different forms, EXP ESEQ SEQ ESEQ ...
+% But Expression sequence is convenient because we want many of our
+% function to return an expression. But this will be linearized
+% also and removed.
+
 % actually after linearize have this invariant:
 %%The tree contains no [[SEQ]] or [[ESEQ]] nodes.
 % which is why linearize return a stm list;
 %%The parent of every [[CALL]] node is either an [[EXP]] or a
 %%[[MOVE(...,TEMP _)]].
+
 
 \section{Stack frames}
 
@@ -647,15 +702,13 @@ and relop = EQ | NE   | LT | GT | LE | GE
 
 <<type Frame.frame>>=
 type frame = { 
-  mutable params : (Tree.label * bool) list;
-  mutable vars   : (Tree.label * bool) list;
-  mutable temps  : (Tree.label * bool) list;
+  mutable params : (Tree.label * Tree.is_ptr) list;
+  mutable vars   : (Tree.label * Tree.is_ptr) list;
+  mutable temps  : (Tree.label * Tree.is_ptr) list;
   <<[[Frame.frame]] other fields>>
 }
 @
 % the 3 essential things in a stack! params, locals, temps
-% bool? is_ptr
-%less: typedef!
 % note that mutable!
 
 % A function is really a linearized body and frame information.
@@ -663,6 +716,8 @@ type frame = {
 %XXX
 <<[[Frame.frame]] other fields>>=
 name           : Tree.label;
+@
+<<[[Frame.frame]] other fields>>=
 level          : int;
 @
 
@@ -742,9 +797,10 @@ let compile ch =
   let base_env = Environment.new_env base_tenv base_venv in
   let xs = Semantics.translate base_env ast in
 
-  (* compiling part2 and generating *)
   <<[[Main.compile()]] generate headers>>
   <<[[Main.compile()]] generate data before functions>>
+
+  (* compiling part2 and generating *)
   xs |> List.iter emit_function 
 @
 
@@ -783,9 +839,7 @@ let emit_function (frm, ex) =
   <<[[Main.emit_function()]] if dump expression tree>>
   let ltree = Canonical.linearize (Tree.EXP ex) in
   <<[[Main.emit_function()]] if dump linearized tree>>
-  ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
-    Frame.alloc_temp frm x p
-  );
+  <<[[Main.emit_function()]] adjust frm with temporaries in ltree>>
 
   (* generating *)
   Frame.output_header frm;
@@ -799,12 +853,6 @@ val linearize : Tree.stm -> Tree.stm list
 % but should use another DS where can more clearly see the restrictions
 % on the shape of the tree
 
-<<signature function Tree.find_temps>>=
-val find_temps : stm list -> (temp * bool) list
-@
-% bool? is_pointer
-%less: typedef?
-%why do that at the end? why not call those alloc_temp before?
 
 <<signature function Frame.output_header>>=
 val output_header  : frame -> unit
@@ -816,8 +864,6 @@ val output_footer  : frame -> unit
 <<signature Codegen.emit>>=
 val emit               : Tree.stm list -> unit
 @
-
-
 
 
 
@@ -1811,12 +1857,12 @@ let new_symbol prefix =
 
 
 <<signature function Environment.enter_param>>=
-val enter_param : t -> Ast.name -> vartype -> bool -> unit
+val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr-> unit
 @
 <<signature function Environment.enter_local>>=
-val enter_local : t -> Ast.name -> vartype -> bool -> Frame.access
+val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
 @
-% bool = is_ptr, useful info for the compilation (but not for typechecking)
+% is_ptr is useful info for the compilation (but not for typechecking)
 % return unit because the info will be added in the frame of Env.t
 
 <<function Environment.enter_param>>=
@@ -2299,7 +2345,7 @@ let is_ptr = function
 \section{Function definitions}
 
 <<signature functions Translate.xxx>>=
-val func          : Tree.exp -> bool -> Tree.exp
+val func          : Tree.exp -> Tree.is_ptr -> Tree.exp
 @
 <<function Translate.func>>=
 let func ex ptr =
@@ -2373,7 +2419,7 @@ let alloc_string s =
 \subsubsection{Offsetization}
 
 <<signature functions Translate.xxx>>=
-val field_var     : Tree.exp -> int -> bool -> Tree.exp
+val field_var     : Tree.exp -> int -> Tree.is_ptr -> Tree.exp
 @
 <<function Translate.field_var>>=
 let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
@@ -2405,7 +2451,7 @@ let  ws    = Sys.word_size / 8
 
 
 <<signature functions Translate.xxx>>=
-val subscript_var : Tree.exp -> Tree.exp -> bool -> int -> Tree.exp
+val subscript_var : Tree.exp -> Tree.exp -> Tree.is_ptr -> int -> Tree.exp
 @
 <<function Translate.subscript_var>>=
 let subscript_var e1 e2 ptr pos =
@@ -2434,7 +2480,7 @@ let simple_var frm = function
 % alloc_xxx
 <<type Frame.access>>=
 type access =
-    Stack of frame * int * bool
+    Stack of frame * int * Tree.is_ptr
 @
 %old:  | Temp  of Tree.label
 % but useless because can't have Temp in Translation phase.
@@ -2487,8 +2533,8 @@ let fp    frm =
 \subsection{Constructions}
 
 <<signature functions Translate.xxx>>=
-val new_record    : (Tree.exp * bool) list -> Tree.exp
-val new_array     : Tree.exp -> Tree.exp -> bool -> Tree.exp
+val new_record    : (Tree.exp * Tree.is_ptr) list -> Tree.exp
+val new_array     : Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 @
 
 <<function Translate.new_record>>=
@@ -2538,7 +2584,7 @@ val compare_str   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
 <<signature functions Translate.xxx>>=
 val call          : 
   Frame.frame -> Tree.label -> string option -> Frame.frame -> 
-  Tree.exp list -> Tree.label option -> bool -> 
+  Tree.exp list -> Tree.label option -> Tree.is_ptr -> 
   Tree.exp
 @
 <<function Translate.call>>=
@@ -2607,7 +2653,7 @@ let assign v e =
 % note that if are expressions in Tiger!
 
 <<signature functions Translate.xxx>>=
-val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> bool -> Tree.exp
+val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 @
 
 <<function Translate.ifexp>>=
@@ -2788,6 +2834,20 @@ let ( % ) x y =
 <<constant Canonical.nop>>=
 let nop = T.EXP(T.CONST 0)
 @
+
+
+
+<<[[Main.emit_function()]] adjust frm with temporaries in ltree>>=
+ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
+  Frame.alloc_temp frm x p
+);
+@
+
+<<signature function Tree.find_temps>>=
+val find_temps : stm list -> (temp * is_ptr) list
+@
+%why do that at the end? why not call those alloc_temp before?
+
 
 \chapter{[[C--]] Generation}
 

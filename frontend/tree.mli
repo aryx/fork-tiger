@@ -5,17 +5,23 @@ type label = Symbol.symbol
 (*s: type Tree.temp *)
 and  temp  = Symbol.symbol
 (*e: type Tree.temp *)
+
+(*s: type Tree.is_ptr *)
+type is_ptr = bool
+(*e: type Tree.is_ptr *)
+
 (*s: type Tree.stm *)
 type stm =
   | EXP    of exp
   | MOVE   of exp * exp
 
-  | SEQ    of stm * stm
   | LABEL  of label
   | JUMP   of exp
   | CJUMP  of exp * label * label
   | RET    of exp
   (*s: [[Tree.stm]] cases *)
+  | SEQ    of stm * stm
+  (*x: [[Tree.stm]] cases *)
     | CONT   of label * label list
     | TRY    of label
     | TRYEND of label
@@ -28,12 +34,15 @@ and exp =
   | RELOP of relop * exp * exp
 
   | NAME  of label
-  | TEMP  of temp * bool
-  | MEM   of exp * bool (* dereference? *x ? *)
+  | TEMP  of temp * is_ptr
+  | MEM   of exp * is_ptr (* dereference? *x ? *)
 
+  | CALL  of exp * exp list * string option * label option * is_ptr
+  (*s: [[Tree.exp]] cases *)
   | ESEQ  of stm * exp
-  | CALL  of exp * exp list * string option * label option * bool
+  (*e: [[Tree.exp]] cases *)
 (*e: type Tree.exp *)
+
 (*s: types Tree.xxxop *)
 and binop = PLUS | MINUS | MUL | DIV
 and relop = EQ | NE   | LT | GT | LE | GE
@@ -47,9 +56,9 @@ val relop_inverse  : relop -> relop
 val cmm_binop      : binop -> string
 val cmm_relop      : relop -> string
 (*x: utility functions *)
-val is_ptr     : exp -> bool
+val is_ptr     : exp -> is_ptr
 (*s: signature function Tree.find_temps *)
-val find_temps : stm list -> (temp * bool) list
+val find_temps : stm list -> (temp * is_ptr) list
 (*e: signature function Tree.find_temps *)
 (*x: utility functions *)
 val print_stm : stm -> unit

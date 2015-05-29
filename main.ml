@@ -55,9 +55,11 @@ let emit_function (frm, ex) =
   if !Option.dump_lext 
   then List.iter Tree.print_stm ltree;
   (*e: [[Main.emit_function()]] if dump linearized tree *)
+  (*s: [[Main.emit_function()]] adjust frm with temporaries in ltree *)
   ltree |> Tree.find_temps |> List.iter (fun (x,p) -> 
     Frame.alloc_temp frm x p
   );
+  (*e: [[Main.emit_function()]] adjust frm with temporaries in ltree *)
 
   (* generating *)
   Frame.output_header frm;
@@ -79,13 +81,14 @@ let compile ch =
   let base_env = Environment.new_env base_tenv base_venv in
   let xs = Semantics.translate base_env ast in
 
-  (* compiling part2 and generating *)
   (*s: [[Main.compile()]] generate headers *)
   Codegen.output_file_header imports;
   (*e: [[Main.compile()]] generate headers *)
   (*s: [[Main.compile()]] generate data before functions *)
   Frame.output_strings();
   (*e: [[Main.compile()]] generate data before functions *)
+
+  (* compiling part2 and generating *)
   xs |> List.iter emit_function 
 (*e: function Main.compile *)
 

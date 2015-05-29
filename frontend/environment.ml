@@ -12,8 +12,8 @@ type vartype =
   | STRING
 
   (* aggregate types *)
-  | ARRAY  of vartype
   | RECORD of (Ast.name * vartype) list
+  | ARRAY  of vartype
 
   (* other types *)
   (*s: [[Environment.vartype]] cases *)
