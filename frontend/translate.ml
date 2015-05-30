@@ -71,7 +71,7 @@ let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 
 (*s: function Translate.goto *)
 let goto lbl  = 
-  T.JUMP (T.NAME lbl)
+  T.JUMP lbl
 (*e: function Translate.goto *)
 (*s: function Translate.arrow *)
 let ( =>) e v = T.MOVE (e, v)

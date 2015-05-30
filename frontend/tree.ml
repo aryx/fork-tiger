@@ -18,7 +18,7 @@ type stm =
   | MOVE   of exp * exp
 
   | LABEL  of label
-  | JUMP   of exp
+  | JUMP   of label
   | CJUMP  of exp * label * label
   | RET    of exp
   (*s: [[Tree.stm]] cases *)
@@ -101,7 +101,7 @@ let find_temps stmts =
       SEQ(a,b)     -> stm (stm set a) b
     | LABEL _      -> set
     | CONT _       -> set
-    | JUMP e       -> exp set e
+    | JUMP _       -> set
     | CJUMP(e,_,_) -> exp set e
     | MOVE(a,b)    -> exp (exp set a) b
     | EXP e        -> exp set e
@@ -133,7 +133,7 @@ let print_stm =
     | TRYEND l     -> iprintf d "TRYEND:%s\n" (S.name l)
     | SEQ(a,b)     -> iprintf d "SEQ:\n";     prstm(d+1) a; prstm(d+1) b
     | MOVE(a,b)    -> iprintf d "MOVE:\n";    prexp(d+1) a; prexp(d+1) b
-    | JUMP e       -> iprintf d "JUMP:\n";    prexp(d+1) e
+    | JUMP l       -> iprintf d "JUMP:%s\n"   (S.name l)
     | EXP e        -> iprintf d "EXP:\n";     prexp(d+1) e
     | RET e        -> iprintf d "RET:\n";     prexp(d+1) e
     | CJUMP(a,t,f) -> iprintf d "CJUMP:\n";   prexp(d+1) a;

@@ -16,7 +16,7 @@ type stm =
   | MOVE   of exp * exp
 
   | LABEL  of label
-  | JUMP   of exp
+  | JUMP   of label
   | CJUMP  of exp * label * label
   | RET    of exp
   (*s: [[Tree.stm]] cases *)

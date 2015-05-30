@@ -18,6 +18,7 @@
 % - removed Temp useless constructor (also less confusing with Tree.TEMP),
 %   removed ast_node (EXP | DEC) and passed env explicitly to trdec and trexp,
 %   also Semantics.EXP was confusing with Tree.EXP
+% - simplified JUMP to take directly a label, not an exp
 % - rename acc to access (acc is usually for accumulator in ocaml)
 
 %Actually I re-lpized this document so here is what I think is now better:
@@ -624,17 +625,17 @@ type stm =
   | MOVE   of exp * exp
 
   | LABEL  of label
-  | JUMP   of exp
+  | JUMP   of label
   | CJUMP  of exp * label * label
   | RET    of exp
   <<[[Tree.stm]] cases>>
 @
 %less: rename to instr instead?
-%nites:
+%notes:
 % CJUMP = conditional jmp
-% JUMP will be at the end of only a label or a const no?
-% if always a NAME, could specialize no? JUMP of label
 % MOVE is src dst (src -> dst)
+%old: was JUMP of exp, but in the end it was only a NAME label
+% so I specialized the type
 %compile: diff with before? have labels and jumps! so closer
 % to assembly. No more if, while, for.
 % also introduce a real stm type! start split for real expr and stmt.
@@ -2800,6 +2801,7 @@ let ifexp test thn els ptr =
 let goto lbl  = 
   T.JUMP (T.NAME lbl)
 @
+%old: T.JUMP (T.NAME lbl)
 
 \subsection{Loops}
 

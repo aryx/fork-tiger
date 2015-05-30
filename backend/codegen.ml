@@ -22,7 +22,7 @@ let emit exl =
         T.LABEL l            -> spf "%s:" (S.name l)
       | T.CONT(l,ls)         -> spf "continuation %s(%s):"
                                 (S.name l) (join_map S.name ls)
-      | T.JUMP e             -> spf "goto %s;" (valexp e)
+      | T.JUMP l             -> spf "goto %s;" (S.name l)
       | T.CJUMP(ex, l1, l2)  -> spf "if(%s) {goto %s;} else {goto %s;}"
                                 (boolexp ex) (S.name l1) (S.name l2)
       | T.MOVE(e1, e2)       -> spf "%s = %s;" (valexp e2) (valexp e1)

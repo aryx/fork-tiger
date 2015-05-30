@@ -50,9 +50,8 @@ let linearize stm0 =
   and do_stm = function
       T.SEQ(a,b) ->
         do_stm a % do_stm b
-    | T.JUMP e ->
-        let f l = T.JUMP (List.hd l)
-        in reorder_stm([e], f)
+    | T.JUMP l ->
+        T.JUMP l
     | T.CJUMP(e,t,f) ->
         let f l = T.CJUMP(List.hd l, t, f)
         in reorder_stm([e], f)
