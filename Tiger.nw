@@ -299,6 +299,8 @@ end
 
 % =~ Assembly
 
+% ex of output for hello.tig, or fact.tig?
+
 \section{Code organization}
 
 \section{Software architecture}
@@ -1163,7 +1165,7 @@ let escape c =
   | _ -> c
 @
 
-
+%todo: Illegal_escape?
 
 
 
@@ -2985,6 +2987,7 @@ val find_temps : stm list -> (temp * is_ptr) list
 
 
 \chapter{[[C--]] Generation}
+%todo: or change to assembly ARM generation!
 
 \section{File header}
 
@@ -3058,7 +3061,8 @@ let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 <<[[Environment.vartype]] cases>>=
 | NAME   of Ast.typename
 @
-% actually necessary to support mutually recursive type too!
+% actually necessary to support mutually recursive type too
+% (actually for recursive types in struct too)
 
 
 <<function Semantics.base_type>>=
@@ -3069,6 +3073,7 @@ let rec base_type env = function
       )
   | x -> x
 @
+% do it just one level, enough to not have a NAME
 
 <<function Semantics.lookup_base_type>>=
 let lookup_base_type env sym pos =
@@ -3337,6 +3342,8 @@ let parse_error s =
   let pos = getpos() in
   raise (E.Error(E.Syntax_error, pos))
 @
+%todo: dead?
+%less: inline? provide value?
 
 <<function Error.type_err>>=
 let type_err  pos msg = 
@@ -3346,6 +3353,7 @@ let type_err  pos msg =
 let undefined pos msg = 
   raise(Error(Undefined_symbol msg, pos))
 @
+%todo: inline, used just once
 <<function Error.internal>>=
 let internal      msg = 
   raise(Error(Internal_error msg, 0))
@@ -3375,15 +3383,15 @@ let handle_exception (ex,pos) =
 % type error dumper, should be the string in Type_error of string above
 <<function Semantics.type_name>>=
 let rec type_name = function
-    RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
-                "record {" l) ^ "}"
   | NIL      -> "nil"
   | INT      -> "int"
   | STRING   -> "string"
-  | ARRAY vt -> "array of " ^ (type_name vt)
-  | NAME(s)  -> "named type " ^ (S.name s)
   | UNIT     -> "unit"
   | ANY      -> "any"
+  | NAME(s)  -> "named type " ^ (S.name s)
+  | RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
+                "record {" l) ^ "}"
+  | ARRAY vt -> "array of " ^ (type_name vt)
 @ 
 
 \section{Line position}
@@ -3392,11 +3400,8 @@ let rec type_name = function
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
   if line > 0 
-  then
-    Printf.fprintf stderr
-      "%s:%d,%d: %s\n" !Option.file line col msg
-  else
-    Printf.fprintf stderr "%s: %s\n" prefix msg
+  then Printf.fprintf stderr "%s:%d,%d: %s\n" !Option.file line col msg
+  else Printf.fprintf stderr "%s: %s\n" prefix msg
 @
 
 <<function Error.warning>>=
@@ -3408,7 +3413,8 @@ let warning = err_msg "Warning"
 let line_number pos =
   let rec line ln last_p = function
       (p,l) :: rest ->
-        if p > pos then (l, pos - last_p)
+        if p > pos 
+        then (l, pos - last_p)
         else line l p rest
     | [] -> (ln + 1, pos - last_p)
   in line 0 0 source_map.sm
