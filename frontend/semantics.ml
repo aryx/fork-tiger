@@ -124,8 +124,8 @@ let rec trexp env = function
         )
   (*x: [[Semantics.trans.trexp()]] cases *)
     | A.OpExp(left, oper, right, pos) ->
-        let lexp,lty = trexp env left
-        and rexp,rty = trexp env right in
+        let lexp,lty = trexp env left in
+        let rexp,rty = trexp env right in
         check_type_eq pos "Incompatible types %s,%s" lty rty;
         let trans_fn =
           match oper with

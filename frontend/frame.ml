@@ -12,9 +12,9 @@ type frame = {
   (*s: [[Frame.frame]] other fields *)
   name           : Tree.label;
   (*x: [[Frame.frame]] other fields *)
-  level          : int;
-  (*x: [[Frame.frame]] other fields *)
   mutable size   : int;
+  (*x: [[Frame.frame]] other fields *)
+  level          : int;
   (*e: [[Frame.frame]] other fields *)
 }
 (*e: type Frame.frame *)

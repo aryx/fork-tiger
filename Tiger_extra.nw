@@ -1340,7 +1340,10 @@ module F = Frame
 <<function Translate.subscript_var>>
 <<function Translate.simple_var>>
 
-<<operator expressions(translate.nw)>>
+<<function Translate.arithmetic>>
+<<function Translate.compare_int>>
+<<function Translate.compare_str>>
+
 <<function Translate.assign>>
 <<function Translate.ifexp>>
 <<function Translate.loop>>
@@ -1392,11 +1395,11 @@ module F = Frame
 %%and statements. For the binary operators, we simplify expressions when
 %%possible.
 <<utilities>>=
-let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
-let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
-let goto lbl  = T.JUMP (T.NAME lbl)
-let ( =>) e v = T.MOVE (e, v)
+<<constant Translate.space_end>>
+<<constant Translate.alloc_ptr>>
 
+<<function Translate.goto>>
+<<function Translate.arrow>>
 <<function Translate.simplify>>
 <<function Translate.angles_xxx>>
 @
@@ -1462,39 +1465,14 @@ let ( =>) e v = T.MOVE (e, v)
 %%comparison, and string comparison. Arithmetic operations are
 %%translated into [[BINOP]] nodes, and integer comparisons are
 %%translated into [[RELOP]] nodes.
-<<operator expressions(translate.nw)>>=
-let arithmetic op ex1 ex2 =
-  let oper = 
-    match op with
-      A.PlusOp   -> T.PLUS
-    | A.MinusOp  -> T.MINUS
-    | A.TimesOp  -> T.MUL
-    | A.DivideOp -> T.DIV
-    | _          -> E.internal "relop used as binop"
-  in 
-  T.BINOP(oper, ex1, ex2)
+%<<operator expressions(translate.nw)>>=
 
-let compare_int op ex1 ex2 =
-  let oper = match op with
-    A.EqOp  -> T.EQ
-  | A.NeqOp -> T.NE
-  | A.LtOp  -> T.LT
-  | A.LeOp  -> T.LE
-  | A.GtOp  -> T.GT
-  | A.GeOp  -> T.GE
-  | _       -> E.internal "binop used as relop"
-  in T.RELOP(oper, ex1, ex2)
-@
 
 %%String comparisons are translated into integer comparisons by first
 %%calling the standard library function [[compare_str]], which returns
 %%-1, 0, or 1. The result of this function is then compared to zero
 %%using an integer comparison.
-<<operator expressions(translate.nw)>>=
-let compare_str op ex1 ex2 =
-  let result = ext_c_call "compare_str" [ex1;ex2] in
-  compare_int op result (T.CONST 0)
-@
+%<<operator expressions(translate.nw)>>=
 
 %%\paragraph{Conditionals}
 %%To translate an if expression, we create a new temporary variable
@@ -1674,6 +1652,7 @@ val fp    : frame -> Tree.exp
 val name  : frame -> Tree.label
 val level : frame -> int
 @
+
 
 %%There are two functions for creating new stack frames. The
 %%[[base_frame]] function will create a stack frame for a top-level

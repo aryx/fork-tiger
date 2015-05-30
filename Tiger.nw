@@ -15,9 +15,10 @@
 % - introduce extra types ('name', 'typename') to avoid overload 'symbol'
 %   so clearer types I think (symbol * symbol -> name * typename),
 %   introduced also 'is_ptr' instead of bool,
-% - removed Temp useless constructor (also less confusing with Tree.TEMP)
-% - rename acc to access, acc has too much meaning usually for accumulator
-% - removed ast_node type, pass env explicitly to trdec and trexp
+% - removed Temp useless constructor (also less confusing with Tree.TEMP),
+%   removed ast_node (EXP | DEC) and passed env explicitly to trdec and trexp,
+%   also Semantics.EXP was confusing with Tree.EXP
+% - rename acc to access (acc is usually for accumulator in ocaml)
 
 %Actually I re-lpized this document so here is what I think is now better:
 % - get first an overview of all the core DS
@@ -184,14 +185,15 @@ a compiler.
 Why? Because I think it makes you a better programmer if
 you fully understand how things work under the hood.
 
-% choose tiger because very simple language but has lots of the
-% essential features of a language like C or pascal and can showcase
-% the essential compilation algorithms.
+% choose tiger because minimalistic/teaching language while at the same time
+% has most of the essential features of a language like C or pascal 
+% and so can showcase the essential compilation algorithms.
+
 
 %% vs original tigerc.pdf manual? no file/module fixed boundaries, so
 %% can LP-split and aspectize AST elements for instances.
 
-%% Hmm not redundant with Compiler.nw and even now OCaml.nw? Maybe but
+%% Hmm is it redundant with Compiler.nw and even now OCaml.nw? Maybe but
 %% maybe it can help me to first have a cleaner and simpler compiler.
 %% So maybe making this manual can improve later Compiler.nw and OCaml.nw.
 %% Can also see a simpler GC, which again can improve later OCaml.nw.
@@ -243,6 +245,8 @@ License.
 %     basic bytes layout
 
 % Then in addition to that there is the lexing/parsing and typechecking.
+% Then at runtime there is also memory allocation helpers and garbage
+% collection.
 
 \section{[[tigerc]] services}
 
@@ -272,18 +276,15 @@ end
 
 \section{Input Tiger language}
 
-% toy language.
+% toy language:
 %  - no declarations (no header file), a single file with possibly mutually
-%    recursive functions
+%    recursive functions/types definitions
 %  - no modules (no qualifier), so name resolution simple (even though
 %    scoped/nested language), and no linking really. Compile a single file.
-%  - no pointers
-%  - no union
-%  - no general polymorphic types (ANY??), have just polymorphic arrays
-%  - no float
-%  - no switch
-%  - no goto/labels (but generate code using goto/labels), goto considered
-%    harmful spirit I guess
+%  - no pointers, no union, no general polymorphic types (ANY??), 
+%    have just polymorphic arrays, no float
+%  - no switch, no goto/labels (but generate code using goto/labels), 
+%    goto considered harmful spirit I guess
 
 % but has a few nice things:
 %  - limited form of type inference :) no need to declare type of VarDec
@@ -291,7 +292,7 @@ end
 %  - nested functions (but no closure, can't return or have variable
 %    holding functions)
 %  - statements are expressions. If is an expression :) no need ? : ugly 
-%    syntax.
+%    C syntax.
 
 \section{Output C-- language}
 
@@ -393,6 +394,7 @@ and exp =
 <<[[Ast.exp]] cases>>
 @
 % also include stmt, expression language!
+% no bool :( no float
 %ex?
 
 % Nil?
@@ -464,6 +466,7 @@ type vartype =
   <<[[Environment.vartype]] cases>>
 @ 
 % this one is recursive! expanded the intermediate names
+% no bool :(
 
 <<[[Environment.vartype]] cases>>=
 | NIL
@@ -630,6 +633,7 @@ type stm =
 %nites:
 % CJUMP = conditional jmp
 % JUMP will be at the end of only a label or a const no?
+% if always a NAME, could specialize no? JUMP of label
 % MOVE is src dst (src -> dst)
 %compile: diff with before? have labels and jumps! so closer
 % to assembly. No more if, while, for.
@@ -664,8 +668,9 @@ and exp =
   | CALL  of exp * exp list * string option * label option * is_ptr
   <<[[Tree.exp]] cases>>
 @
-%compile: diff with before? Not much yet.
-% hmm not really linearized. 
+%compile: diff with before? Not much yet. hmm offsetization so no
+%  Record or array access. Transformed in MEM and BINOP +.
+% hmm not really linearized yet.
 % linearize() actually (ab)use the same structure but with
 % extra postconditions on the form of the tree.
 
@@ -707,6 +712,8 @@ and relop = EQ | NE   | LT | GT | LE | GE
 %%[[MOVE(...,TEMP _)]].
 
 \subsection{Pointers}
+% not in source language, but concept used in intermediate language.
+% Do pointer arithmetic with MEM and offset and dereference.
 
 <<type Tree.is_ptr>>=
 type is_ptr = bool
@@ -714,7 +721,7 @@ type is_ptr = bool
 % important in compilation context, will see later, no need to track
 % full type of data but important dichotomy to track is whether
 % pointer or word.
-%todo: why?
+%todo: why? for gc support in c--?
 
 <<function Semantics.is_ptr>>=
 let is_ptr = function
@@ -755,9 +762,7 @@ type frame = {
 <<[[Frame.frame]] other fields>>=
 name           : Tree.label;
 @
-<<[[Frame.frame]] other fields>>=
-level          : int;
-@
+
 
 
 
@@ -1740,15 +1745,16 @@ let translate env ast =
 <<function Semantics.trans.trvar>>
 @
 
-% spirit of the typechecker/generator is to go down recursively
+% Spirit of the typechecker/generator is to go down recursively
 % returning each time a pair with transformed ast and type of ast
-% at this level
+% at this level. Simple. Compositional. And need also to take
+% care in env of the type of the entities (locals, funcs, params, types,
+% fields, etc).
 
 <<function Semantics.trans.trexp>>=
 let rec trexp env = function
   <<[[Semantics.trans.trexp()]] cases>>
 @
-
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.LetExp(decls, body, _) ->
@@ -1757,7 +1763,11 @@ let rec trexp env = function
       let bex,bty = trexp env' body in
       (Trans.sequence (decs @ [bex]), bty)
 @ 
-%less: why not call trdec here? because trdec does not take an env!
+% will see new_scope below
+
+
+
+
 
 
 % code generation stuff, but important to see now.
@@ -2185,7 +2195,7 @@ and trvar env = function
       let typ = base_type env fld in
       (Trans.field_var exp !offset (is_ptr typ), typ)
 @
-% offsetization here
+% offsetization part1 here
 
 <<[[Semantics.trans.trvar()]] cases>>=
   | A.SubscriptVar(var, exp, pos) ->
@@ -2250,8 +2260,8 @@ in
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.OpExp(left, oper, right, pos) ->
-      let lexp,lty = trexp env left
-      and rexp,rty = trexp env right in
+      let lexp,lty = trexp env left in
+      let rexp,rty = trexp env right in
       check_type_eq pos "Incompatible types %s,%s" lty rty;
       let trans_fn =
         match oper with
@@ -2269,6 +2279,8 @@ in
             )
       in (trans_fn oper lexp rexp, INT)
 @
+%less: could put trans_fn stuff later
+% no bool :( so all lead to INT, ugly
 
 \subsection{Function calls}
 
@@ -2292,6 +2304,7 @@ in
           E.type_err pos (S.name sym ^ " is not a function")
       )
 @
+% pass frame of calling context, and frame of function definition
 
 \subsection{Local entity definitions}
 % could be with definitions
@@ -2339,6 +2352,7 @@ in
       let typ = base_type env tty in
       (Trans.ifexp iex tex eex (is_ptr typ), typ)
 @
+% ugly check_type_int, should be check_type_bool!!
 
 \subsection{Loops}
 
@@ -2399,9 +2413,9 @@ break_label : Tree.label option;
 val func          : Tree.exp -> Tree.is_ptr -> Tree.exp
 @
 <<function Translate.func>>=
-let func ex ptr =
+let func body ptr =
   let tmp = temp ptr in
-  eseq nil [ex => tmp; T.RET tmp]
+  eseq nil [body => tmp; T.RET tmp]
 @
 % function foo() { 1 } ==> tmp_ = 1; return tmp_
 %less: rename func_body? 
@@ -2419,12 +2433,15 @@ let temp ptr =
 let new_temp () = 
   S.new_symbol "temp"
 @
+% will see find_temps() later to allocate all of them in the frame
+% less: but could do it here no?
 
 <<function Translate.eseq>>=
 let eseq exp stmts = 
   T.ESEQ (seq stmts, exp)
 @
 % expression sequence
+%less: change order? eseq stmts exp ? more coherent?
 
 <<function Translate.seq>>=
 let rec seq = function
@@ -2433,6 +2450,12 @@ let rec seq = function
   | x :: rest -> T.SEQ(x, seq rest)
 @ 
 % statement sequence
+
+
+<<function Translate.arrow>>=
+let ( =>) e v = T.MOVE (e, v)
+@
+% why not
 
 \section{Expressions}
 
@@ -2509,7 +2532,8 @@ let subscript_var e1 e2 ptr pos =
   let offset = (e2 <+> T.CONST 1) <*> T.CONST ws in
   eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
 @
-
+% nice, bound checks.
+% will see ext_c_call below
 
 
 \subsection{Variable and frameization}
@@ -2558,6 +2582,11 @@ mutable size   : int;
 %todo: who will use that?
 
 
+<<[[Frame.frame]] other fields>>=
+level          : int;
+@
+% get the level as copy of current scope in environment symbol table level
+
 <<function Translate.getfp>>=
 let getfp frm parent_frm =
   let diff = F.level frm  - F.level parent_frm in
@@ -2569,12 +2598,15 @@ let getfp frm parent_frm =
   deref diff
 @
 % nested function!
+%less: rename frm to current_frm and parent_frm to entity_frm
 
 <<function Frame.fp>>=
 let fp    frm = 
   T.NAME (S.symbol "fp")
 @
 
+% so do *(fp + offset)
+% or otherwise will do  *(*(*fp)) + offset
 
 
 \subsection{Constructions and allocations}
@@ -2626,6 +2658,39 @@ val compare_int   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
 val compare_str   : Ast.oper -> Tree.exp -> Tree.exp -> Tree.exp
 @
 
+<<function Translate.arithmetic>>=
+let arithmetic op ex1 ex2 =
+  let oper = 
+    match op with
+      A.PlusOp   -> T.PLUS
+    | A.MinusOp  -> T.MINUS
+    | A.TimesOp  -> T.MUL
+    | A.DivideOp -> T.DIV
+    | _          -> E.internal "relop used as binop"
+  in 
+  T.BINOP(oper, ex1, ex2)
+@
+
+<<function Translate.compare_int>>=
+let compare_int op ex1 ex2 =
+  let oper = match op with
+    A.EqOp  -> T.EQ
+  | A.NeqOp -> T.NE
+  | A.LtOp  -> T.LT
+  | A.LeOp  -> T.LE
+  | A.GtOp  -> T.GT
+  | A.GeOp  -> T.GE
+  | _       -> E.internal "binop used as relop"
+  in T.RELOP(oper, ex1, ex2)
+@
+
+<<function Translate.compare_str>>=
+let compare_str op ex1 ex2 =
+  let result = ext_c_call "compare_str" [ex1;ex2] in
+  compare_int op result (T.CONST 0)
+@
+% will see ext_c_call below
+
 \subsection{Function calls}
 
 <<signature functions Translate.xxx>>=
@@ -2635,30 +2700,40 @@ val call          :
   Tree.exp
 @
 <<function Translate.call>>=
-let call myfrm lbl cc frm args k ptr =
+let call caller_frm   lbl cc callee_frm   args k ptr =
   let args =
-    if F.level frm == 0 
+    if F.level callee_frm == 0 
     then args
     else 
       let pfp =
-        if (F.level frm) > (F.level myfrm) 
-        then F.fp frm
-        else T.MEM(getfp myfrm frm, true)
+        if (F.level callee_frm) > (F.level caller_frm) 
+        then F.fp callee_frm
+        else T.MEM(getfp caller_frm callee_frm, true)
       in 
       pfp  :: args
   in
   match cc with
     None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-  | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
-  | Some _ ->
-      let tmp1      = temp ptr
-      and tmp2      = temp ptr
-      in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
-                     T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
-                     T.MOVE(tmp1, alloc_ptr) ]
+  <<[[Translate.call()]] match cc other cases>>
 @
+% how can have level of callee > level of caller?
 
+% why add an additional arguments? pass around fp of context
+% to callee?
 
+\subsection{Foreign calls}
+% mv later?
+
+<<[[Translate.call()]] match cc other cases>>=
+| Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
+| Some _ ->
+    let tmp1      = temp ptr in
+    let tmp2      = temp ptr in
+    eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
+                T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
+                T.MOVE(tmp1, alloc_ptr) ]
+@
+% see alloc_ptr later
 
 <<functions Translate.ext_xxx_call>>=
 let ext_call cc name args =
@@ -2669,6 +2744,8 @@ let ext_c_call   = ext_call (Some "C")
 let ext_gc_call  = ext_call  None (* (Some "gc") *)
 let ext_cmm_call = ext_call  None
 @
+
+
 
 \section{Statements and labelization}
 
@@ -2684,6 +2761,7 @@ let rec sequence = function
   | e :: [] -> e
   | e :: es -> T.ESEQ((T.EXP e), (sequence es))
 @
+% ESEQ (EXP e1, (ESEQ (EXP e2, e3)))
 
 \subsection{Assignments}
 
@@ -2694,6 +2772,7 @@ val assign        : Tree.exp -> Tree.exp -> Tree.exp
 let assign v e = 
   eseq nil [e => v]
 @
+% need eseq? yes because MOVE is a stm
 
 \subsection{Conditionals}
 
@@ -2714,8 +2793,13 @@ let ifexp test thn els ptr =
              T.LABEL fls; els => tmp;
              T.LABEL end']
 @
-% nice looking code
+% nice looking code, thx to eseq, =>, temp where stuff will be done
+% later in find_temps, etc. All of that contribute to nice looking code.
 
+<<function Translate.goto>>=
+let goto lbl  = 
+  T.JUMP (T.NAME lbl)
+@
 
 \subsection{Loops}
 
@@ -2750,8 +2834,8 @@ val loop          : Tree.exp -> Tree.exp -> Tree.label -> Tree.exp
 % for while and for (unsugared in while)
 <<function Translate.loop>>=
 let loop test body lend = 
-  let lbeg = T.new_label "loop_start"
-  and lbdy = T.new_label "loop_body" in
+  let lbeg = T.new_label "loop_start" in
+  let lbdy = T.new_label "loop_body" in
   eseq nil [ T.LABEL lbeg;
              T.CJUMP(test, lbdy, lend);
              T.LABEL lbdy; T.EXP body; goto lbeg;
@@ -2953,6 +3037,14 @@ let alloc size =
 @
 %                (* ; T.EXP (ext_gc_call "call_gc" []) *)
 % GC interface here!!
+
+<<constant Translate.space_end>>=
+let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
+@
+
+<<constant Translate.alloc_ptr>>=
+let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
+@
 
 \section{Garbage collection}
 

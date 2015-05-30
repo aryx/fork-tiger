@@ -62,11 +62,20 @@ let getfp frm parent_frm =
   deref diff
 (*e: function Translate.getfp *)
 (*x: utilities *)
-let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
+(*s: constant Translate.space_end *)
 let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
-let goto lbl  = T.JUMP (T.NAME lbl)
-let ( =>) e v = T.MOVE (e, v)
+(*e: constant Translate.space_end *)
+(*s: constant Translate.alloc_ptr *)
+let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
+(*e: constant Translate.alloc_ptr *)
 
+(*s: function Translate.goto *)
+let goto lbl  = 
+  T.JUMP (T.NAME lbl)
+(*e: function Translate.goto *)
+(*s: function Translate.arrow *)
+let ( =>) e v = T.MOVE (e, v)
+(*e: function Translate.arrow *)
 (*s: function Translate.simplify *)
 let simplify tig_op op = 
  fun x y ->
@@ -88,27 +97,29 @@ let int_literal i = T.CONST i
 let str_literal s = T.NAME (F.alloc_string s)
 (*e: functions Translate.xxx literals *)
 (*s: function Translate.call *)
-let call myfrm lbl cc frm args k ptr =
+let call caller_frm   lbl cc callee_frm   args k ptr =
   let args =
-    if F.level frm == 0 
+    if F.level callee_frm == 0 
     then args
     else 
       let pfp =
-        if (F.level frm) > (F.level myfrm) 
-        then F.fp frm
-        else T.MEM(getfp myfrm frm, true)
+        if (F.level callee_frm) > (F.level caller_frm) 
+        then F.fp callee_frm
+        else T.MEM(getfp caller_frm callee_frm, true)
       in 
       pfp  :: args
   in
   match cc with
     None        -> T.CALL((T.NAME lbl), args, cc, k, ptr)
+  (*s: [[Translate.call()]] match cc other cases *)
   | Some "gc"   -> T.CALL((T.NAME lbl), args, cc, k, ptr)
   | Some _ ->
-      let tmp1      = temp ptr
-      and tmp2      = temp ptr
-      in eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
-                     T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
-                     T.MOVE(tmp1, alloc_ptr) ]
+      let tmp1      = temp ptr in
+      let tmp2      = temp ptr in
+      eseq tmp2 [ T.MOVE(alloc_ptr, tmp1);
+                  T.MOVE(T.CALL((T.NAME lbl), args, cc, k, ptr), tmp2);
+                  T.MOVE(tmp1, alloc_ptr) ]
+  (*e: [[Translate.call()]] match cc other cases *)
 (*e: function Translate.call *)
 
 (*s: functions Translate.ext_xxx_call *)
@@ -137,7 +148,7 @@ let simple_var frm = function
       T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
 (*e: function Translate.simple_var *)
 
-(*s: operator expressions(translate.nw) *)
+(*s: function Translate.arithmetic *)
 let arithmetic op ex1 ex2 =
   let oper = 
     match op with
@@ -148,7 +159,8 @@ let arithmetic op ex1 ex2 =
     | _          -> E.internal "relop used as binop"
   in 
   T.BINOP(oper, ex1, ex2)
-
+(*e: function Translate.arithmetic *)
+(*s: function Translate.compare_int *)
 let compare_int op ex1 ex2 =
   let oper = match op with
     A.EqOp  -> T.EQ
@@ -159,11 +171,13 @@ let compare_int op ex1 ex2 =
   | A.GeOp  -> T.GE
   | _       -> E.internal "binop used as relop"
   in T.RELOP(oper, ex1, ex2)
-(*x: operator expressions(translate.nw) *)
+(*e: function Translate.compare_int *)
+(*s: function Translate.compare_str *)
 let compare_str op ex1 ex2 =
   let result = ext_c_call "compare_str" [ex1;ex2] in
   compare_int op result (T.CONST 0)
-(*e: operator expressions(translate.nw) *)
+(*e: function Translate.compare_str *)
+
 (*s: function Translate.assign *)
 let assign v e = 
   eseq nil [e => v]
@@ -181,8 +195,8 @@ let ifexp test thn els ptr =
 (*e: function Translate.ifexp *)
 (*s: function Translate.loop *)
 let loop test body lend = 
-  let lbeg = T.new_label "loop_start"
-  and lbdy = T.new_label "loop_body" in
+  let lbeg = T.new_label "loop_start" in
+  let lbdy = T.new_label "loop_body" in
   eseq nil [ T.LABEL lbeg;
              T.CJUMP(test, lbdy, lend);
              T.LABEL lbdy; T.EXP body; goto lbeg;
@@ -244,9 +258,9 @@ let rec sequence = function
 (*e: function Translate.sequence *)
 
 (*s: function Translate.func *)
-let func ex ptr =
+let func body ptr =
   let tmp = temp ptr in
-  eseq nil [ex => tmp; T.RET tmp]
+  eseq nil [body => tmp; T.RET tmp]
 (*e: function Translate.func *)
 
 (*s: function Translate.try_block *)
