@@ -1,4 +1,4 @@
-\documentclass[twocolumn]{report}
+\documentclass[twocolumn, landscape]{report}
 
 %******************************************************************************
 % Prelude
@@ -12,16 +12,17 @@
 %------------------------------------------------------------------------------
 
 %thx to LP, changed for the better a few things. 
-% - introduce extra types ('name', 'typename') to avoid overload 'symbol'
-%   so clearer types I think (symbol * symbol -> name * typename),
-%   introduced also 'is_ptr' instead of bool,
-% - removed Temp useless constructor (also less confusing with Tree.TEMP),
-%   removed ast_node (EXP | DEC) and passed env explicitly to trdec and trexp,
-%   also Semantics.EXP was confusing with Tree.EXP
-% - simplified JUMP to take directly a label, not an exp
+% - AST improvments:
+%   * introduced extra types ('name', 'typename') to avoid overload 'symbol'
+%     so clearer types I think (symbol * symbol -> name * typename),
+%     introduced also 'is_ptr' instead of bool,
+%   * removed Temp useless constructor (also less confusing with Tree.TEMP),
+%     removed ast_node (EXP | DEC) and passed env explicitly to trdec and trexp,
+%     also Semantics.EXP was confusing with Tree.EXP
+%   * simplified JUMP to take directly a label, not an exp
 % - rename acc to access (acc is usually for accumulator in ocaml)
 
-%Actually I re-lpized this document so here is what I think is now better:
+%actually I re-lpized this document so here is what I think is now better:
 % - get first an overview of all the core DS
 % - get first an overview of the main functions, the main concepts/types,
 %   so you know where you go. Easier to orientate yourself I think.
@@ -58,7 +59,8 @@
 %   just for typedefs, but to handle mutually recursive or recursive
 %   data structure!
 % - the main essential compilation algorithms (labelization, frameization, 
-%   offsetization, etc)
+%   offsetization, lineratization, etc) corresponding each essentially
+%   to a feature (respectively stmts, calls, array/struct, exprs, etc)
 
 %history LP-ization:
 % - skeleton, mostly copy paste of Template.nw skeleton
@@ -91,27 +93,13 @@
 %note: required by noweblatexpad for the \t \l \n in this file
 \usepackage{fancyvrb}
 \usepackage{url}
-\iffinal
 \usepackage{hyperref}
  \hypersetup{colorlinks=true}
-\fi
 \usepackage[pageref]{backref}
  \def\backref{{\footnotesize cited page(s)}~}
-%\usepackage{cleveref} %\cref
-%\usepackage{multirow}
 \usepackage{booktabs} 
  \newcommand{\otoprule}{\midrule[\heavyrulewidth]}
 \usepackage{graphicx}
- %\usepackage[margin=0.5in]{geometry}
- %  but eat the bottom when very low
- %\usepackage{fullpage} is deprecated 
- % => do the more manual below:
- \addtolength{\oddsidemargin}{-.850in}
- \addtolength{\evensidemargin}{-.850in}
- \addtolength{\textwidth}{1.70in}
- \addtolength{\topmargin}{-.850in}
- \addtolength{\textheight}{1.70in}
-%\usepackage{minitoc}
 
 %------------------------------------------------------------------------------
 % Macros
@@ -124,17 +112,18 @@
 \allcodefalse
 % used for ?
 
+\addtolength{\topmargin}{-.850in}
+\addtolength{\textheight}{1.70in}
+
 %\setcounter{tocdepth}{1}
 
+\begin{document}
 %******************************************************************************
 % Title
 %******************************************************************************
-
-\begin{document}
-
 \title{
 {\Huge 
-Principia Softwarica: The Tiger Compiler Frontend [[tigerc]]
+The Tiger Compiler [[tigerc]]
 }\\
 {version 0.1}
 }
@@ -146,9 +135,11 @@ Yoann Padioleau\\
 with code from\\
 Paul Govereau
 }
-% And Andrew Appel?
+% And Andrew Appel? and yoann padioleau if do ARM backend?
 
 \maketitle 
+\l used to be frontend, but if add ARM backend then have full compiler!
+
 \onecolumn
 \hrule
 \begin{quote}
@@ -158,19 +149,13 @@ Paul Govereau
     Documentation License, Version 1.3.
 \end{quote}
 \hrule
+\twocolumn
 
-%CONFIG: \dominitoc
 
-\iffinal
 \begingroup
 \hypersetup{linkcolor=blue}
 % need to s/onecolumn/twocolumn in report.cls :) for \tableofcontents
-\twocolumn
 \tableofcontents
-\endgroup
-\else
-\tableofcontents
-\fi
 
 %******************************************************************************
 % Body
@@ -178,26 +163,31 @@ Paul Govereau
 
 \chapter{Introduction}
 
+The goal of this book is to present in full details the source code of
+a {compiler}.
+% frontend
+
 \section{Motivations}
 
-The goal of this book is to present in full details the source code of
-a compiler.
-% frontend
-Why? Because I think it makes you a better programmer if
+Why a compiler? Because we think you are a better programmer if
 you fully understand how things work under the hood.
+
+\section{The Tiger compiler}
 
 % choose tiger because minimalistic/teaching language while at the same time
 % has most of the essential features of a language like C or pascal 
 % and so can showcase the essential compilation algorithms.
 
-
-%% vs original tigerc.pdf manual? no file/module fixed boundaries, so
-%% can LP-split and aspectize AST elements for instances.
-
 %% Hmm is it redundant with Compiler.nw and even now OCaml.nw? Maybe but
 %% maybe it can help me to first have a cleaner and simpler compiler.
 %% So maybe making this manual can improve later Compiler.nw and OCaml.nw.
 %% Can also see a simpler GC, which again can improve later OCaml.nw.
+
+%% vs original tigerc.pdf manual? no file/module fixed boundaries, so
+%% can LP-split and aspectize AST elements for instances.
+
+
+\section{Other compilers}
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}
@@ -207,6 +197,13 @@ Here are other candidates that were considered but ultimately discarded:
 
 % other:
 % - blue? also a toy language for learning
+
+% original sml to-complete project files:
+%  http://www.cs.princeton.edu/~appel/modern/ml/project.html
+% vs SML:
+%  - far less functors, far less signatures, it obfuscates the code a lot
+%  - no source.cm, simple Makefile
+%  - ...
 
 \section{Getting started}
 
@@ -219,10 +216,11 @@ Here are other candidates that were considered but ultimately discarded:
 
 Most of this document is actually source code from Paul Govereau, so
 those parts are copyright by him.
-The prose is mine and is licensed under the GNU Free Documentation
-License.
+The prose is mine and is licensed under the \license.
 
 \section{Acknowledgments}
+
+
 
 
 \chapter{Overview}
@@ -232,10 +230,11 @@ License.
 
 % to compile is to translate from language A to language B.
 % In our case from Tiger (=~ C), to C-- (=~ Assembly).
+% update: ARM assembly?
 
 % The main compilation algorithms in our care are:
 %  - "labelization": structured nested statements (including functions) to 
-%     basic flat goto/labels 
+%     basic flat jumps/labels 
 %  - "linearization": complex "recursive" expressions to 
 %     basic flat instructions and the introduction of temporary variables
 %  - "frameization": structured entities with params, arguments, locals, to
@@ -249,7 +248,7 @@ License.
 % Then at runtime there is also memory allocation helpers and garbage
 % collection.
 
-\section{[[tigerc]] services}
+\section{[[tigerc]] command line interface}
 
 <<function Option.usage>>=
 let rec usage() = 
@@ -295,8 +294,10 @@ end
 %  - statements are expressions. If is an expression :) no need ? : ugly 
 %    C syntax.
 
-\section{Output C-- language}
+\section{Output ARM assembly language}
 
+%old: use c-- but complex to install
+%\section{Output C-- language}
 % =~ Assembly
 
 % ex of output for hello.tig, or fact.tig?
@@ -309,13 +310,15 @@ end
 % lexer -> parser -> typechecker & IR-generator -> linearizer -> c-- generator 
 % and on the side have runtime and stdlib "linked" with the generated file.
 
+\section{Book structure}
+
 %###############################################################################
 
 \chapter{Core Data Structures}
 
 \section{Abstract syntax tree}
 
-%note: actually I put the main constructors below. I did that in Ocaml.nw
+%note: I put now the main constructors below. I did that in Ocaml.nw
 % and it's better I think. AST is a really core DS, we can't wait to
 % see the grammar to get an idea of what is the language. Anyway if we
 % do not put the main cases here, it's
@@ -2986,6 +2989,9 @@ val find_temps : stm list -> (temp * is_ptr) list
 %why do that at the end? why not call those alloc_temp before?
 
 
+
+
+
 \chapter{[[C--]] Generation}
 %todo: or change to assembly ARM generation!
 
@@ -3054,6 +3060,8 @@ let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 \section{Garbage collection}
 
 
+
+
 \chapter{Advanced Features}
 
 \section{Typedefs}
@@ -3064,6 +3072,8 @@ let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 % actually necessary to support mutually recursive type too
 % (actually for recursive types in struct too)
 
+%less: in sml it was 	  | NAME of Symbol.symbol * ty option ref
+% could do that.
 
 <<function Semantics.base_type>>=
 let rec base_type env = function
@@ -3443,6 +3453,8 @@ let add_source_mapping pos line =
 
 
 \chapter{Debugging}
+
+%todo: use deriving? so save code?
 
 \section{[[tiger -dump_ast]]}
 
