@@ -54,4 +54,4 @@ sync::
 sync2:
 	$(MAKE) LANG=ocamlyacc sync3
 sync3:
-	$(SYNCWEB) $(SRC_ORIG) parsing/parser.mly
+	$(SYNCWEB) $(SRC_ORIG) ../../parsing/parser.mly
