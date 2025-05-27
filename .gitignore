@@ -20,6 +20,7 @@
 
 # syncweb
 .md5sum_*
+/docs/principia/.Tiger.nwcache
 
 # binaries
 /tiger
