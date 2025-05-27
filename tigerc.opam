@@ -9,6 +9,8 @@ homepage: "https://github.com/aryx/fork-tiger"
 bug-reports: "https://github.com/aryx/fork-tiger/issues"
 depends: [
   "dune" {>= "3.7"}
+  "ppx_deriving"
+  "ocaml" {>= "4.14.0"}
   "odoc" {with-doc}
 ]
 build: [

@@ -11,15 +11,7 @@
  (authors "Yoann Padioleau <yoann.padioleau@gmail.com>")
  (maintainers "Yoann Padioleau <yoann.padioleau@gmail.com>")
  (depends
-  ; DO NOT declare dune/odoc as dependencies, dune will automatically add them
-  ;(ocaml (>= 4.14.0))
-  ;atdgen
-  ;(yojson (>= 2.0.0))
-  ;ppxlib
-  ;ppx_deriving
-  ;ppx_inline_test
-  ;(ocamlformat :with-test)
-  ;; if we want to depend only for testing
-  ;;(alcotest :with-test)
+   ppx_deriving
+  (ocaml (>= 4.14.0))
 ))
 (generate_opam_files)
