@@ -1,0 +1,9 @@
+(library
+  (name tiger_backend)
+  (wrapped false)
+  (libraries
+    tiger_parsing
+    tiger_frontend
+  )
+ (preprocess (pps ppx_deriving.show))
+  )

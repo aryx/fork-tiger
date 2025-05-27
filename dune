@@ -1,0 +1,6 @@
+(env
+ (dev
+  ; -33 for unused open because some are added for ocaml-light and field access
+  ; TODO: remove the -32, fix the code
+  (flags (:standard -w -33-32)))
+)

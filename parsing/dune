@@ -1,0 +1,20 @@
+(library
+  (name tiger_parsing)
+  (wrapped false)
+  (libraries
+  )
+ (preprocess (pps ppx_deriving.show))
+  )
+
+(ocamllex lexer)
+; old (ocamlyacc parser)
+(rule
+ (targets parser.ml parser.mli)
+ (deps parser.mly)
+ (action
+  (progn
+   (run ocamlyacc %{dep:parser.mly})
+   ; must take: /*(*s: copyright ocamlyacc *)*/
+   ; and just remove it
+   (run perl -p -i -e "s#/[*].*[sex]:.*[*]/##" parser.ml)
+   )))

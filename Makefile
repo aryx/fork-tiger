@@ -8,21 +8,15 @@
 TOP=$(shell pwd)
 
 SRC=main.ml
-
 TARGET=tiger
-
 SYSLIBS=
-
 LIBS= \
  parsing/lib.cma \
  frontend/lib.cma \
  backend/lib.cma \
-
 MAKESUBDIRS=parsing frontend backend \
-
 #TODO
 #  stdlib runtime
-
 INCLUDEDIRS=$(MAKESUBDIRS)
 
 ##############################################################################
@@ -31,15 +25,25 @@ INCLUDEDIRS=$(MAKESUBDIRS)
 -include $(TOP)/Makefile.common
 
 ##############################################################################
-# Top rules
+# Top rules using dune
+##############################################################################
+
+all::
+	dune build
+
+clean::
+	dune clean
+
+##############################################################################
+# Old top rules
 ##############################################################################
 .PHONY:: all all.opt opt top clean distclean
 
-all:: 
+allold:: 
 	$(MAKE) rec 
 	$(MAKE) $(TARGET) 
 
-opt:
+optold:
 	$(MAKE) rec.opt 
 	$(MAKE) $(TARGET).opt
 
@@ -169,4 +173,3 @@ sync2:
 
 sync3:
 	$(SYNCWEB) $(SRC_ORIG) parsing/parser.mly
-

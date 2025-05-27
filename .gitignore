@@ -1,12 +1,13 @@
-# ocaml object files
+# dune
+/_build
 
+# ocaml object files
 *.o
 *.cm*
 *.annot
 .depend
 *.so
 *.a
-
 
 # pfff and tools
 /TAGS
@@ -24,7 +25,6 @@
 /tiger
 /tiger.opt
 
-
 # MISC/graph_code.marshall
 /graph_code.marshall
 /graph_code.marshall.opti
@@ -37,3 +37,5 @@
 /Tiger.log
 /Tiger.out
 /Tiger.toc
+
+# ------------------------------------------------------------------------------

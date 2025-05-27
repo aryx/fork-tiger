@@ -1,0 +1,19 @@
+(executable
+ (name main)
+ (libraries
+   str unix
+   tiger_frontend
+   tiger_backend
+ )
+ ; 'byte' is for ocamldebug
+ (modes native byte))
+
+
+(install
+ (package tigerc)
+ (section bin)
+ (files
+  (main.exe as tigerc)
+  ; useful to debug, see ../../debug and ocamldebug
+  (main.bc as tigerc.bc))
+)
