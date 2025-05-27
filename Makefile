@@ -3,6 +3,16 @@
 #############################################################################
 
 ##############################################################################
+# Top rules using dune
+##############################################################################
+
+all::
+	dune build
+
+clean::
+	dune clean
+
+##############################################################################
 # Variables
 ##############################################################################
 TOP=$(shell pwd)
@@ -25,16 +35,6 @@ INCLUDEDIRS=$(MAKESUBDIRS)
 -include $(TOP)/Makefile.common
 
 ##############################################################################
-# Top rules using dune
-##############################################################################
-
-all::
-	dune build
-
-clean::
-	dune clean
-
-##############################################################################
 # Old top rules
 ##############################################################################
 .PHONY:: all all.opt opt top clean distclean
@@ -53,14 +53,12 @@ top: $(TARGET).top
 
 rec:
 	set -e; for i in $(MAKESUBDIRS); do $(MAKE) -C $$i all || exit 1; done 
-
 rec.opt:
 	set -e; for i in $(MAKESUBDIRS); do $(MAKE) -C $$i all.opt || exit 1; done 
 
 
 $(TARGET): $(LIBS) $(OBJS)
 	$(OCAMLC) $(BYTECODE_STATIC) -o $@ $(SYSLIBS) $^
-
 $(TARGET).opt: $(LIBS:.cma=.cmxa) $(OPTOBJS) 
 	$(OCAMLOPT) $(STATIC) -o $@ $(SYSLIBS:.cma=.cmxa)  $^
 
@@ -115,61 +113,3 @@ dotall:
 	mv dot.ps Fig_graph_ml.ps
 	ps2pdf Fig_graph_ml.ps
 	rm -f Fig_graph_ml.ps
-
-##############################################################################
-# Literate Programming rules
-##############################################################################
-
-#sync:
-#	$(SYNCWEB) -lang ocaml main.nw main.ml
-#lpdistclean::
-#	rm -f $(LPSRC) .md5sum_*
-
-include $(TOP)/docs/latex/Makefile.common
-
-TEXMAIN=Tiger.nw
-TEX=Tiger.tex
-
-SRC_ORIG=Tiger.nw Tiger_extra.nw
-
-SRC_VIEWS= \
- parsing/error.mli\
- parsing/error.ml\
- parsing/option.mli\
- parsing/option.ml\
- parsing/symbol.mli\
- parsing/symbol.ml\
- parsing/ast.mli\
- parsing/ast.ml\
- frontend/environment.mli\
- frontend/environment.ml\
- frontend/semantics.mli\
- frontend/semantics.ml\
- frontend/tree.mli\
- frontend/tree.ml\
- frontend/translate.mli\
- frontend/translate.ml\
- frontend/canonical.mli\
- frontend/canonical.ml\
- frontend/frame.mli\
- frontend/frame.ml\
- backend/codegen.mli\
- backend/codegen.ml\
- main.ml\
- parsing/lexer.mll
-
-# -lang C
-#alloc.c--
-#client.c
-#gc.c
-#gc.h
-#runtime.c--
-
-sync::
-	$(MAKE) sync2
-
-sync2:
-	$(MAKE) LANG=ocamlyacc sync3
-
-sync3:
-	$(SYNCWEB) $(SRC_ORIG) parsing/parser.mly
