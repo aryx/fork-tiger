@@ -24,7 +24,7 @@ type access =
 (*e: type Frame.access *)
 (*x: frame.ml *)
 (*s: function Frame.fp *)
-let fp    frm = 
+let fp    _frm = 
   T.NAME (S.symbol "fp")
 (*e: function Frame.fp *)
 let name  frm = 

@@ -7,7 +7,7 @@ module S = Symbol
 /*(*s: parser helper functions *)*/
 let getpos = Parsing.symbol_start
 /*(*x: parser helper functions *)*/
-let parse_error s =
+let parse_error __s =
   let pos = getpos() in
   raise (E.Error(E.Syntax_error, pos))
 /*(*e: parser helper functions *)*/

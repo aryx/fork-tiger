@@ -38,11 +38,11 @@ let emit exl =
         T.BINOP(bop, e1, e2)  -> spf "%%%s(%s, %s)"
                                  (T.cmm_binop bop) (valexp e1) (valexp e2)
       | T.RELOP _ as e        -> spf "%%sx32(%%bit(%s))" (boolexp e)
-      | T.MEM(e,ptr)          -> spf "bits32[%s]" (valexp e)
-      | T.TEMP(t,ptr)         -> spf "%s" (S.name t)
+      | T.MEM(e,_ptr)          -> spf "bits32[%s]" (valexp e)
+      | T.TEMP(t,_ptr)         -> spf "%s" (S.name t)
       | T.NAME l              -> (S.name l)
       | T.CONST i             -> string_of_int i
-      | T.CALL(l,el,cc,k,ptr) ->
+      | T.CALL(l,el,cc,k,_ptr) ->
           let cc = match cc with
                      None   -> ""
                    | Some s -> spf "foreign \"%s\" " s

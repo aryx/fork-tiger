@@ -78,7 +78,7 @@ let linearize stm0 =
         let f l = T.EXP (List.hd l)
         in reorder_stm([e], f)
     | s ->
-        let f l = s
+        let f _l = s
         in reorder_stm([], f)
 
   and do_exp = function
@@ -99,7 +99,7 @@ let linearize stm0 =
         let f l = T.CALL(List.hd l, List.tl l, ext, k, ptr)
         in reorder_exp(e :: el, f)
     | e ->
-        let f l = e
+        let f _l = e
         in reorder_exp([], f)
 
   (* linear gets rid of the top-level SEQ's, producing a list *)

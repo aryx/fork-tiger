@@ -94,7 +94,7 @@ let rec iter f env =
   | Some e -> iter f e
 
 let rec fold f env init =
-  let fold_fun = f env.level in
+  let __fold_fun = f env.level in
   let result = Hashtbl.fold (f env.level) env.tbl init in
   match env.parent with
     None -> result

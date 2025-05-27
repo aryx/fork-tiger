@@ -167,7 +167,7 @@ let print_tree expression =
         in
         iprintf d "RecordExp: %s\n" (S.name name);
         List.iter (f (d+1)) fields
-    | ArrayExp(v, size, init, p) ->
+    | ArrayExp(v, size, init, __p) ->
         iprintf d "ArrayExp: %s\n" (S.name v);
         exp (d+1) size;
         exp (d+1) init

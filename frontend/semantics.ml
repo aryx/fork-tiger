@@ -103,7 +103,7 @@ let rec trexp env = function
             begin try
               let field_vals = (List.map2 chk_field fields dec_fields) in
               (Trans.new_record field_vals, RECORD dec_fields)
-            with Invalid_argument s ->
+            with Invalid_argument _s ->
               E.type_err pos "Record instance does not match declared type"
             end
         | _ ->
@@ -155,7 +155,7 @@ let rec trexp env = function
               let rtyp = base_type env return_type in
               (Trans.call (Env.frame env) lbl cc frm args
                       (Env.exn_label env) (is_ptr rtyp), rtyp)
-            with Invalid_argument x ->
+            with Invalid_argument _x ->
               E.type_err pos "function arguments do not match declaration"
             end
         | _ ->
@@ -245,7 +245,7 @@ let rec trexp env = function
   (*x: [[Semantics.trans.trexp()]] cases *)
     | A.SpawnExp(sym, pos) ->
         (match Env.lookup_value env sym pos with
-          Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+          Env.FunEntry(lbl, _cc, _frm, dec_args, _return_type) ->
             if dec_args <> []
             then E.type_err pos "spawn function must take zero arguments."
             else (Trans.spawn lbl, INT)
@@ -338,7 +338,7 @@ and trvar env = function
         in
         let offset  = ref (-1) in
         let (_,fld) =
-          try List.find (fun (s,v) -> incr offset; s = sym) fields
+          try List.find (fun (s,_v) -> incr offset; s = sym) fields
           with Not_found -> E.undefined pos (S.name sym)
         in
         let typ = base_type env fld in

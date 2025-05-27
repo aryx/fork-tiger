@@ -93,7 +93,7 @@ let rec is_ptr = function
 module TempSet = Set.Make(
   struct
     type t = Symbol.symbol * bool
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
   end)
 (*x: tree.ml *)
 let find_temps stmts =
@@ -128,7 +128,7 @@ let print_stm =
   in
   let rec prstm d = function
     | LABEL l      -> iprintf d "LABEL:%s\n " (S.name l)
-    | CONT(l,ls)   -> iprintf d "CONT:%s\n "  (S.name l)
+    | CONT(l,_ls)   -> iprintf d "CONT:%s\n "  (S.name l)
     | TRY l        -> iprintf d "TRY:%s\n"    (S.name l)
     | TRYEND l     -> iprintf d "TRYEND:%s\n" (S.name l)
     | SEQ(a,b)     -> iprintf d "SEQ:\n";     prstm(d+1) a; prstm(d+1) b
