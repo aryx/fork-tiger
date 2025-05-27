@@ -11,8 +11,8 @@
 %history: 
 %------------------------------------------------------------------------------
 
-%thx to LP, changed for the better a few things. 
-% - AST improvments:
+%thx to LP, I changed for the better a few things. 
+% - AST improvements:
 %   * introduced extra types ('name', 'typename') to avoid overload 'symbol'
 %     so clearer types I think (symbol * symbol -> name * typename),
 %     introduced also 'is_ptr' instead of bool,
@@ -196,6 +196,7 @@ Here are other candidates that were considered but ultimately discarded:
 \end{itemize}
 
 % other:
+% - COOL, mentioned at https://www.coursera.org/course/compilers
 % - blue? also a toy language for learning
 
 % original sml to-complete project files:
