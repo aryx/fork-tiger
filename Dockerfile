@@ -31,3 +31,4 @@ RUN eval $(opam env) && make
 
 # Test
 #RUN make test
+RUN ./bin/tigerc --help
