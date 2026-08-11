@@ -184,7 +184,6 @@ let compare_str op ex1 ex2 =
 (*s: function Translate.assign *)
 let assign v e =
   eseq nil [e => v]
-(*e: function Translate.assign *)
 (* claude: a UNIT-typed exp (e.g. a call to a void C runtime function like
  * print) carries no meaningful value - the callee's calling convention makes
  * no promise about what ends up in its "result" register. Reading that
@@ -193,6 +192,7 @@ let assign v e =
  * program's exit code being the leftover value of its last print() call
  * instead of 0. Evaluate for effect only, and always yield the same nil. *)
 let discard e = eseq nil [T.EXP e]
+(*e: function Translate.assign *)
 (*s: function Translate.ifexp *)
 let ifexp test thn els ptr =
   let tmp  = temp ptr in
