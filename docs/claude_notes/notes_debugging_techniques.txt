@@ -1,0 +1,132 @@
+Debugging notes: how the `ws` (word size) bug was found
+=========================================================
+
+Context: `make test` was failing on 7 of 11 end-to-end tests, with symptoms
+like glibc malloc assertion failures and "Attempt to access array index
+134529627 for array of size 10" — garbage-looking indices, not simple
+off-by-one errors. The user's tip was that the *same* generated .c-- files,
+when taken from a sibling checkout (~/c--/tests/tiger/), passed against the
+qc-- backend. That tip was the key that shaped the whole investigation.
+
+Step 1 — Let the symptom classify the bug, don't just chase the stack trace.
+  Garbage array indices and heap corruption are the signature of a *stride
+  or offset* bug (something scaled by the wrong constant), not a logic bug.
+  A logic bug tends to produce a wrong-but-plausible index (off by one, off
+  by a loop bound); a stride bug produces numbers that look like they came
+  from multiplying a small number by the wrong constant. That reframing
+  narrowed the search from "somewhere in codegen/runtime" to "somewhere a
+  size or offset constant is computed".
+
+Step 2 — Use the user's hint to pick a differential, not a from-scratch read.
+  The user said the *backend* (qc-- consuming .c--) was known-good on
+  similar .c-- input from another checkout. That meant: don't audit the
+  backend or the runtime GC/allocator — the bug is almost certainly in the
+  *frontend*, in how tigerc emits the .c--. So instead of reading codegen
+  code top to bottom, the fastest path was a differential: generate the .c--
+  for the same test program (sieve.tig) with this checkout's tigerc, and
+  diff it against the known-good reference .c-- for the same test in
+  ~/c--/tests/tiger/sieve.c--.
+
+    diff /home/pad/c--/tests/tiger/sieve.c-- tests/build/sieve.c--
+
+  This is generally the highest-leverage move when you have *any* known-good
+  artifact that should be structurally similar to the broken one (a prior
+  version, a sibling checkout, a reference implementation, even the same
+  program compiled with a different flag). A line-level diff turns "search
+  the whole compiler" into "explain these 20 diff hunks".
+
+Step 3 — Read the diff for a *pattern*, not individual lines.
+  Every hunk showed frame offsets and array-element byte offsets exactly
+  doubled: `fp+4` became `fp+8`, `fp+8` became `fp+16`, array index scaling
+  `%mul(i, 4)` became `%mul(i, 8)`. A consistent factor-of-2 across totally
+  unrelated offsets (function params, static links, array strides) is the
+  signature of a single shared constant being wrong — not N separate bugs.
+  That constant had to be "word size in bytes" (4 for the 32-bit x86 target
+  this compiler emits; qc-- only ever emits i386 per the frontend/backend
+  split described in CLAUDE.md).
+
+Step 4 — Grep for the suspected constant instead of reading files.
+  grep -rn "wordsize\|word_size\|ws\b" frontend/ backend/
+  This immediately found the single definition site:
+      frontend/translate.ml:10:  let ws = Sys.word_size / 8
+  `Sys.word_size` is OCaml's *host* runtime's word size (64 on a modern
+  machine), not the *target* architecture's word size. The bug was a classic
+  host/target confusion: this value should never depend on what machine the
+  OCaml compiler happens to run on — the target is always 32-bit x86.
+  A second grep (`grep -n "ws\b" frontend/translate.ml`) confirmed `ws` was
+  used consistently for every frame offset, field offset, and array stride
+  in that file, and a check of frontend/frame.ml showed it already hardcoded
+  `4` everywhere — further confirming 4 was the intended value and
+  translate.ml's `ws` was the outlier.
+
+Step 5 — Fix the constant, rebuild, and re-run the *whole* suite to confirm
+  the fix isn't a fluke and doesn't regress previously-passing tests.
+  Going from 4/11 to 9/11 passing on one one-line change, with the specific
+  failures that disappeared being exactly the ones with corrupted-looking
+  array indices, was strong confirmation the hypothesis was right (as
+  opposed to, say, a coincidental improvement).
+
+A second, different bug: colmajor's wrong exit code
+-----------------------------------------------------
+After the `ws` fix, 9/11 tests passed. `colmajor` still failed, but only on
+*exit code* (1 instead of the expected 0) — stdout matched the fixture
+exactly. This is a different symptom class than Step 1 above (correct data,
+wrong control-flow-adjacent value), so it called for a different technique:
+read the *semantics* of what determines that one specific value, rather than
+diffing generated code wholesale.
+
+- Traced how a Tiger program's exit code is produced: runtime/runtime.c--
+  calls `tiger_main(0)` and does `foreign "C" return(rv)` — so the exit code
+  is literally the *value* of the whole program's top-level expression.
+- Read colmajor.tig's structure to find its last top-level statement: an
+  `if count <> cols then print("\n")` with no else branch — a UNIT-typed
+  if-without-else.
+- Checked frontend/semantics.ml's `IfExp` case: when there's no else, the
+  else-branch value is correctly hardcoded to `Trans.nil` (`CONST 0`), but
+  the *then*-branch value is passed through untouched as whatever
+  `trexp env then'` produced — here, the leftover "return value" of the
+  `print` call. Cross-checked against `stdlib/stdlib.c`'s `tig_print`: it's
+  a `void` C function, so by cdecl convention it makes no promise about
+  `%eax` on return; whatever was in `%eax` from `print`'s internal `printf`
+  call (1, the byte count of "\n") leaked out as the "value" of the if-expr,
+  then as tiger_main's return value, then as the process's exit code.
+- Contrast this with `Translate.loop` (the while-loop translation), which
+  *does* get this right: it unconditionally yields `eseq nil [...]` — the
+  loop's IR value is always the constant 0, never whatever the loop body
+  computed. That asymmetry (loop: always normalizes to nil; if-without-else:
+  does not) was the confirming signal that this was a real, fixable bug and
+  not inherent nondeterminism.
+- Fix: added `Translate.discard : Tree.exp -> Tree.exp` (evaluate for effect,
+  yield `nil`) and used it in `Semantics.trexp`'s `IfExp` case for both
+  branches whenever the if's type is `UNIT` — so a UNIT-typed branch's
+  incidental leftover value can never leak into an observable position.
+
+Lesson generalized: when a *value* (not data-shape) is wrong, and only in
+one specific spot, look for the one code path that produces an "observable"
+value from an operation whose callee/summary doesn't actually promise one
+(void-returning calls, unit-typed branches, discarded statement results).
+Find an analogous *working* case in the same file (here, the while-loop) and
+diff the two code paths' handling of the same situation — the difference
+between them is usually exactly the bug.
+
+General technique to reuse
+---------------------------
+- Classify the symptom before hypothesizing: "garbage/scaled-looking wrong
+  values" almost always means a wrong multiplier/stride/size constant
+  somewhere, not a logic error. "Off-by-one" or "wrong branch taken" means
+  look at comparisons/control flow instead.
+- If you have ANY known-good comparable artifact (older version, sibling
+  checkout, different backend, reference output), diff against it before
+  reading source top-down. A diff turns a search problem into a pattern-
+  recognition problem.
+- When a diff shows the *same* multiplicative relationship (e.g. exactly
+  2x) across many unrelated values, suspect one shared constant, not many
+  independent bugs. Grep for the constant's likely name(s) rather than
+  reading control flow.
+- Be suspicious of any value derived from the *host* environment (OCaml's
+  `Sys.word_size`, `Sys.argv`, environment variables, etc.) inside code that
+  is supposed to describe a fixed *target* (here: the 32-bit x86 backend
+  qc-- always emits). Host-derived "constants" are a common source of bugs
+  that only show up when the host and target properties diverge (e.g. this
+  compiler now typically runs on a 64-bit OCaml toolchain but always targets
+  32-bit x86).

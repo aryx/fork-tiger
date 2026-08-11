@@ -187,6 +187,14 @@ let rec trexp env = function
         check_type_eq  pos
           "type of then expression (%s) does not match else (%s)" tty ety;
         let typ = base_type env tty in
+        (* claude: a UNIT-typed branch (e.g. a print() call) has no
+         * meaningful value - force both branches to the canonical nil
+         * instead of merging whatever garbage was left in the result
+         * register. See Translate.discard. *)
+        let tex, eex =
+          if typ = UNIT then (Trans.discard tex, Trans.discard eex)
+          else (tex, eex)
+        in
         (Trans.ifexp iex tex eex (is_ptr typ), typ)
   (*x: [[Semantics.trans.trexp()]] cases *)
     | A.WhileExp(test, body, pos) ->

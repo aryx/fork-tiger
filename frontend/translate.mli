@@ -30,6 +30,8 @@ val sequence      : Tree.exp list -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val assign        : Tree.exp -> Tree.exp -> Tree.exp
 (*x: signature functions Translate.xxx *)
+val discard       : Tree.exp -> Tree.exp
+(*x: signature functions Translate.xxx *)
 val ifexp         : Tree.exp -> Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 (*x: signature functions Translate.xxx *)
 val loop          : Tree.exp -> Tree.exp -> Tree.label -> Tree.exp

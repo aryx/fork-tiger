@@ -7,7 +7,10 @@ module T = Tree
 module F = Frame
 
 (*s: constant Translate.ws *)
-let  ws    = Sys.word_size / 8
+(* claude: target is always 32-bit x86 (qc-- only emits i386), regardless of
+ * the host OCaml runtime's word size, so this must be a fixed constant and
+ * not derived from Sys.word_size. *)
+let  ws    = 4
 (*e: constant Translate.ws *)
 
 (*s: function Translate.temp *)
@@ -179,9 +182,17 @@ let compare_str op ex1 ex2 =
 (*e: function Translate.compare_str *)
 
 (*s: function Translate.assign *)
-let assign v e = 
+let assign v e =
   eseq nil [e => v]
 (*e: function Translate.assign *)
+(* claude: a UNIT-typed exp (e.g. a call to a void C runtime function like
+ * print) carries no meaningful value - the callee's calling convention makes
+ * no promise about what ends up in its "result" register. Reading that
+ * value anyway (as ifexp's branch-merge used to unconditionally do) leaks
+ * whatever garbage was left over, which became visible as e.g. a Tiger
+ * program's exit code being the leftover value of its last print() call
+ * instead of 0. Evaluate for effect only, and always yield the same nil. *)
+let discard e = eseq nil [T.EXP e]
 (*s: function Translate.ifexp *)
 let ifexp test thn els ptr =
   let tmp  = temp ptr in
