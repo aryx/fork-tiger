@@ -2,7 +2,7 @@
 # Written by Claude Code.
 #
 # Run the Tiger test suite: compile each program in tiger.tests with tigerc
-# and qc, link it, run it, and check its stdout and exit code.
+# and qc, link it, run it, and check its stdout, stderr, and exit code.
 #
 # This is the tier that says the whole toolchain works, front end and back end
 # together, rather than merely that tigerc does not crash. It replaces
@@ -99,6 +99,11 @@ while read -r name src rc stdin_file; do
   timeout 60 $RUN32 "./$B/$name" < "$input" > "$B/$name.out" 2> "$B/$name.err" \
     || got=$?
 
+  # x86/<name>.2 is expected stderr; tests without one (there shouldn't be
+  # any, but just in case) are expected to print nothing on stderr.
+  stderr_expected="x86/$name.2"
+  [ -f "$stderr_expected" ] || stderr_expected=/dev/null
+
   if ! diff "$B/$name.out" "x86/$name.1" > "$B/$name.diff" 2>&1; then
     echo "FAIL $name (stdout differs; see $B/$name.diff)"
     if [ -s "$B/$name.err" ]; then
@@ -107,6 +112,9 @@ while read -r name src rc stdin_file; do
     echo "$name FAIL" >> "$B/actual.txt"
   elif [ "$got" != "$rc" ]; then
     echo "FAIL $name (exit $got, expected $rc)"
+    echo "$name FAIL" >> "$B/actual.txt"
+  elif ! diff "$B/$name.err" "$stderr_expected" > "$B/$name.errdiff" 2>&1; then
+    echo "FAIL $name (stderr differs; see $B/$name.errdiff)"
     echo "$name FAIL" >> "$B/actual.txt"
   else
     echo "PASS $name"
