@@ -1,0 +1,121 @@
+# -*- org -*-
+
+* 0.1 (Q3 2026) (qc-- integration, installed build, end-to-end tests)
+
+Tiger is a compiler for Appel's Tiger language, written in OCaml.  It typechecks
+and translates Tiger to textual C--; Quick C-- (qc--) provides the native x86
+backend.  This release makes that intended path buildable, installable, and
+testable again.
+
+** toolchain
+- make qc-- a configured dependency rather than a hard-coded checkout: find
+  an installed =qc=, derive its runtime directory, and select the i686 cross
+  compiler and QEMU runner when needed
+- install =tigerc= through Dune, with =bin/tigerc= as the convenient entry
+  point
+- preserve the two exception code-generation routes: C-- =cut to= by default,
+  or stack unwinding with =-unwind=
+- make Tiger's layout explicitly target-sized (32-bit x86), rather than
+  inheriting the host OCaml runtime's word size; this fixes frame, record, and
+  array layout on 64-bit hosts
+- make unit-valued =if= branches discard their undefined call result and yield
+  a canonical nil value, fixing programs whose exit status leaked a register
+
+** build infra
+- resume the project with Dune, clean up current warnings, and retain the
+  Makefiles for the C/C-- standard library and runtime
+- add Docker and GitHub Actions; build and run =tigerc= in the container
+- make =configure= generate the untracked =Makefile.config=, keep the old
+  Perl configurator as =configure.old=, and fix =make clean=
+- move the literate book to =docs/literate/= and repair its sync/pdf build
+
+** test infra
+- replace the obsolete Lua test driver with =make test= and a behavioural
+  Tiger suite: compile Tiger -> C-- -> qc-- -> executable, run it (under
+  QEMU on non-x86 hosts), and compare stdout/exit status with a baseline
+- record results in a baseline so the suite detects regressions, including
+  both future failures and improvements to historical tests
+- fix the last behavioural failures and restore the missing =wf= fixture:
+  all 11 current end-to-end tests now pass
+
+** code organization
+- keep the active compiler path clear: parsing, semantic translation, C--
+  emission, and the OCaml driver; C/C-- runtime and standard library remain
+  separate build products
+- retain generated =.ml= and =.mli= files alongside syncweb markers, keeping
+  the literate source easy to read while reducing editing friction
+
+** documentation
+- import the original SML project material and add build, test, pipeline, and
+  architecture notes
+- add debugging notes on the differential and semantic tracing techniques
+  used to resolve the final frontend failures
+
+** status
+- Tiger now has a repeatable end-to-end path through qc--, including a
+  behavioural regression suite; qc-- remains an intentional dependency, not
+  a backend reimplemented in this repository.
+
+* Beta (2015) (Tiger.nw consolidation, frontend literate pass)
+
+** toolchain
+- keep the OCaml Tiger compiler and its C-- output model; refine the frontend
+  representation, including clearer environment types and simpler jump IR
+
+** build infra
+- extend the Makefile =sync= targets to cover the lexer and parser
+
+** test infra
+- retain the existing demos and compiler traces while the qc-- end-to-end
+  integration remains incomplete
+
+** code organization
+- merge the many literate fragments into =Tiger_extra.nw= for a global view,
+  with =Tiger.nw= as the book skeleton; later split the AST, lexer, and
+  grammar material back into a clearer organization
+- literate-program the semantic analysis and translation passes, clarify
+  their main signatures, and simplify core data structures
+
+** documentation
+- improve the Tiger book's template and table of contents, and continue the
+  manual/LaTeX maintenance
+
+** status
+- this was a literate-programming and readability pass over the original
+  fork, rather than a new independently native backend.
+
+* Alpha (Q4 2010) (fork Tiger, OCaml frontend, syncweb/Makefile)
+
+The repository starts by combining the 2007 tigerc distribution, the 2009
+C-- Tiger frontend, and the Govéreau Tiger sources.  Tiger was an OCaml
+project from the start; it used noweb for its documentation/literate sources
+and depended on qc-- for machine-code generation.
+
+** toolchain
+- bring up the OCaml parser, frontend, backend, and driver; compile the Tiger
+  runtime and generate C-- suitable for qc--
+- retain qc-- as the deliberate backend dependency instead of adding a full
+  MIPS or ARM backend to Tiger itself
+
+** build infra
+- replace the old mkfile/noweb-oriented workflow with Makefiles and syncweb
+  extraction, leaving generated OCaml files available for direct inspection
+  and editing
+- add the initial configuration support for locating qc-- and building the
+  runtime
+
+** test infra
+- import and organize the original test corpus and add small Tiger demos
+
+** code organization
+- integrate the three source lineages and split the tree into parsing,
+  frontend, backend, runtime, standard library, documentation, old, and TODO
+  areas
+
+** documentation
+- syncwebize the compiler, runtime, and standard-library literate sources;
+  update the build instructions and add an initial C-- hello example
+
+** status
+- the OCaml compiler stages build and emit C--, but a reproducible complete
+  qc-- compile/link/run loop is still future work.
