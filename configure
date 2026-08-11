@@ -1,0 +1,167 @@
+#!/bin/sh
+#config: to debug this script add also '-x' to the set below
+set -eu
+
+###############################################################################
+# Prelude
+###############################################################################
+# This script was written by Claude Code.
+#
+# The goal of this script is to find an installed Quick C-- and write
+# Makefile.config, so that building tiger end to end needs no knowledge of
+# where anyone's qc-- checkout lives.
+#
+# qc-- installs itself into an opam switch - "make install" in that repo runs
+# "dune install cmm" - so its binary lands in <prefix>/bin/qc and its run-time
+# system in <prefix>/lib/cmm. This script locates the binary, derives the
+# run-time directory from it, and checks that both are really there.
+#
+# Install qc-- first:
+#   cd <qc-- checkout> && dune build && make install
+#
+# It also records the two things that follow from qc only emitting 32-bit x86:
+# a cross toolchain to assemble and link its output, and, on a host that is
+# not x86, an emulator to run the result.
+#
+# This replaces configure.old, a Perl script from the original distribution.
+#
+# TODO:
+#  - macOS, where the cross toolchain is not gcc-i686-linux-gnu
+#  - let --prefix pick a qc-- that is not in an opam switch
+
+###############################################################################
+# Entry point
+###############################################################################
+
+# Parse options
+QC=${QC:-}
+CC32=${CC32:-}
+RUN32=${RUN32:-}
+for arg in "$@"; do
+    case "$arg" in
+        --qc=*)
+            QC="${arg#--qc=}"
+            ;;
+        --cc32=*)
+            CC32="${arg#--cc32=}"
+            ;;
+        --help|-h)
+            echo "Usage: ./configure [options]"
+            echo "  --qc=PATH     use this qc rather than searching for one"
+            echo "  --cc32=CMD    the 32-bit x86 C compiler to use"
+            echo "QC, CC32 and RUN32 may also be set in the environment."
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            echo "Try: ./configure --help" >&2
+            exit 1
+            ;;
+    esac
+done
+
+###############################################################################
+# Find qc
+###############################################################################
+
+if [ -z "$QC" ]; then
+    QC=`command -v qc 2>/dev/null || true`
+fi
+if [ -z "$QC" ] && command -v opam >/dev/null 2>&1; then
+    PREFIX=`opam var prefix 2>/dev/null || true`
+    if [ -n "$PREFIX" ] && [ -x "$PREFIX/bin/qc" ]; then
+        QC="$PREFIX/bin/qc"
+    fi
+fi
+
+if [ -z "$QC" ] || [ ! -x "$QC" ]; then
+    echo "configure: cannot find qc" >&2
+    echo "  install it:     cd <qc-- checkout> && dune build && make install" >&2
+    echo "  or point at it: ./configure --qc=/path/to/qc" >&2
+    exit 1
+fi
+
+# <prefix>/bin/qc gives <prefix>. pwd -P resolves symlinks, so a qc on PATH
+# that is itself a link into a switch still yields the right prefix.
+QCBIN=`cd "\`dirname "$QC"\`" && pwd -P`
+PREFIX=`dirname "$QCBIN"`
+QCLIB="$PREFIX/lib/cmm"
+
+if [ ! -f "$QCLIB/qc--runtime.h" ]; then
+    echo "configure: found qc at $QC but no run-time system at $QCLIB" >&2
+    echo "  that directory should hold qc--runtime.h, pcmap.ld and the" >&2
+    echo "  run-time sources; re-run 'make install' in the qc-- checkout" >&2
+    exit 1
+fi
+
+###############################################################################
+# The 32-bit x86 toolchain
+###############################################################################
+# qc only emits i386, so the host compiler cannot assemble or link its output
+# whatever the host architecture is. Not gcc-multilib: multilib offers
+# secondary ABIs of the host's own architecture family, which on arm64 means
+# 32-bit ARM, not i386.
+
+if [ -z "$CC32" ]; then
+    CC32=i686-linux-gnu-gcc
+fi
+if ! command -v "$CC32" >/dev/null 2>&1; then
+    echo "configure: warning: no $CC32 on PATH" >&2
+    echo "  sudo apt install gcc-i686-linux-gnu libc6-dev-i386-cross" >&2
+fi
+
+###############################################################################
+# How to run a 32-bit binary
+###############################################################################
+# Named explicitly rather than relying on binfmt_misc, which is a host-wide
+# kernel registration that a container inherits only by accident.
+
+if [ -z "$RUN32" ]; then
+    ARCH=`uname -m`
+    case "$ARCH" in
+        i?86 | x86_64)
+            RUN32=
+            ;;
+        *)
+            RUN32=`command -v qemu-i386 2>/dev/null || true`
+            if [ -z "$RUN32" ]; then
+                echo "configure: warning: $ARCH host and no qemu-i386 on PATH" >&2
+                echo "  sudo apt install qemu-user" >&2
+            fi
+            ;;
+    esac
+fi
+
+###############################################################################
+# Write Makefile.config
+###############################################################################
+
+cat > Makefile.config <<EOF
+# generated by ./configure - do not edit, re-run configure instead
+
+# Where to install tigerc
+BINDIR=/usr/local/bin
+MANDIR=/usr/local/man
+LIBDIR=/usr/local/lib
+SHAREDIR=/usr/local/share/tigerc
+
+# Quick C--
+QC=$QC
+QCLIB=$QCLIB
+# for "\$(CC32) -I \$(QCINCLUDE)" when compiling C against the run-time interface
+QCINCLUDE=$QCLIB
+# the linker script that places the .pcmap sections and defines
+# Cmm_pc_map/Cmm_pc_map_limit around them; belongs on the link line
+QCPCMAP=$QCLIB/pcmap.ld
+
+# The 32-bit x86 toolchain, since qc only emits i386
+CC32=$CC32
+# How to run the result; empty on an x86 host
+RUN32=$RUN32
+EOF
+
+echo "wrote Makefile.config"
+echo "  QC        = $QC"
+echo "  QCLIB     = $QCLIB"
+echo "  CC32      = $CC32"
+echo "  RUN32     = ${RUN32:-(native)}"
