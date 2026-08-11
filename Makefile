@@ -14,8 +14,18 @@ install::
 	dune install
 uninstall::
 	dune uninstall
-test::
-	echo TODO
+# The behavioural test suite: compile each Tiger program in tests/tiger.tests
+# with tigerc and qc, link it, run it, and check its stdout and exit code.
+#
+# It needs the libraries, so build them first. It compares against a recorded
+# baseline rather than demanding that everything pass - see tests/run-tests.sh
+# and the failures noted in tests/expected/tiger.txt.
+#
+# Requires ./configure to have been run, and an installed qc--.
+test:: 
+	$(MAKE) -C stdlib
+	$(MAKE) -C runtime
+	tests/run-tests.sh
 
 build-docker:
 	docker build -t "tigerc" .

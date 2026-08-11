@@ -110,6 +110,17 @@ if ! command -v "$CC32" >/dev/null 2>&1; then
     echo "  sudo apt install gcc-i686-linux-gnu libc6-dev-i386-cross" >&2
 fi
 
+# The matching archiver. A cross gcc is <triple>-gcc and its binutils are
+# <triple>-ar, so derive one from the other; plain "ar" would build an archive
+# the cross linker cannot read.
+AR32=${AR32:-}
+if [ -z "$AR32" ]; then
+    case "$CC32" in
+        *-gcc) AR32="${CC32%-gcc}-ar" ;;
+        *)     AR32=ar ;;
+    esac
+fi
+
 ###############################################################################
 # How to run a 32-bit binary
 ###############################################################################
@@ -156,6 +167,7 @@ QCPCMAP=$QCLIB/pcmap.ld
 
 # The 32-bit x86 toolchain, since qc only emits i386
 CC32=$CC32
+AR32=$AR32
 # How to run the result; empty on an x86 host
 RUN32=$RUN32
 EOF
@@ -164,4 +176,5 @@ echo "wrote Makefile.config"
 echo "  QC        = $QC"
 echo "  QCLIB     = $QCLIB"
 echo "  CC32      = $CC32"
+echo "  AR32      = $AR32"
 echo "  RUN32     = ${RUN32:-(native)}"

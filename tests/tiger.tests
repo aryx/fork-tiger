@@ -1,0 +1,33 @@
+# Behavioural tests: Tiger programs, compiled by tigerc and qc, run, and
+# checked against their expected stdout and exit code.
+#
+# Translated from tiger.tst, which was Lua read by qc--'s testdrv.lua. That
+# driver is gone - qc-- no longer embeds Lua - but the data is worth keeping:
+# the file list, which tests need stdin, and what each one should print.
+#
+# Dropped from the original: the .s/.s1/.s2 assembly comparisons against
+# x86/*.s.gz. Those cannot pass now. qc-- uses a different register allocator
+# from the 2005 compiler that produced them and runs no optimiser, so its
+# output legitimately differs everywhere. The behavioural half - what the
+# program prints and what it returns - is the half that says the compiler
+# works.
+#
+# Expected exit codes come from qc--'s own tests/tiger.tests. They are not 0
+# and that is not a bug: a Tiger program's value is the value of its body, so
+# "print(x)" returns whatever tig_print returns, which is printf's character
+# count. hello prints 14 characters and exits 14.
+#
+# Columns:  name  source  expected-rc  stdin ("-" for none)
+# Expected stdout is always x86/<name>.1
+
+arrays      arrays.tig      1    -
+colmajor    colmajor.tig    0    misc/colmajor.0
+forloop     forloop.tig     1    -
+funcall     funcall.tig     1    -
+hello       hello.tig       14   -
+merge       merge.tig       1    -
+qsort       qsort.tig       0    -
+queens      queens.tig      0    -
+rc4         rc4.tig         215  misc/rc4.0
+sieve       sieve.tig       0    -
+wf          wf.tig          0    misc/wf.0
