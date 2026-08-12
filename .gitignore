@@ -48,6 +48,10 @@
 /tests/build/
 /tests/build-ppc/
 
+# scratch directory of demos/Makefile
+/demos/build/
+/demos/build-ppc/
+
 # generated while building and testing
 /runtime/qcmm/
 /runtime/build-ppc/
