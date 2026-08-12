@@ -22,10 +22,20 @@ uninstall::
 # and the failures noted in tests/expected/tiger.txt.
 #
 # Requires ./configure to have been run, and an installed qc--.
-test:: 
+test::
 	$(MAKE) -C stdlib
 	$(MAKE) -C runtime
 	tests/run-tests.sh
+
+# Same suite, against qc--'s -ppc-elf backend instead of its default x86
+# one. Kept as its own target rather than folded into "test" - it needs a
+# ppc cross toolchain and qemu-ppc (see ./configure's output), and it is
+# not expected to be all-green yet: see tests/expected/tiger-ppc.txt and
+# its header for the known qc-- backend gaps this has already turned up.
+test-ppc::
+	$(MAKE) -C stdlib BACKEND=ppc
+	$(MAKE) -C runtime BACKEND=ppc
+	BACKEND=ppc tests/run-tests.sh
 
 build-docker:
 	docker build -t "tigerc" .

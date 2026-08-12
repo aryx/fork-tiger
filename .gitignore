@@ -46,7 +46,10 @@
 
 # scratch directory of the test runner
 /tests/build/
+/tests/build-ppc/
 
 # generated while building and testing
 /runtime/qcmm/
+/runtime/build-ppc/
+/stdlib/build-ppc/
 *.s

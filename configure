@@ -37,6 +37,8 @@ set -eu
 QC=${QC:-}
 CC32=${CC32:-}
 RUN32=${RUN32:-}
+CC_PPC=${CC_PPC:-}
+RUN_PPC=${RUN_PPC:-}
 for arg in "$@"; do
     case "$arg" in
         --qc=*)
@@ -45,11 +47,15 @@ for arg in "$@"; do
         --cc32=*)
             CC32="${arg#--cc32=}"
             ;;
+        --cc-ppc=*)
+            CC_PPC="${arg#--cc-ppc=}"
+            ;;
         --help|-h)
             echo "Usage: ./configure [options]"
-            echo "  --qc=PATH     use this qc rather than searching for one"
-            echo "  --cc32=CMD    the 32-bit x86 C compiler to use"
-            echo "QC, CC32 and RUN32 may also be set in the environment."
+            echo "  --qc=PATH      use this qc rather than searching for one"
+            echo "  --cc32=CMD     the 32-bit x86 C compiler to use"
+            echo "  --cc-ppc=CMD   the 32-bit ppc C compiler to use (for -ppc-elf)"
+            echo "QC, CC32, RUN32, CC_PPC and RUN_PPC may also be set in the environment."
             exit 0
             ;;
         *)
@@ -144,6 +150,46 @@ if [ -z "$RUN32" ]; then
 fi
 
 ###############################################################################
+# The 32-bit ppc toolchain (optional, for qc--'s -ppc-elf backend)
+###############################################################################
+# Same reasoning as CC32 above, just a different qc-- target. Detection is
+# best-effort only: unlike x86, ppc is not the primary backend, so a missing
+# toolchain is a warning, not a configure failure - "make test-ppc" will
+# simply fail later with a clearer message.
+
+if [ -z "$CC_PPC" ]; then
+    CC_PPC=powerpc-linux-gnu-gcc
+fi
+if ! command -v "$CC_PPC" >/dev/null 2>&1; then
+    echo "configure: warning: no $CC_PPC on PATH (only needed for -ppc-elf)" >&2
+    echo "  sudo apt install gcc-powerpc-linux-gnu libc6-dev-powerpc-cross" >&2
+fi
+
+AR_PPC=${AR_PPC:-}
+if [ -z "$AR_PPC" ]; then
+    case "$CC_PPC" in
+        *-gcc) AR_PPC="${CC_PPC%-gcc}-ar" ;;
+        *)     AR_PPC=ar ;;
+    esac
+fi
+
+if [ -z "$RUN_PPC" ]; then
+    ARCH=`uname -m`
+    case "$ARCH" in
+        ppc | ppc64 | powerpc | powerpc64)
+            RUN_PPC=
+            ;;
+        *)
+            RUN_PPC=`command -v qemu-ppc 2>/dev/null || true`
+            if [ -z "$RUN_PPC" ]; then
+                echo "configure: warning: $ARCH host and no qemu-ppc on PATH (only needed for -ppc-elf)" >&2
+                echo "  sudo apt install qemu-user" >&2
+            fi
+            ;;
+    esac
+fi
+
+###############################################################################
 # Write Makefile.config
 ###############################################################################
 
@@ -170,6 +216,12 @@ CC32=$CC32
 AR32=$AR32
 # How to run the result; empty on an x86 host
 RUN32=$RUN32
+
+# The 32-bit ppc toolchain, for qc--'s -ppc-elf backend (optional)
+CC_PPC=$CC_PPC
+AR_PPC=$AR_PPC
+# How to run the result; empty on a ppc host
+RUN_PPC=$RUN_PPC
 EOF
 
 echo "wrote Makefile.config"
@@ -178,3 +230,6 @@ echo "  QCLIB     = $QCLIB"
 echo "  CC32      = $CC32"
 echo "  AR32      = $AR32"
 echo "  RUN32     = ${RUN32:-(native)}"
+echo "  CC_PPC    = $CC_PPC"
+echo "  AR_PPC    = $AR_PPC"
+echo "  RUN_PPC   = ${RUN_PPC:-(native)}"

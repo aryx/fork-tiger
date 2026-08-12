@@ -58,6 +58,28 @@ Assembly-output comparisons (`tests/x86/*.s.gz`) from the original suite were
 dropped since qc--'s register allocator differs from the one that produced
 them.
 
+### PPC (qc--'s `-ppc-elf` backend)
+
+```sh
+make test-ppc                     # builds stdlib+runtime for BACKEND=ppc, then runs the suite
+BACKEND=ppc tests/run-tests.sh    # same suite, driven directly
+```
+
+Same manifest, same `tests/x86/*.1`/`*.2` expected output (Tiger's observable
+behaviour isn't meant to depend on the target), but linked against qc--'s
+`-ppc-elf` backend and run under `qemu-ppc`. `stdlib/Makefile` and
+`runtime/Makefile` take a `BACKEND=ppc` argument (default `x86`) and build
+into `build-ppc/` instead of clobbering the x86 objects; `./configure`
+detects the ppc cross toolchain (`CC_PPC`, `AR_PPC`, `RUN_PPC` in
+`Makefile.config`, best-effort — a missing one only warns). tigerc itself
+always emits `target byteorder little`; both the Makefiles and
+`run-tests.sh` flip that to `big` in their own output on the fly, they don't
+touch the checked-in `.c--` sources.
+
+Currently 6/14 pass (`tests/expected/tiger-ppc.txt`); the rest fail at `qc`
+with `Impossible("instantiated 0-key type scheme with 1 widths")`, a real
+qc--/target-metrics gap, not a regression in this suite.
+
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural
 suite.

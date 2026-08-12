@@ -12,37 +12,82 @@ TOP=..
 -include $(TOP)/Makefile.common
 
 ##############################################################################
+# Backend selection
+##############################################################################
+# claude: BACKEND picks qc--'s target; see stdlib/Makefile's header for the
+# fuller reasoning. Default (x86) keeps the original flat filenames
+# (runtime.o, stdlib.a, qcmm.a) so tests/run-tests.sh's existing paths are
+# untouched; ppc's outputs live under build-ppc/ instead, alongside
+# stdlib/'s build-ppc/.
+BACKEND ?= x86
+ifeq ($(BACKEND),x86)
+CC        = $(CC32)
+AR        = $(AR32)
+QCFLAG    =
+B         = .
+STDLIBDIR = ../stdlib
+else ifeq ($(BACKEND),ppc)
+CC        = $(CC_PPC)
+AR        = $(AR_PPC)
+QCFLAG    = -ppc-elf
+B         = build-ppc
+STDLIBDIR = ../stdlib/build-ppc
+else
+$(error unknown BACKEND=$(BACKEND) - expected x86 or ppc)
+endif
+
+##############################################################################
 # Top rules
 ##############################################################################
 
-# See stdlib/Makefile for why CC32, -fno-omit-frame-pointer and -fcommon.
-all:: stdlib.a runtime.o qcmm.a
+# See stdlib/Makefile for why CC32/CC_PPC, -fno-omit-frame-pointer and
+# -fcommon.
+all:: $(B)/stdlib.a $(B)/runtime.o $(B)/qcmm.a
 
-gc.o: gc.c gc.h
-	$(CC32) -w -fcommon -fno-omit-frame-pointer -I $(QCINCLUDE) -c gc.c -o gc.o
+$(B):
+	mkdir -p $(B)
 
-alloc.o: alloc.c--
-	$(QC) -stop .o -o alloc.o alloc.c--
+$(B)/gc.o: gc.c gc.h | $(B)
+	$(CC) -w -fcommon -fno-omit-frame-pointer -I $(QCINCLUDE) -c gc.c -o $@
 
-runtime.o: runtime.c--
-	$(QC) -stop .o -o runtime.o runtime.c--
+# claude: alloc.c--/runtime.c-- declare "target byteorder little"; same
+# ppc byteorder flip as stdlib/Makefile's stdlibcmm.o, into a build-local
+# copy so the checked-in sources stay backend-neutral.
+ifeq ($(BACKEND),ppc)
+$(B)/alloc.o: alloc.c-- | $(B)
+	sed 's/byteorder[ ][ ]*little/byteorder big/' alloc.c-- > $(B)/alloc.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
 
-stdlib.a: gc.o alloc.o
-	$(AR32) cr stdlib.a ../stdlib/stdlib.o ../stdlib/stdlibcmm.o gc.o alloc.o
+$(B)/runtime.o: runtime.c-- | $(B)
+	sed 's/byteorder[ ][ ]*little/byteorder big/' runtime.c-- > $(B)/runtime.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
+else
+$(B)/alloc.o: alloc.c-- | $(B)
+	$(QC) $(QCFLAG) -stop .o -o $@ alloc.c--
+
+$(B)/runtime.o: runtime.c-- | $(B)
+	$(QC) $(QCFLAG) -stop .o -o $@ runtime.c--
+endif
+
+$(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o
+	$(AR) cr $@ $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibcmm.o $(B)/gc.o $(B)/alloc.o
 
 # The Quick C-- run-time system, built from the sources qc-- installs into
 # $(QCLIB). It is not shipped prebuilt because cut.c--, thread.c-- and
-# yield.c-- have to be compiled with *our* global-variable declarations:
-# every C-- unit touching the global area references a Cmm.globalsig.<hash>
-# computed from them, and tiger declares "bits32 alloc_ptr;".
-qcmm.a:
-	$(MAKE) -C $(QCLIB) B=$(CURDIR)/qcmm QC=$(QC) CC32="$(CC32)" \
+# yield.c-- have to be compiled with *our* global-variable declarations and
+# *our* target: every C-- unit touching the global area references a
+# Cmm.globalsig.<hash> computed from them, and tiger declares
+# "bits32 alloc_ptr;". BACKEND is threaded through so the ppc build gets a
+# byteorder-flipped, -ppc-elf-compiled qcmm.a of its own rather than
+# reusing x86's.
+$(B)/qcmm.a: | $(B)
+	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(BACKEND) QC=$(QC) CC32="$(CC)" \
 	  GLOBALS_DECL='bits32 alloc_ptr;'
-	cp qcmm/libqcmm.a qcmm.a
+	cp $(B)/qcmm/libqcmm.a $@
 
 clean::
 	rm -f *.o *.a
-	rm -rf qcmm
+	rm -rf qcmm build-ppc
 
 clean::
 	rm -f alloc.s runtime.s
