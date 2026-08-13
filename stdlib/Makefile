@@ -53,7 +53,13 @@ all:: $(B)/stdlib.o $(B)/stdlibcmm.o
 $(B):
 	mkdir -p $(B)
 
-$(B)/stdlib.o: stdlib.c stdlib.h | $(B)
+# claude: stdlib.o's real prerequisites also include qc--'s installed
+# qc--runtime.h (stdlib.c #includes it via -I $(QCINCLUDE)) and, for
+# stdlibcmm.o, the qc binary itself ($(QC) does the compiling, so a qc--
+# fix with no local source change wouldn't otherwise be noticed). Without
+# these, "make" at the top level silently reused stale objects after a
+# qc-- rebuild+reinstall - see notes on this in the qc-- repo's ppc memory.
+$(B)/stdlib.o: stdlib.c stdlib.h $(QCINCLUDE)/qc--runtime.h | $(B)
 	$(CC) -w -fcommon -fno-omit-frame-pointer -I $(QCINCLUDE) \
 	  -I ../runtime -c stdlib.c -o $@
 
@@ -62,11 +68,11 @@ $(B)/stdlib.o: stdlib.c stdlib.h | $(B)
 # so for BACKEND=ppc flip it into a build-local copy first and compile
 # that instead - same fix tests/run-native.sh already applies to cmm/*.c--.
 ifeq ($(BACKEND),ppc)
-$(B)/stdlibcmm.o: stdlibcmm.c-- | $(B)
+$(B)/stdlibcmm.o: stdlibcmm.c-- $(QC) | $(B)
 	sed 's/byteorder[ ][ ]*little/byteorder big/' stdlibcmm.c-- > $(B)/stdlibcmm.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/stdlibcmm.c--
 else
-$(B)/stdlibcmm.o: stdlibcmm.c-- | $(B)
+$(B)/stdlibcmm.o: stdlibcmm.c-- $(QC) | $(B)
 	$(QC) $(QCFLAG) -stop .o -o $@ stdlibcmm.c--
 endif
 

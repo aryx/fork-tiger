@@ -47,29 +47,37 @@ all:: $(B)/stdlib.a $(B)/runtime.o $(B)/qcmm.a
 $(B):
 	mkdir -p $(B)
 
-$(B)/gc.o: gc.c gc.h | $(B)
+# claude: gc.o's real prerequisites also include qc--'s installed
+# qc--runtime.h (gc.c #includes it via -I $(QCINCLUDE)); alloc.o/runtime.o
+# are compiled BY $(QC), so a qc-- fix with no local .c--/.h change
+# wouldn't otherwise be noticed. Without these, "make" at the top level
+# silently reused stale objects after a qc-- rebuild+reinstall.
+$(B)/gc.o: gc.c gc.h $(QCINCLUDE)/qc--runtime.h | $(B)
 	$(CC) -w -fcommon -fno-omit-frame-pointer -I $(QCINCLUDE) -c gc.c -o $@
 
 # claude: alloc.c--/runtime.c-- declare "target byteorder little"; same
 # ppc byteorder flip as stdlib/Makefile's stdlibcmm.o, into a build-local
 # copy so the checked-in sources stay backend-neutral.
 ifeq ($(BACKEND),ppc)
-$(B)/alloc.o: alloc.c-- | $(B)
+$(B)/alloc.o: alloc.c-- $(QC) | $(B)
 	sed 's/byteorder[ ][ ]*little/byteorder big/' alloc.c-- > $(B)/alloc.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
 
-$(B)/runtime.o: runtime.c-- | $(B)
+$(B)/runtime.o: runtime.c-- $(QC) | $(B)
 	sed 's/byteorder[ ][ ]*little/byteorder big/' runtime.c-- > $(B)/runtime.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
 else
-$(B)/alloc.o: alloc.c-- | $(B)
+$(B)/alloc.o: alloc.c-- $(QC) | $(B)
 	$(QC) $(QCFLAG) -stop .o -o $@ alloc.c--
 
-$(B)/runtime.o: runtime.c-- | $(B)
+$(B)/runtime.o: runtime.c-- $(QC) | $(B)
 	$(QC) $(QCFLAG) -stop .o -o $@ runtime.c--
 endif
 
-$(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o
+# claude: also depends on stdlib/'s own objects (copied in below) - the
+# top-level Makefile's test-ppc always builds stdlib/ first, but without
+# this, a rebuilt stdlib.o/stdlibcmm.o wouldn't trigger re-archiving here.
+$(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibcmm.o
 	$(AR) cr $@ $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibcmm.o $(B)/gc.o $(B)/alloc.o
 
 # The Quick C-- run-time system, built from the sources qc-- installs into
@@ -80,7 +88,18 @@ $(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o
 # "bits32 alloc_ptr;". BACKEND is threaded through so the ppc build gets a
 # byteorder-flipped, -ppc-elf-compiled qcmm.a of its own rather than
 # reusing x86's.
-$(B)/qcmm.a: | $(B)
+#
+# claude: qcmm.a has no real prerequisites of its own - it's a thin cp
+# around a recursive $(MAKE) into $(QCLIB), whose *own* Makefile is what
+# actually knows whether runtime.o/gcc-linux.o/etc. need rebuilding (see
+# that Makefile's per-object header/qc dependencies). So this always
+# recurses (FORCE, the standard recursive-make idiom - see the GNU Make
+# manual's "Recursive Make" chapter) rather than trying to model qc--'s
+# own build graph here; the sub-make no-ops on its own if nothing changed.
+.PHONY: FORCE
+FORCE:
+
+$(B)/qcmm.a: FORCE | $(B)
 	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(BACKEND) QC=$(QC) CC32="$(CC)" \
 	  GLOBALS_DECL='bits32 alloc_ptr;'
 	cp $(B)/qcmm/libqcmm.a $@

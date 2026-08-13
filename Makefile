@@ -8,6 +8,15 @@
 
 all::
 	dune build
+# claude: also build the C/C-- runtime support (x86 by default, matching
+# "test"'s default) so a plain "make" leaves everything needed to link a
+# tiger program, not just tigerc itself - test/test-ppc already did this
+# recursion for their own runs, but "make" alone skipped it, which is how
+# stdlib/runtime silently went stale relative to a rebuilt+reinstalled
+# qc-- until the next "make test"/"make test-ppc" happened to touch them.
+all::
+	$(MAKE) -C stdlib
+	$(MAKE) -C runtime
 clean::
 	dune clean
 install::
