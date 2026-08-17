@@ -9,6 +9,7 @@ val dump_ext     : bool ref
 val dump_lext    : bool ref
 
 val unwind    : bool ref
+val arch64    : bool ref
 val file      : string ref
 (*s: signature global Option.inch *)
 val inch      : in_channel ref

@@ -9,6 +9,9 @@ type access =
 val fp    : frame -> Tree.exp
 val name  : frame -> Tree.label
 val level : frame -> int
+val ws       : unit -> int
+val bits_str : unit -> string
+val align    : unit -> int
 (*x: frame.mli *)
 val base_frame : frame
 val new_frame  : Tree.label -> frame -> frame

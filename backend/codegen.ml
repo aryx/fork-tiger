@@ -9,11 +9,20 @@ let spf          = Printf.sprintf
 let join_map f l = String.concat "," (List.map f l)
 (*x: codegen.ml *)
 let output_file_header imports =
-  let pr_import x = pf "import bits32 \"tig_%s\" as %s;\n" x x in
-  pf "target byteorder little;\n";
+  let bits        = Frame.bits_str() in
+  let pr_import x = pf "import %s \"tig_%s\" as %s;\n" bits x x in
+  (* claude: -64 (Option.arch64) needs "wordsize 64 pointersize 64" on this
+   * line - qc-- checks the source's declared metrics against the chosen
+   * backend's and refuses to proceed on a mismatch (confirmed against the
+   * installed qc's -x86 backend: "metrics of source code don't match the
+   * target"). x86/ppc are also wordsize 32, but leave their output as-is
+   * (no clause at all) rather than making them declare it explicitly, to
+   * keep the existing recorded test baseline unchanged. *)
+  pf "target byteorder little%s;\n"
+     (if !Option.arch64 then " wordsize 64 pointersize 64" else "");
   List.iter pr_import imports;
   pf "export tiger_main;\n\n";
-  pf "bits32 alloc_ptr;\n";
+  pf "%s alloc_ptr;\n" bits;
   pf "import space_end;\n\n"
 (*x: codegen.ml *)
 let emit exl =
@@ -38,7 +47,7 @@ let emit exl =
         T.BINOP(bop, e1, e2)  -> spf "%%%s(%s, %s)"
                                  (T.cmm_binop bop) (valexp e1) (valexp e2)
       | T.RELOP _ as e        -> spf "%%sx32(%%bit(%s))" (boolexp e)
-      | T.MEM(e,_ptr)          -> spf "bits32[%s]" (valexp e)
+      | T.MEM(e,_ptr)          -> spf "%s[%s]" (Frame.bits_str()) (valexp e)
       | T.TEMP(t,_ptr)         -> spf "%s" (S.name t)
       | T.NAME l              -> (S.name l)
       | T.CONST i             -> string_of_int i

@@ -1,0 +1,36 @@
+/* claude: bits64 counterpart of alloc.c--, for a 64-bit qc-- backend (e.g.
+ * alpha) selected via tigerc's -64 flag - see runtime64.c-- for why this
+ * needs its own file rather than a byteorder-style sed patch: the pragma
+ * and every load/store width actually change, not just endianness.
+ *
+ * Note: this only makes the .c-- itself consistent with what `tigerc -64`
+ * emits. gc.c's pointer arithmetic still goes through `unsigned` (32-bit),
+ * which would truncate a real 64-bit heap pointer - that C-level port is
+ * not done here.
+ */
+target byteorder little wordsize 64 pointersize 64;
+import bits64 space_end;
+import bits64 tig_gc;
+export tig_alloc;
+export tig_call_gc;
+
+bits64 alloc_ptr;
+tig_call_gc() {
+  alloc_ptr = foreign "C" tig_gc(k) also cuts to k;
+  return;
+continuation k():
+  return;
+}
+tig_alloc(bits64 size) {
+  bits64 p;
+  p = 0;
+  size = (size + 15) & 0xFFFFFFFFFFFFFFF8;
+  if (alloc_ptr + size > bits64[space_end]) {
+    tig_call_gc();
+  }
+
+  bits64[alloc_ptr] = size;
+  p = alloc_ptr + 8;
+  alloc_ptr = alloc_ptr + size;
+  return(p);
+}

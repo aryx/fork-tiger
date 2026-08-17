@@ -75,6 +75,16 @@ let alloc_string s =
     let lbl = T.new_label "gbl" in
     (H.add strings s lbl; lbl)
 (*e: function [[Frame.alloc_string]] *)
+(* claude: cell width/alignment follow -64 (Option.arch64). qc-- ties this
+ * to the "target ... wordsize N pointersize N" pragma Codegen emits, which
+ * must match the chosen qc-- backend's metrics exactly - verified against
+ * the installed qc's -x86 backend, which rejects a wordsize-64 pragma with
+ * "metrics of source code don't match the target". So every stack slot,
+ * global and memory access width has to track this too, not just the
+ * pragma line. *)
+let ws()       = if !Option.arch64 then 8 else 4
+let bits_str() = if !Option.arch64 then "bits64" else "bits32"
+let align()    = if !Option.arch64 then 8 else 4
 (*x: frame.ml *)
 let pf           = Printf.printf
 let spf          = Printf.sprintf
@@ -84,13 +94,14 @@ let iter_ndx f   = let n   = ref(-1) in
                    List.iter g
 (*x: frame.ml *)
 let output_header frm =
-  let param  (p,_) = spf "bits32 %s" (S.name p)
-  and init n (p,_) = pf "  bits32[fp+%d] = %s;\n" (4*n) (S.name p)
-  and temp   (t,_) = pf "  bits32 %s;\n" (S.name t)
+  let bits          = bits_str() in
+  let param  (p,_) = spf "%s %s" bits (S.name p)
+  and init n (p,_) = pf "  %s[fp+%d] = %s;\n" bits (ws()*n) (S.name p)
+  and temp   (t,_) = pf "  %s %s;\n" bits (S.name t)
   and name         = (S.name frm.name) in
   pf "%s(%s) {\n" name (join_map param frm.params);
   pf " span 1 %s_gc_data {\n" name;
-  pf "  stackdata { align 4; fp : bits32[%d]; }\n" frm.size;
+  pf "  stackdata { align %d; fp : %s[%d]; }\n" (align()) bits frm.size;
   iter_ndx  init frm.params;
   List.iter temp frm.temps
 (*x: frame.ml *)
@@ -103,6 +114,10 @@ let output_footer frm =
   pf "}}\n";
   pf "section \"data\" {\n";
   pf " %s_gc_data:\n" (S.name frm.name);
+  (* claude: these GC descriptor tables are counts and 0/1 pointer flags,
+   * not Tiger-value words, and runtime/gc.c reads them as plain 4-byte
+   * "unsigned"/"int" regardless of target - so unlike everything else in
+   * this file they intentionally stay bits32 even under -64. *)
   pf "   bits32[] { %s };\n" (var_data (frm.params @ List.rev frm.vars));
   pf "   bits32[] { %s };\n" (var_data (frm.params @ frm.temps));
   pf "}\n\n"
@@ -112,10 +127,10 @@ let output_strings() =
   let print_string str lbl =
     let len = String.length str
     and str = String.escaped str in
-    pf " %s: bits32 { %d }; bits8[] \"%s\\000\";\n"
-       (S.name lbl) len str
+    pf " %s: %s { %d }; bits8[] \"%s\\000\";\n"
+       (S.name lbl) (bits_str()) len str
   in
-  pf "section \"data\" { align 4;\n";
+  pf "section \"data\" { align %d;\n" (align());
   H.iter print_string strings;
   pf "}\n\n"
 (*e: frame.ml *)

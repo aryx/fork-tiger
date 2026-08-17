@@ -6,6 +6,7 @@ let inch   = ref stdin
 let file   = ref ""
 (*x: command line flags *)
 let unwind = ref false
+let arch64 = ref false
 (*x: command line flags *)
 let dump_ast    = ref false
 (*x: command line flags *)
@@ -32,6 +33,7 @@ let rec usage() =
 and options = [
   (*s: command line options *)
   "-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
+  "-64",       Arg.Set arch64, "\temit bits64 C-- (wordsize/pointersize 64) for a 64-bit qc-- backend (e.g. alpha), instead of the default 32-bit bits32";
   (*x: command line options *)
   "-dump_ast",      Arg.Set dump_ast,    "\tprint Abstract Syntax Tree";
   (*x: command line options *)

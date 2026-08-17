@@ -7,10 +7,14 @@ module T = Tree
 module F = Frame
 
 (*s: constant Translate.ws *)
-(* claude: target is always 32-bit x86 (qc-- only emits i386), regardless of
- * the host OCaml runtime's word size, so this must be a fixed constant and
- * not derived from Sys.word_size. *)
-let  ws    = 4
+(* claude: word size follows -64 (Frame.ws/Option.arch64), not the host
+ * OCaml runtime's word size - qc-- emits i386 by default (32-bit) or,
+ * under -64, a 64-bit backend such as alpha, but never the host's own
+ * width, so this can't be derived from Sys.word_size either way. Reads as
+ * a function call, not a constant, since Option.arch64 is only set once
+ * Option.parse_cmdline() runs in Main.main, which is after this module's
+ * own top-level bindings would otherwise have been evaluated. *)
+let  ws()  = F.ws()
 (*e: constant Translate.ws *)
 
 (*s: function Translate.temp *)
@@ -136,19 +140,19 @@ let ext_cmm_call = ext_call  None
 (*e: functions [[Translate.ext_xxx_call]] *)
 
 (*s: function [[Translate.field_var]] *)
-let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
+let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws()), ptr)
 (*e: function [[Translate.field_var]] *)
 (*s: function [[Translate.subscript_var]] *)
 let subscript_var e1 e2 ptr pos =
   let check = ext_c_call "bounds_check"
                         [e1;e2;T.CONST(fst (Error.line_number pos))] in
-  let offset = (e2 <+> T.CONST 1) <*> T.CONST ws in
+  let offset = (e2 <+> T.CONST 1) <*> T.CONST (ws()) in
   eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
 (*e: function [[Translate.subscript_var]] *)
 (*s: function [[Translate.simple_var]] *)
 let simple_var frm = function
   | F.Stack(var_frm, offset, ptr) ->
-      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
+      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws()), ptr)
 (*e: function [[Translate.simple_var]] *)
 
 (*s: function Translate.arithmetic *)
@@ -219,7 +223,7 @@ let break lbl = eseq nil [goto lbl]
 
 (*s: function Translate.alloc *)
 let alloc size =
-  let size = (size <+> T.CONST 1) <*> T.CONST ws in
+  let size = (size <+> T.CONST 1) <*> T.CONST (ws()) in
   let test = T.RELOP(T.GT, alloc_ptr <+> size, space_end) in
   let tmp  = temp true in
   let tru  = T.new_label "alc_gc" in
@@ -228,7 +232,7 @@ let alloc size =
              T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
              T.LABEL fls;
              size => T.MEM(alloc_ptr, true);
-             (alloc_ptr <+> T.CONST ws) => tmp;
+             (alloc_ptr <+> T.CONST (ws())) => tmp;
              (alloc_ptr <+> size) => alloc_ptr
             ]
 (*e: function Translate.alloc *)
@@ -255,7 +259,7 @@ let new_array sizeEx initEx ptr =
       sizeEx => T.MEM(ary, false);
       T.CONST 1 => i;
       T.LABEL lbeg;
-      initEx => T.MEM (ary <+> (i <*> T.CONST ws), ptr);
+      initEx => T.MEM (ary <+> (i <*> T.CONST (ws())), ptr);
       i <+> T.CONST 1 => i;
       T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
       T.LABEL lend ]
