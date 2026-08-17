@@ -1,0 +1,12 @@
+
+* Last
+
+** Last1
+
+*** tiger: omk index?
+need dune 2.7? but pb with toplevel symlinks bin
+
+*** tiger: fix Dockerfile, run also tests in Docker
+hmm but need install qc itself! need pushed Docker image for qc
+somewhere? padator/qcmm ?
+
