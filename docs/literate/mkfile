@@ -1,0 +1,51 @@
+TOP=../..
+
+SYNCFLAGS=-md5sum_in_auxfile -less_marks -lang ocaml 
+#SYNCWEBFLAGS=-debug
+
+DOC=Tiger
+VERSION=1
+
+# must be in the same order of the #include
+SRC_ORIG=Tiger.nw Tiger_extra.nw
+
+SRC_VIEWS= \
+ $TOP/parsing/error.mli\
+ $TOP/parsing/error.ml\
+ $TOP/parsing/option.mli\
+ $TOP/parsing/option.ml\
+ $TOP/parsing/symbol.mli\
+ $TOP/parsing/symbol.ml\
+ $TOP/parsing/ast.mli\
+ $TOP/parsing/ast.ml\
+ $TOP/frontend/environment.mli\
+ $TOP/frontend/environment.ml\
+ $TOP/frontend/semantics.mli\
+ $TOP/frontend/semantics.ml\
+ $TOP/frontend/tree.mli\
+ $TOP/frontend/tree.ml\
+ $TOP/frontend/translate.mli\
+ $TOP/frontend/translate.ml\
+ $TOP/frontend/canonical.mli\
+ $TOP/frontend/canonical.ml\
+ $TOP/frontend/frame.mli\
+ $TOP/frontend/frame.ml\
+ $TOP/backend/codegen.mli\
+ $TOP/backend/codegen.ml\
+ $TOP/main/main.ml\
+ $TOP/parsing/lexer.mll
+
+<$TOP/docs/latex/mkcommon
+
+index:V:
+    echo TODO
+
+SYNCFLAGS2=-md5sum_in_auxfile -less_marks -lang C
+#alloc.c--
+#client.c
+#gc.c
+#gc.h
+#runtime.c--
+
+sync_runtime:VI:
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/qc--runtime.h

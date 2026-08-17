@@ -4,3 +4,5 @@
   ; TODO: remove the -32, fix the code
   (flags (:standard -w -33-32)))
 )
+
+(dirs :standard \ principia)
