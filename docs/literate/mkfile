@@ -41,11 +41,13 @@ index:V:
     echo TODO
 
 SYNCFLAGS2=-md5sum_in_auxfile -less_marks -lang C
-#alloc.c--
-#client.c
-#gc.c
-#gc.h
-#runtime.c--
 
 sync_runtime:VI:
-	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/qc--runtime.h
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/gc.c
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/gc.h
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/client.c
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/runtime.c--
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/alloc.c--
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/gc.h
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlib.h
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlib.c

@@ -71,9 +71,9 @@ int main(int argc, char *argv[])
   register_c_func("tig_gc",    (void*)tig_gc,    "void:void");
   register_c_func("tig_alloc", (void*)tig_alloc, "unsigned:pointer");
   register_c_func("tig_compare_str", (void*)tig_compare_str,
-				  "pointer,pointer:int");
+      "pointer,pointer:int");
   register_c_func("tig_bounds_check", (void*)tig_bounds_check,
-				  "pointer,int,int:void");
+      "pointer,int,int:void");
 
   if (!load_assembly_unit(argv[1],SRC_FILE))
   {

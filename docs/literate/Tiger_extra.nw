@@ -2,9 +2,9 @@
 %note:
 % Tiger was already a literate program, but using a different decomposition
 % than I usually use, so I re-lpized it. Below are sections of
-% the original literate program. Each time
-% there is a [[dir/foo.nw]] section and below the corresponding original
-% latex section in the original literate document.
+% the original literate program.
+% Each time there is a [[dir/foo.nw]] section and below the corresponding
+% original latex section in the original literate document.
 % Note that syncweb requires a single toplevel chunkname hence
 % the introduction of a few extra boilerplate chunknames sometimes.
 
@@ -1841,15 +1841,12 @@ let output_strings() =
 
 \section{[[backend/codegen.nw]]}
 
-
 <<backend/codegen.mli>>=
 <<codegen.mli>>
 @
-
 <<backend/codegen.ml>>=
 <<codegen.ml>>
 @
-
 
 
 \section{Code Generation}
@@ -1978,13 +1975,17 @@ let emit exl =
 
 \subsection{Memory Allocator}
 
+<<alloc.c-->>=
+<<alloc.c-- >>
+@
+
 %%The memory allocator is written in [[C--]], however {\em this
 %%allocator is not called by compiled Tiger code.} The Tiger compiler
 %%generate in-line allocations, which may call the [[call_gc]] function,
 %%but not the [[alloc]] function. The [[alloc]] function is only
 %%provided as an example, and as a convenience for library functions
 %%that need to allocate memory.
-<<alloc.c-->>=
+<<alloc.c-- >>=
 target byteorder little;
 import bits32 space_end;
 import bits32 tig_gc;
@@ -2003,7 +2004,7 @@ export tig_call_gc;
 %%overwritten. However, the garbage collector returns a new allocation
 %%pointer, so we do not need to save [[alloc_ptr]] before calling into
 %%the [[C]] code.
-<<alloc.c-->>=
+<<alloc.c-- >>=
 bits32 alloc_ptr;
 tig_call_gc() {
   alloc_ptr = foreign "C" tig_gc(k) also cuts to k;
@@ -2019,7 +2020,7 @@ continuation k():
 %%When doing an allocation, we add an extra word at the beginning for
 %%the garbage collector data, and then round up to the nearest machine
 %%word.
-<<alloc.c-->>=
+<<alloc.c-- >>=
 tig_alloc(bits32 size) {
   bits32 p;
   p = 0;
@@ -2045,10 +2046,14 @@ void* gc_init(int heap_size);
 void* tig_gc(Cmm_Cont*);
 @
 
+<<gc.c>>=
+<<gc.c >>
+@
+
 %%The Tiger garbage collector is a very simple copying collector. Most
 %%of the code is generic in that it is not specific to either Tiger or
 %%[[C--]].
-<<gc.c>>=
+<<gc.c >>=
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -2148,7 +2153,7 @@ void gc_copy(void) {
 %%a function is always the parent frame pointer, and we can safely
 %%ignore it. We also know that the GC is only called from [[call_gc]],
 %%and we can safely ignore the first activation record.
-<<gc.c>>=
+<<gc.c >>=
 void* tig_gc(Cmm_Cont* k) {
   Cmm_Activation a;
   alloc_ptr = to_space;
@@ -2198,8 +2203,9 @@ void* tig_gc(Cmm_Cont* k) {
   return alloc_ptr;
 }
 @
+
 \section{[[runtime/runtime.nw]]}
-%%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
+
 
 \section{Runtime Startup Code}
 %%\label{sec:runtime}
@@ -2329,9 +2335,9 @@ int main(int argc, char *argv[])
   register_c_func("tig_gc",    (void*)tig_gc,    "void:void");
   register_c_func("tig_alloc", (void*)tig_alloc, "unsigned:pointer");
   register_c_func("tig_compare_str", (void*)tig_compare_str,
-				  "pointer,pointer:int");
+      "pointer,pointer:int");
   register_c_func("tig_bounds_check", (void*)tig_bounds_check,
-				  "pointer,int,int:void");
+      "pointer,int,int:void");
 
   if (!load_assembly_unit(argv[1],SRC_FILE))
   {
