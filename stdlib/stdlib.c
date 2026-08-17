@@ -5,9 +5,12 @@
 #include <string.h>
 #include <assert.h>
 /*s: C functions */
-unsigned tig_sizea(void* array) { return *((int*)array); }
-unsigned tig_size(string *s)    { return s->length;      }
-int      tig_not(int i)         { return !i;             }
+/* claude: reads the same pointer-width header word gc.c's internal_alloc
+ * writes / stdlibcmm.c--'s new_string writes - see stdlib.h's struct
+ * _string claude: comment. */
+uintptr_t tig_sizea(void* array) { return *((uintptr_t*)array); }
+uintptr_t tig_size(string *s)    { return s->length;             }
+int       tig_not(int i)         { return !i;             }
 void     tig_exit(int status)   { exit(status);          }
 void     tig_flush()            { fflush(stdout);        }
 void     tig_printi(int n)      { printf("%d", n);       }
@@ -25,8 +28,8 @@ void tig_bounds_check(void *array, int index, int line) {
 /*x: C functions */
 int tig_ord(string *s) {
   if (s->length != 1) {
-    fprintf(stderr, "Tiger program took ord of string of length %d\n",
-            s->length);
+    fprintf(stderr, "Tiger program took ord of string of length %lu\n",
+            (unsigned long)s->length);
     exit(1);
   }
   return s->chars[0];
@@ -52,7 +55,7 @@ int tig_compare_str(string *s, string *t) {
 void unwinder(Cmm_Cont* k, unsigned exn_id) {
   Cmm_Activation a = Cmm_YoungestActivation(k); 
   do {
-    if ((unsigned)Cmm_GetDescriptor(&a, 2) == 1) {
+    if ((uintptr_t)Cmm_GetDescriptor(&a, 2) == 1) {
       Cmm_Cont* exn = Cmm_MakeUnwindCont(&a, 0, exn_id);
       Cmm_CutTo(exn);
       return;
