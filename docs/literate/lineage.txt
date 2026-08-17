@@ -1,0 +1,5 @@
+# -*- sh -*- 
+# See http://rigaux.org/language-study/diagram.html for the format of this file
+
+gcc
+  1978

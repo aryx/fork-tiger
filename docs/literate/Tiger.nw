@@ -1,11 +1,21 @@
-\documentclass[twocolumn, landscape]{report}
+\documentclass[12pt]{report}
+
+\input{latex/Packages}
+\usepackage{latex/noweb}
+ \noweboptions{footnotesizecode,nomargintag}
+ %note: allow chunk on different pages, less white space at bottom of pages
+ \def\nwendcode{\endtrivlist \endgroup}
+ \let\nwdocspar=\par
+\usepackage{latex/syncweb}
+\input{latex/Config}
+\input{latex/Macros}
 
 %******************************************************************************
 % Prelude
 %******************************************************************************
-\newif\iffinal
-\newif\ifverbose
-\finaltrue\verbosefalse % see also other newif in Macros.tex
+%\newif\iffinal
+%\newif\ifverbose
+%\finaltrue\verbosefalse % see also other newif in Macros.tex
 
 %------------------------------------------------------------------------------
 %history: 
@@ -79,43 +89,13 @@
 % - TODO add figures
 % - TODO add explanations
 
-%------------------------------------------------------------------------------
-% Packages
-%------------------------------------------------------------------------------
-
-\usepackage{docs/latex/noweb}
- \noweboptions{footnotesizecode,nomargintag}
- %note: allow chunk on different pages, less white space at bottom of pages
- \def\nwendcode{\endtrivlist \endgroup}
- \let\nwdocspar=\par
-\usepackage{xspace}
-\usepackage{verbatim}
-%note: required by noweblatexpad for the \t \l \n in this file
-\usepackage{fancyvrb}
-\usepackage{url}
-\usepackage{hyperref}
- \hypersetup{colorlinks=true}
-\usepackage[pageref]{backref}
- \def\backref{{\footnotesize cited page(s)}~}
-\usepackage{booktabs} 
- \newcommand{\otoprule}{\midrule[\heavyrulewidth]}
-\usepackage{graphicx}
-
-%------------------------------------------------------------------------------
-% Macros
-%------------------------------------------------------------------------------
-\input{docs/latex/Macros}
-
-%------------------------------------------------------------------------------
-% Config
-%------------------------------------------------------------------------------
-\allcodefalse
-% used for ?
-
-\addtolength{\topmargin}{-.850in}
-\addtolength{\textheight}{1.70in}
-
-%\setcounter{tocdepth}{1}
+%\allcodefalse
+%% used for ?
+%
+%\addtolength{\topmargin}{-.850in}
+%\addtolength{\textheight}{1.70in}
+%
+%%\setcounter{tocdepth}{1}
 
 \begin{document}
 %******************************************************************************
@@ -211,7 +191,7 @@ Here are other candidates that were considered but ultimately discarded:
 \section{Requirements}
 
 \section{About this document}
-#include "docs/latex/About.nw"
+%#include "docs/latex/About.nw"
 
 \section{Copyright}
 
@@ -2196,7 +2176,7 @@ and trvar env = function
       in
       let offset  = ref (-1) in
       let (_,fld) =
-        try List.find (fun (s,v) -> incr offset; s = sym) fields
+        try List.find (fun (s,_v) -> incr offset; s = sym) fields
         with Not_found -> E.undefined pos (S.name sym)
       in
       let typ = base_type env fld in
@@ -2227,7 +2207,7 @@ and trvar env = function
           begin try
             let field_vals = (List.map2 chk_field fields dec_fields) in
             (Trans.new_record field_vals, RECORD dec_fields)
-          with Invalid_argument s ->
+          with Invalid_argument _s ->
             E.type_err pos "Record instance does not match declared type"
           end
       | _ ->
@@ -2304,7 +2284,7 @@ in
             let rtyp = base_type env return_type in
             (Trans.call (Env.frame env) lbl cc frm args
                     (Env.exn_label env) (is_ptr rtyp), rtyp)
-          with Invalid_argument x ->
+          with Invalid_argument _x ->
             E.type_err pos "function arguments do not match declaration"
           end
       | _ ->
@@ -2357,6 +2337,14 @@ in
       check_type_eq  pos
         "type of then expression (%s) does not match else (%s)" tty ety;
       let typ = base_type env tty in
+      (* claude: a UNIT-typed branch (e.g. a print() call) has no
+       * meaningful value - force both branches to the canonical nil
+       * instead of merging whatever garbage was left in the result
+       * register. See Translate.discard. *)
+      let tex, eex =
+        if typ = UNIT then (Trans.discard tex, Trans.discard eex)
+        else (tex, eex)
+      in
       (Trans.ifexp iex tex eex (is_ptr typ), typ)
 @
 % ugly check_type_int, should be check_type_bool!!
@@ -2522,7 +2510,10 @@ let simplify tig_op op =
 @
 
 <<constant Translate.ws>>=
-let  ws    = Sys.word_size / 8
+(* claude: target is always 32-bit x86 (qc-- only emits i386), regardless of
+ * the host OCaml runtime's word size, so this must be a fixed constant and
+ * not derived from Sys.word_size. *)
+let  ws    = 4
 @
 %less: hmm size in bytes so rename wsb?
 
@@ -2608,7 +2599,7 @@ let getfp frm parent_frm =
 %less: rename frm to current_frm and parent_frm to entity_frm
 
 <<function Frame.fp>>=
-let fp    frm = 
+let fp    _frm = 
   T.NAME (S.symbol "fp")
 @
 
@@ -2774,10 +2765,19 @@ let rec sequence = function
 
 <<signature functions Translate.xxx>>=
 val assign        : Tree.exp -> Tree.exp -> Tree.exp
+val discard       : Tree.exp -> Tree.exp
 @
 <<function Translate.assign>>=
-let assign v e = 
+let assign v e =
   eseq nil [e => v]
+(* claude: a UNIT-typed exp (e.g. a call to a void C runtime function like
+ * print) carries no meaningful value - the callee's calling convention makes
+ * no promise about what ends up in its "result" register. Reading that
+ * value anyway (as ifexp's branch-merge used to unconditionally do) leaks
+ * whatever garbage was left over, which became visible as e.g. a Tiger
+ * program's exit code being the leftover value of its last print() call
+ * instead of 0. Evaluate for effect only, and always yield the same nil. *)
+let discard e = eseq nil [T.EXP e]
 @
 % need eseq? yes because MOVE is a stm
 
@@ -2805,7 +2805,7 @@ let ifexp test thn els ptr =
 
 <<function Translate.goto>>=
 let goto lbl  = 
-  T.JUMP (T.NAME lbl)
+  T.JUMP lbl
 @
 %old: T.JUMP (T.NAME lbl)
 
@@ -2892,9 +2892,8 @@ let linearize stm0 =
   and do_stm = function
       T.SEQ(a,b) ->
         do_stm a % do_stm b
-    | T.JUMP e ->
-        let f l = T.JUMP (List.hd l)
-        in reorder_stm([e], f)
+    | T.JUMP l ->
+        T.JUMP l
     | T.CJUMP(e,t,f) ->
         let f l = T.CJUMP(List.hd l, t, f)
         in reorder_stm([e], f)
@@ -2921,7 +2920,7 @@ let linearize stm0 =
         let f l = T.EXP (List.hd l)
         in reorder_stm([e], f)
     | s ->
-        let f l = s
+        let f _l = s
         in reorder_stm([], f)
 
   and do_exp = function
@@ -2942,7 +2941,7 @@ let linearize stm0 =
         let f l = T.CALL(List.hd l, List.tl l, ext, k, ptr)
         in reorder_exp(e :: el, f)
     | e ->
-        let f l = e
+        let f _l = e
         in reorder_exp([], f)
 
   (* linear gets rid of the top-level SEQ's, producing a list *)
@@ -3285,7 +3284,7 @@ let unwind = ref false
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.SpawnExp(sym, pos) ->
       (match Env.lookup_value env sym pos with
-        Env.FunEntry(lbl, cc, frm, dec_args, return_type) ->
+        Env.FunEntry(lbl, _cc, _frm, dec_args, _return_type) ->
           if dec_args <> []
           then E.type_err pos "spawn function must take zero arguments."
           else (Trans.spawn lbl, INT)
@@ -3394,15 +3393,15 @@ let handle_exception (ex,pos) =
 % type error dumper, should be the string in Type_error of string above
 <<function Semantics.type_name>>=
 let rec type_name = function
+    RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
+                "record {" l) ^ "}"
   | NIL      -> "nil"
   | INT      -> "int"
   | STRING   -> "string"
+  | ARRAY vt -> "array of " ^ (type_name vt)
+  | NAME(s)  -> "named type " ^ (S.name s)
   | UNIT     -> "unit"
   | ANY      -> "any"
-  | NAME(s)  -> "named type " ^ (S.name s)
-  | RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
-                "record {" l) ^ "}"
-  | ARRAY vt -> "array of " ^ (type_name vt)
 @ 
 
 \section{Line position}
@@ -3411,8 +3410,11 @@ let rec type_name = function
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
   if line > 0 
-  then Printf.fprintf stderr "%s:%d,%d: %s\n" !Option.file line col msg
-  else Printf.fprintf stderr "%s: %s\n" prefix msg
+  then
+    Printf.fprintf stderr
+      "%s:%d,%d: %s\n" !Option.file line col msg
+  else
+    Printf.fprintf stderr "%s: %s\n" prefix msg
 @
 
 <<function Error.warning>>=
@@ -3424,8 +3426,7 @@ let warning = err_msg "Warning"
 let line_number pos =
   let rec line ln last_p = function
       (p,l) :: rest ->
-        if p > pos 
-        then (l, pos - last_p)
+        if p > pos then (l, pos - last_p)
         else line l p rest
     | [] -> (ln + 1, pos - last_p)
   in line 0 0 source_map.sm
@@ -3556,7 +3557,7 @@ and exp d = function
       in
       iprintf d "RecordExp: %s\n" (S.name name);
       List.iter (f (d+1)) fields
-  | ArrayExp(v, size, init, p) ->
+  | ArrayExp(v, size, init, __p) ->
       iprintf d "ArrayExp: %s\n" (S.name v);
       exp (d+1) size;
       exp (d+1) init
@@ -3651,12 +3652,12 @@ let print_stm =
   in
   let rec prstm d = function
     | LABEL l      -> iprintf d "LABEL:%s\n " (S.name l)
-    | CONT(l,ls)   -> iprintf d "CONT:%s\n "  (S.name l)
+    | CONT(l,_ls)   -> iprintf d "CONT:%s\n "  (S.name l)
     | TRY l        -> iprintf d "TRY:%s\n"    (S.name l)
     | TRYEND l     -> iprintf d "TRYEND:%s\n" (S.name l)
     | SEQ(a,b)     -> iprintf d "SEQ:\n";     prstm(d+1) a; prstm(d+1) b
     | MOVE(a,b)    -> iprintf d "MOVE:\n";    prexp(d+1) a; prexp(d+1) b
-    | JUMP e       -> iprintf d "JUMP:\n";    prexp(d+1) e
+    | JUMP l       -> iprintf d "JUMP:%s\n"   (S.name l)
     | EXP e        -> iprintf d "EXP:\n";     prexp(d+1) e
     | RET e        -> iprintf d "RET:\n";     prexp(d+1) e
     | CJUMP(a,t,f) -> iprintf d "CJUMP:\n";   prexp(d+1) a;
