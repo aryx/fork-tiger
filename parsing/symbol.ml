@@ -30,10 +30,10 @@ let symbol name =
     (name, !nextsym)
 (*e: function Symbol.symbol *)
 
-(*s: function Symbol.new_symbol *)
+(*s: function [[Symbol.new_symbol]] *)
 let new_symbol prefix = 
   symbol (Printf.sprintf "%s_%d" prefix !nextsym)
-(*e: function Symbol.new_symbol *)
+(*e: function [[Symbol.new_symbol]] *)
 (*x: symbol.ml *)
 (*s: type Symbol.table *)
 type 'a table = {
@@ -79,13 +79,13 @@ let create l =
   env
 (*e: constructor Symbol.create *)
 
-(*s: constructor Symbol.new_scope *)
+(*s: constructor [[Symbol.new_scope]] *)
 let new_scope env = { 
   tbl = Hashtbl.create 20;
   level = env.level + 1;
   parent = Some env 
 }
-(*e: constructor Symbol.new_scope *)
+(*e: constructor [[Symbol.new_scope]] *)
 (*x: symbol.ml *)
 let rec iter f env =
   Hashtbl.iter (f env.level) env.tbl;

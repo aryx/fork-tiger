@@ -8,7 +8,7 @@ module Trans = Translate
 
 open Environment
 
-(*s: function Semantics.type_name *)
+(*s: function [[Semantics.type_name]] *)
 let rec type_name = function
     RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
                 "record {" l) ^ "}"
@@ -19,35 +19,35 @@ let rec type_name = function
   | NAME(s)  -> "named type " ^ (S.name s)
   | UNIT     -> "unit"
   | ANY      -> "any"
-(*e: function Semantics.type_name *)
-(*s: function Semantics.base_type *)
+(*e: function [[Semantics.type_name]] *)
+(*s: function [[Semantics.base_type]] *)
 let rec base_type env = function
     NAME s ->
       (try base_type env (Env.lookup_type env s 0)
        with Not_found -> E.internal "NAME symbol not found"
       )
   | x -> x
-(*e: function Semantics.base_type *)
-(*s: function Semantics.lookup_base_type *)
+(*e: function [[Semantics.base_type]] *)
+(*s: function [[Semantics.lookup_base_type]] *)
 let lookup_base_type env sym pos =
   base_type env (Env.lookup_type env sym pos)
-(*e: function Semantics.lookup_base_type *)
+(*e: function [[Semantics.lookup_base_type]] *)
 
-(*s: function Semantics.is_ptr *)
+(*s: function [[Semantics.is_ptr]] *)
 let is_ptr = function
     INT | UNIT -> false
   | NIL | RECORD _ | STRING | ARRAY _ -> true
   | _ -> E.internal "non-base type for variable"
-(*e: function Semantics.is_ptr *)
-(*s: functions Semantics.check_type_xxx *)
+(*e: function [[Semantics.is_ptr]] *)
+(*s: functions [[Semantics.check_type_xxx]] *)
 let check_type_t ty pos msg typ =
   if typ <> ty
   then E.type_err pos (msg ^ " must be of type " ^ type_name ty)
 
 let check_type_int  = check_type_t INT
 let check_type_unit = check_type_t UNIT
-(*e: functions Semantics.check_type_xxx *)
-(*s: function Semantics.check_type_eq *)
+(*e: functions [[Semantics.check_type_xxx]] *)
+(*s: function [[Semantics.check_type_eq]] *)
 let check_type_eq pos msg t1 t2 =
   let are_equivalent = 
     match (t1,t2) with
@@ -59,16 +59,16 @@ let check_type_eq pos msg t1 t2 =
   in 
   if not are_equivalent
   then E.type_err pos (Printf.sprintf msg (type_name t1) (type_name t2))
-(*e: function Semantics.check_type_eq *)
+(*e: function [[Semantics.check_type_eq]] *)
 
 (*s: translators *)
 (*s: global Semantics.functions *)
 let functions                 = ref []
 (*e: global Semantics.functions *)
-(*s: function Semantics.add_function *)
+(*s: function [[Semantics.add_function]] *)
 let add_function frm (ex,typ) =
   functions := (frm, Trans.func ex (is_ptr typ)) :: !functions
-(*e: function Semantics.add_function *)
+(*e: function [[Semantics.add_function]] *)
 (*x: translators *)
 
 (*s: functions Semantics.trxxx *)
@@ -88,7 +88,7 @@ let rec trexp env = function
     | A.VarExp v       -> trvar env v
   (*x: [[Semantics.trans.trexp()]] cases *)
     | A.RecordExp(var, fields, pos) ->
-        (*s: function Semantics.trans.trexp.chk_field *)
+        (*s: function [[Semantics.trans.trexp.chk_field]] *)
         let chk_field (s1,e,p) (s2,vt) =
           if (s1 <> s2) 
           then E.type_err p "field names do not match";
@@ -97,7 +97,7 @@ let rec trexp env = function
                           (base_type env vt) ty;
           (ex, is_ptr ty)
         in
-        (*e: function Semantics.trans.trexp.chk_field *)
+        (*e: function [[Semantics.trans.trexp.chk_field]] *)
         (match Env.lookup_type env var pos with
           RECORD dec_fields ->
             begin try
@@ -295,13 +295,13 @@ and trdec env = function
       Trans.nil
   (*x: [[Semantics.trans.trdec()]] cases *)
   | A.FunctionDec functions ->
-      (*s: local function Semantics.trans.trdec.mk_param (for FunctionDec case) *)
+      (*s: local function [[Semantics.trans.trdec.mk_param]] (for FunctionDec case) *)
       let mk_param fenv (name, typ, pos) =
         let t = lookup_base_type env typ pos in
         Env.enter_param fenv name t (is_ptr t)
       in
-      (*e: local function Semantics.trans.trdec.mk_param (for FunctionDec case) *)
-      (*s: local function Semantics.trans.trdec.mk_func_env (for FunctionDec case) *)
+      (*e: local function [[Semantics.trans.trdec.mk_param]] (for FunctionDec case) *)
+      (*s: local function [[Semantics.trans.trdec.mk_func_env]] (for FunctionDec case) *)
       let mk_func_env (name, params, typ, _, pos) =
         let ret_type = 
           match typ with
@@ -313,13 +313,13 @@ and trdec env = function
         params |> List.iter (fun p -> mk_param fenv p);
         fenv
       in
-      (*e: local function Semantics.trans.trdec.mk_func_env (for FunctionDec case) *)
-      (*s: local function Semantics.trans.trdec.trans_func (for FunctionDec case) *)
+      (*e: local function [[Semantics.trans.trdec.mk_func_env]] (for FunctionDec case) *)
+      (*s: local function [[Semantics.trans.trdec.trans_func]] (for FunctionDec case) *)
       let trans_func fenv (_, _, _, body, _) =
         let b = trexp fenv body in
         add_function (Env.frame fenv) b
       in
-      (*e: local function Semantics.trans.trdec.trans_func (for FunctionDec case) *)
+      (*e: local function [[Semantics.trans.trdec.trans_func]] (for FunctionDec case) *)
       let envs = (List.map mk_func_env functions) in
       List.iter2 trans_func   envs functions;
       Trans.nil

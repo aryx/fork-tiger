@@ -8,9 +8,9 @@ type label = Symbol.symbol
 and  temp  = Symbol.symbol
 (*e: type Tree.temp *)
 
-(*s: type Tree.is_ptr *)
+(*s: type [[Tree.is_ptr]] *)
 type is_ptr = bool
-(*e: type Tree.is_ptr *)
+(*e: type [[Tree.is_ptr]] *)
 
 (*s: type Tree.stm *)
 type stm =
@@ -51,14 +51,14 @@ and relop = EQ | NE   | LT | GT | LE | GE
 (*e: types Tree.xxxop *)
 
 (*s: tree.ml *)
-(*s: function Tree.new_label *)
+(*s: function [[Tree.new_label]] *)
 let new_label s = 
   S.new_symbol ("L" ^ s)
-(*e: function Tree.new_label *)
-(*s: function Tree.new_temp *)
+(*e: function [[Tree.new_label]] *)
+(*s: function [[Tree.new_temp]] *)
 let new_temp () = 
   S.new_symbol "temp"
-(*e: function Tree.new_temp *)
+(*e: function [[Tree.new_temp]] *)
 (*x: tree.ml *)
 let relop_inverse = function
     EQ  -> NE
@@ -120,7 +120,7 @@ let find_temps stmts =
   in
   TempSet.elements (List.fold_left stm TempSet.empty stmts)
 (*x: tree.ml *)
-(*s: function Tree.print_stm *)
+(*s: function [[Tree.print_stm]] *)
 let print_stm =
   let rec iprintf = function
       0 -> Printf.printf
@@ -153,10 +153,10 @@ let print_stm =
     | CALL(e,el,_,_,_) -> iprintf d "CALL:\n";
                           prexp (d+1) e; List.iter (prexp (d+2)) el
   in prstm 0
-(*e: function Tree.print_stm *)
+(*e: function [[Tree.print_stm]] *)
 (*x: tree.ml *)
-(*s: function Tree.print_exp *)
+(*s: function [[Tree.print_exp]] *)
 let print_exp e = print_stm (EXP e)
-(*e: function Tree.print_exp *)
+(*e: function [[Tree.print_exp]] *)
 (*e: tree.ml *)
 (*e: frontend/tree.ml *)

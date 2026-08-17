@@ -47,7 +47,7 @@ type t = {
   }
 (*e: type Environment.t *)
 (*x: environment.ml *)
-(*s: function Environment.new_env *)
+(*s: function [[Environment.new_env]] *)
 let new_env types funs =
   let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
   in { tenv        = Symbol.create types;
@@ -60,24 +60,24 @@ let new_env types funs =
        break_label = None;
        exn_label   = None 
      }
-(*e: function Environment.new_env *)
+(*e: function [[Environment.new_env]] *)
 (*x: environment.ml *)
-(*s: function Environment.new_scope *)
+(*s: function [[Environment.new_scope]] *)
 let new_scope env = { env with
                       tenv = S.new_scope env.tenv;
                       venv = S.new_scope env.venv }
-(*e: function Environment.new_scope *)
+(*e: function [[Environment.new_scope]] *)
 (*x: environment.ml *)
 let frame env = env.frame
-(*s: function Environment.new_frame *)
+(*s: function [[Environment.new_frame]] *)
 let new_frame env sym = { env with
                           tenv = S.new_scope env.tenv;
                           venv = S.new_scope env.venv;
                           frame = Frame.new_frame sym env.frame;
                           exn_label = None }
-(*e: function Environment.new_frame *)
+(*e: function [[Environment.new_frame]] *)
 (*x: environment.ml *)
-(*s: functions Environment.lookup_xxx *)
+(*s: functions [[Environment.lookup_xxx]] *)
 let lookup env sym pos =
   try S.look env sym
   with Not_found ->
@@ -85,18 +85,18 @@ let lookup env sym pos =
 
 let lookup_type  env = lookup env.tenv
 let lookup_value env = lookup env.venv
-(*x: functions Environment.lookup_xxx *)
+(*x: functions [[Environment.lookup_xxx]] *)
 let lookup_exn   env = lookup env.xenv
-(*e: functions Environment.lookup_xxx *)
+(*e: functions [[Environment.lookup_xxx]] *)
 (*x: environment.ml *)
-(*s: functions Environment.enter_xxx *)
+(*s: functions [[Environment.enter_xxx]] *)
 let enter tbl sym v =
   if S.mem tbl sym
   then raise(E.Error(E.Duplicate_symbol (S.name sym), 0))
   else S.enter tbl sym v
 
 let enter_type env = enter env.tenv
-(*x: functions Environment.enter_xxx *)
+(*x: functions [[Environment.enter_xxx]] *)
 let enter_fun env sym cc args result =
   let lbl = S.new_symbol (S.name sym) in
   let fenv = new_frame env lbl in
@@ -104,22 +104,22 @@ let enter_fun env sym cc args result =
   let fe = FunEntry (lbl, cc, fenv.frame, args, result) in
   enter env.venv sym fe;
   fenv
-(*x: functions Environment.enter_xxx *)
+(*x: functions [[Environment.enter_xxx]] *)
 let enter_exn env sym = enter env.xenv sym (S.uid sym)
-(*e: functions Environment.enter_xxx *)
+(*e: functions [[Environment.enter_xxx]] *)
 (*x: environment.ml *)
-(*s: function Environment.enter_param *)
+(*s: function [[Environment.enter_param]] *)
 let enter_param env sym typ ptr =
   let access = F.alloc_param env.frame sym ptr in
   enter env.venv sym (VarEntry(access, typ))
-(*e: function Environment.enter_param *)
+(*e: function [[Environment.enter_param]] *)
 (*x: environment.ml *)
-(*s: function Environment.enter_local *)
+(*s: function [[Environment.enter_local]] *)
 let enter_local env sym typ ptr =
   let access = F.alloc_local env.frame sym ptr in
   enter env.venv sym (VarEntry(access, typ));
   access
-(*e: function Environment.enter_local *)
+(*e: function [[Environment.enter_local]] *)
 (*x: environment.ml *)
 let break_label env =
   match env.break_label with

@@ -14,14 +14,14 @@ let dump_ext    = ref false
 let dump_lext   = ref false
 (*e: command line flags *)
 (*x: option.ml *)
-(*s: function Option.set_input *)
+(*s: function [[Option.set_input]] *)
 let set_input s =
   try 
     file := s; 
     inch := open_in s
   with Sys_error err ->
     raise (Arg.Bad ("could not open file " ^ err))
-(*e: function Option.set_input *)
+(*e: function [[Option.set_input]] *)
 (*x: option.ml *)
 (*s: function Option.usage *)
 let rec usage() = 
@@ -42,9 +42,9 @@ and options = [
   "-help",     Arg.Unit usage, "\tprint this message";
 ]
 (*e: constant Option.options *)
-(*s: function Option.parse_cmdline *)
+(*s: function [[Option.parse_cmdline]] *)
 let parse_cmdline() = 
   Arg.parse options set_input "Usage:"
-(*e: function Option.parse_cmdline *)
+(*e: function [[Option.parse_cmdline]] *)
 (*e: option.ml *)
 (*e: parsing/option.ml *)

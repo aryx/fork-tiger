@@ -36,11 +36,11 @@ let simplify tig_op op =
     (T.CONST x, T.CONST y) -> T.CONST (op x y)
   | _                      -> T.BINOP (tig_op, x, y)
 (*e: function Translate.simplify *)
-(*s: function Translate.angles_xxx *)
+(*s: function [[Translate.angles_xxx]] *)
 let (<+>) = simplify T.PLUS  ( + )
 let (<->) = simplify T.MINUS ( - )
 let (<*>) = simplify T.MUL   ( * )
-(*e: function Translate.angles_xxx *)
+(*e: function [[Translate.angles_xxx]] *)
 
 (*s: function Translate.getfp *)
 let getfp frm parent_frm =
@@ -65,12 +65,12 @@ let getfp frm parent_frm =
   deref diff
 (*e: function Translate.getfp *)
 (*x: utilities *)
-(*s: constant Translate.space_end *)
+(*s: constant [[Translate.space_end]] *)
 let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
-(*e: constant Translate.space_end *)
-(*s: constant Translate.alloc_ptr *)
+(*e: constant [[Translate.space_end]] *)
+(*s: constant [[Translate.alloc_ptr]] *)
 let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
-(*e: constant Translate.alloc_ptr *)
+(*e: constant [[Translate.alloc_ptr]] *)
 
 (*s: function Translate.goto *)
 let goto lbl  = 
@@ -86,11 +86,11 @@ let simplify tig_op op =
     (T.CONST x, T.CONST y) -> T.CONST (op x y)
   | _                      -> T.BINOP (tig_op, x, y)
 (*e: function Translate.simplify *)
-(*s: function Translate.angles_xxx *)
+(*s: function [[Translate.angles_xxx]] *)
 let (<+>) = simplify T.PLUS  ( + )
 let (<->) = simplify T.MINUS ( - )
 let (<*>) = simplify T.MUL   ( * )
-(*e: function Translate.angles_xxx *)
+(*e: function [[Translate.angles_xxx]] *)
 (*e: utilities *)
 
 
@@ -125,7 +125,7 @@ let call caller_frm   lbl cc callee_frm   args k ptr =
   (*e: [[Translate.call()]] match cc other cases *)
 (*e: function Translate.call *)
 
-(*s: functions Translate.ext_xxx_call *)
+(*s: functions [[Translate.ext_xxx_call]] *)
 let ext_call cc name args =
   call F.base_frame (S.symbol name) cc
        F.base_frame args None false
@@ -133,23 +133,23 @@ let ext_call cc name args =
 let ext_c_call   = ext_call (Some "C")
 let ext_gc_call  = ext_call  None (* (Some "gc") *)
 let ext_cmm_call = ext_call  None
-(*e: functions Translate.ext_xxx_call *)
+(*e: functions [[Translate.ext_xxx_call]] *)
 
-(*s: function Translate.field_var *)
+(*s: function [[Translate.field_var]] *)
 let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
-(*e: function Translate.field_var *)
-(*s: function Translate.subscript_var *)
+(*e: function [[Translate.field_var]] *)
+(*s: function [[Translate.subscript_var]] *)
 let subscript_var e1 e2 ptr pos =
   let check = ext_c_call "bounds_check"
                         [e1;e2;T.CONST(fst (Error.line_number pos))] in
   let offset = (e2 <+> T.CONST 1) <*> T.CONST ws in
   eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
-(*e: function Translate.subscript_var *)
-(*s: function Translate.simple_var *)
+(*e: function [[Translate.subscript_var]] *)
+(*s: function [[Translate.simple_var]] *)
 let simple_var frm = function
   | F.Stack(var_frm, offset, ptr) ->
       T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
-(*e: function Translate.simple_var *)
+(*e: function [[Translate.simple_var]] *)
 
 (*s: function Translate.arithmetic *)
 let arithmetic op ex1 ex2 =
@@ -163,7 +163,7 @@ let arithmetic op ex1 ex2 =
   in 
   T.BINOP(oper, ex1, ex2)
 (*e: function Translate.arithmetic *)
-(*s: function Translate.compare_int *)
+(*s: function [[Translate.compare_int]] *)
 let compare_int op ex1 ex2 =
   let oper = match op with
     A.EqOp  -> T.EQ
@@ -174,12 +174,12 @@ let compare_int op ex1 ex2 =
   | A.GeOp  -> T.GE
   | _       -> E.internal "binop used as relop"
   in T.RELOP(oper, ex1, ex2)
-(*e: function Translate.compare_int *)
-(*s: function Translate.compare_str *)
+(*e: function [[Translate.compare_int]] *)
+(*s: function [[Translate.compare_str]] *)
 let compare_str op ex1 ex2 =
   let result = ext_c_call "compare_str" [ex1;ex2] in
   compare_int op result (T.CONST 0)
-(*e: function Translate.compare_str *)
+(*e: function [[Translate.compare_str]] *)
 
 (*s: function Translate.assign *)
 let assign v e =
@@ -233,7 +233,7 @@ let alloc size =
             ]
 (*e: function Translate.alloc *)
 
-(*s: function Translate.new_record *)
+(*s: function [[Translate.new_record]] *)
 let new_record init =
   let tmp  = temp true in
   let size = T.CONST (List.length init) in
@@ -243,8 +243,8 @@ let new_record init =
                         :: initialize (offset+1) rest
   in
   eseq tmp ((alloc size => tmp) :: initialize 0 init)
-(*e: function Translate.new_record *)
-(*s: function Translate.new_array *)
+(*e: function [[Translate.new_record]] *)
+(*s: function [[Translate.new_array]] *)
 let new_array sizeEx initEx ptr = 
   let ary  = temp true in
   let i    = temp false in
@@ -259,7 +259,7 @@ let new_array sizeEx initEx ptr =
       i <+> T.CONST 1 => i;
       T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
       T.LABEL lend ]
-(*e: function Translate.new_array *)
+(*e: function [[Translate.new_array]] *)
 
 (*s: function Translate.sequence *)
 let rec sequence = function
@@ -274,7 +274,7 @@ let func body ptr =
   eseq nil [body => tmp; T.RET tmp]
 (*e: function Translate.func *)
 
-(*s: function Translate.try_block *)
+(*s: function [[Translate.try_block]] *)
 let try_block exp exn_lbl hs =
   let cont l = function
       T.TEMP(t,_) -> T.CONT(l, [t])
@@ -305,12 +305,12 @@ let try_block exp exn_lbl hs =
              seq (List.flatten (List.map handler hs));
              T.LABEL try_endl ]
 
-(*e: function Translate.try_block *)
-(*s: function Translate.raise_exn *)
+(*e: function [[Translate.try_block]] *)
+(*s: function [[Translate.raise_exn]] *)
 let raise_exn uid =
   let fn = if !Option.unwind then "unwind" else "raise" in
   ext_cmm_call fn [T.CONST uid]
-(*e: function Translate.raise_exn *)
+(*e: function [[Translate.raise_exn]] *)
 
 (*s: function Translate.spawn *)
 let spawn lbl = ext_cmm_call "spawn" [T.NAME lbl]

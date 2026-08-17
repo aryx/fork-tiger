@@ -1,8 +1,8 @@
 (*s: parsing/option.mli *)
 (*s: option.mli *)
-(*s: signature function Option.parse_cmdline *)
+(*s: signature function [[Option.parse_cmdline]] *)
 val parse_cmdline : unit -> unit
-(*e: signature function Option.parse_cmdline *)
+(*e: signature function [[Option.parse_cmdline]] *)
 
 val dump_ast     : bool ref
 val dump_ext     : bool ref

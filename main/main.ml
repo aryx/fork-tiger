@@ -4,14 +4,14 @@ module F = Frame
 module Env = Environment
 module T = Environment
 
-(*s: constant Main.base_tenv *)
+(*s: constant [[Main.base_tenv]] *)
 let base_tenv =
 (* name     type *)
 [ "int",    T.INT
 ; "string", T.STRING
 ]
-(*e: constant Main.base_tenv *)
-(*s: constant Main.base_venv *)
+(*e: constant [[Main.base_tenv]] *)
+(*s: constant [[Main.base_venv]] *)
 let base_venv = 
 (* name        cc        args                    return *)
 [ "print",     Some "C", [T.STRING],             T.UNIT
@@ -27,7 +27,7 @@ let base_venv =
 ; "not",       Some "C", [T.INT],                T.INT
 ; "exit",      Some "C", [T.INT],                T.UNIT
 ]
-(*e: constant Main.base_venv *)
+(*e: constant [[Main.base_venv]] *)
 (*s: constant Main.imports *)
 let imports =
   let internal = [ "alloc"
@@ -43,7 +43,7 @@ let imports =
   List.map (fun(n,_,_,_) -> n) base_venv @ internal
 (*e: constant Main.imports *)
 
-(*s: function Main.emit_function *)
+(*s: function [[Main.emit_function]] *)
 let emit_function (frm, ex) =
   (* compiling *)
   (*s: [[Main.emit_function()]] if dump expression tree *)
@@ -65,7 +65,7 @@ let emit_function (frm, ex) =
   Frame.output_header frm;
   Codegen.emit ltree;
   Frame.output_footer frm
-(*e: function Main.emit_function *)
+(*e: function [[Main.emit_function]] *)
 
 (*s: function Main.compile *)
 let compile ch =
@@ -101,8 +101,8 @@ let main () =
     Error.handle_exception ex
 (*e: function Main.main *)
 
-(*s: toplevel Main._ *)
+(*s: toplevel [[Main._]] *)
 let _ = 
   main ()
-(*e: toplevel Main._ *)
+(*e: toplevel [[Main._]] *)
 (*e: main.ml *)

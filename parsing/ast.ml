@@ -100,7 +100,7 @@ let opname = function
   | GeOp     -> "GeOp"
 (*e: function Ast.opname *)
 (*x: tree printer *)
-(*s: function Ast.print_tree *)
+(*s: function [[Ast.print_tree]] *)
 let print_tree expression =
   (*s: declaration printer *)
   let rec dec d =
@@ -220,7 +220,7 @@ let print_tree expression =
         iprintf d "SpawnExp %s\n" (S.name name)
   (*e: expression printer *)
 in exp 0 expression
-(*e: function Ast.print_tree *)
+(*e: function [[Ast.print_tree]] *)
 (*e: tree printer *)
 (*e: ast.ml *)
 (*e: parsing/ast.ml *)

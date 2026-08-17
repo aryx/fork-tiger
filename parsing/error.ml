@@ -28,15 +28,15 @@ exception Error of ex
 (*s: type Error.sm *)
 type sm = { mutable sm: (int * int) list }
 (*e: type Error.sm *)
-(*s: global Error.source_map *)
+(*s: global [[Error.source_map]] *)
 let source_map = { sm = [(0,0)] }
-(*e: global Error.source_map *)
-(*s: function Error.add_source_mapping *)
+(*e: global [[Error.source_map]] *)
+(*s: function [[Error.add_source_mapping]] *)
 let add_source_mapping pos line =
   source_map.sm <- source_map.sm @ [(pos,line)]
-(*e: function Error.add_source_mapping *)
+(*e: function [[Error.add_source_mapping]] *)
 
-(*s: function Error.line_number *)
+(*s: function [[Error.line_number]] *)
 let line_number pos =
   let rec line ln last_p = function
       (p,l) :: rest ->
@@ -44,9 +44,9 @@ let line_number pos =
         else line l p rest
     | [] -> (ln + 1, pos - last_p)
   in line 0 0 source_map.sm
-(*e: function Error.line_number *)
+(*e: function [[Error.line_number]] *)
 
-(*s: function Error.err_msg *)
+(*s: function [[Error.err_msg]] *)
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
   if line > 0 
@@ -55,13 +55,13 @@ let err_msg prefix pos msg =
       "%s:%d,%d: %s\n" !Option.file line col msg
   else
     Printf.fprintf stderr "%s: %s\n" prefix msg
-(*e: function Error.err_msg *)
+(*e: function [[Error.err_msg]] *)
 
 (*s: function Error.warning *)
 let warning = err_msg "Warning"
 (*e: function Error.warning *)
 
-(*s: function Error.handle_exception *)
+(*s: function [[Error.handle_exception]] *)
 let handle_exception (ex,pos) =
   let msg = match ex with
     Internal_error s     -> "Compiler bug: " ^ s
@@ -80,12 +80,12 @@ let handle_exception (ex,pos) =
   in
   err_msg "Error" pos msg;
   exit 1
-(*e: function Error.handle_exception *)
+(*e: function [[Error.handle_exception]] *)
 
-(*s: function Error.type_err *)
+(*s: function [[Error.type_err]] *)
 let type_err  pos msg = 
   raise(Error(Type_error msg, pos))
-(*e: function Error.type_err *)
+(*e: function [[Error.type_err]] *)
 (*s: function Error.undefined *)
 let undefined pos msg = 
   raise(Error(Undefined_symbol msg, pos))

@@ -42,42 +42,42 @@ type t = {
   }
 (*e: type Environment.t *)
 
-(*s: signature function Environment.new_env *)
+(*s: signature function [[Environment.new_env]] *)
 val new_env : (string * vartype) list ->
               (string * string option * vartype list * vartype) list -> t
-(*e: signature function Environment.new_env *)
+(*e: signature function [[Environment.new_env]] *)
 
 (*s: environment.mli *)
 val new_scope : t -> t
 val frame     : t -> Frame.frame
 val new_frame : t -> Symbol.symbol -> t
 (*x: environment.mli *)
-(*s: signature function Environment.lookup_type *)
+(*s: signature function [[Environment.lookup_type]] *)
 val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
-(*e: signature function Environment.lookup_type *)
-(*s: signature function Environment.lookup_value *)
+(*e: signature function [[Environment.lookup_type]] *)
+(*s: signature function [[Environment.lookup_value]] *)
 val lookup_value : t -> Ast.name -> Ast.pos -> vartype enventry
-(*e: signature function Environment.lookup_value *)
-(*s: signature function Environment.lookup_exn *)
+(*e: signature function [[Environment.lookup_value]] *)
+(*s: signature function [[Environment.lookup_exn]] *)
 val lookup_exn   : t -> Ast.name -> Ast.pos -> int
-(*e: signature function Environment.lookup_exn *)
+(*e: signature function [[Environment.lookup_exn]] *)
 (*x: environment.mli *)
-(*s: signature function Environment.enter_type *)
+(*s: signature function [[Environment.enter_type]] *)
 val enter_type  : t -> Ast.typename -> vartype -> unit
-(*e: signature function Environment.enter_type *)
-(*s: signature function Environment.enter_fun *)
+(*e: signature function [[Environment.enter_type]] *)
+(*s: signature function [[Environment.enter_fun]] *)
 val enter_fun   : 
   t -> Ast.name -> string option -> vartype list -> vartype  -> t
-(*e: signature function Environment.enter_fun *)
-(*s: signature function Environment.enter_param *)
+(*e: signature function [[Environment.enter_fun]] *)
+(*s: signature function [[Environment.enter_param]] *)
 val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr -> unit
-(*e: signature function Environment.enter_param *)
-(*s: signature function Environment.enter_local *)
+(*e: signature function [[Environment.enter_param]] *)
+(*s: signature function [[Environment.enter_local]] *)
 val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
-(*e: signature function Environment.enter_local *)
-(*s: signature function Environment.enter_exn *)
+(*e: signature function [[Environment.enter_local]] *)
+(*s: signature function [[Environment.enter_exn]] *)
 val enter_exn   : t -> Ast.name -> unit
-(*e: signature function Environment.enter_exn *)
+(*e: signature function [[Environment.enter_exn]] *)
 (*x: environment.mli *)
 val break_label     : t -> Tree.label
 val new_break_label : t -> t

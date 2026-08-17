@@ -3,7 +3,7 @@
 module E = Error
 module P = Parser
 
-(*s: global Lexer.keyword_table *)
+(*s: global [[Lexer.keyword_table]] *)
 (* The table of keywords *)
 let keyword_table = Hashtbl.create 22;;
 List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
@@ -42,7 +42,7 @@ List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
    "spawn",     P.SPAWN;
    (*e: [[Lexer.keyword_table]] entries *)
  ]
-(*e: global Lexer.keyword_table *)
+(*e: global [[Lexer.keyword_table]] *)
 (*s: function Lexer.escape *)
 (* To buffer string literals *)
 let escape c = 

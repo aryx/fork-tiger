@@ -6,9 +6,9 @@ type label = Symbol.symbol
 and  temp  = Symbol.symbol
 (*e: type Tree.temp *)
 
-(*s: type Tree.is_ptr *)
+(*s: type [[Tree.is_ptr]] *)
 type is_ptr = bool
-(*e: type Tree.is_ptr *)
+(*e: type [[Tree.is_ptr]] *)
 
 (*s: type Tree.stm *)
 type stm =
@@ -57,9 +57,9 @@ val cmm_binop      : binop -> string
 val cmm_relop      : relop -> string
 (*x: utility functions *)
 val is_ptr     : exp -> is_ptr
-(*s: signature function Tree.find_temps *)
+(*s: signature function [[Tree.find_temps]] *)
 val find_temps : stm list -> (temp * is_ptr) list
-(*e: signature function Tree.find_temps *)
+(*e: signature function [[Tree.find_temps]] *)
 (*x: utility functions *)
 val print_stm : stm -> unit
 val print_exp : exp -> unit
