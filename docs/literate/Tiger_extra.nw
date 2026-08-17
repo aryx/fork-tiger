@@ -26,18 +26,18 @@
 <<exception Error.Error>>
 
 <<type Error.sm>>
-<<global Error.source_map>>
-<<function Error.add_source_mapping>>
+<<global [[Error.source_map]]>>
+<<function [[Error.add_source_mapping]]>>
 
-<<function Error.line_number>>
+<<function [[Error.line_number]]>>
 
-<<function Error.err_msg>>
+<<function [[Error.err_msg]]>>
 
 <<function Error.warning>>
 
-<<function Error.handle_exception>>
+<<function [[Error.handle_exception]]>>
 
-<<function Error.type_err>>
+<<function [[Error.type_err]]>>
 <<function Error.undefined>>
 <<function Error.internal>>
 @
@@ -90,21 +90,21 @@ val line_number : int -> int * int
 %%of each newline character.
 %<<error.ml>>=
 %<<type Error.sm>>
-%<<global Error.source_map>>
-%<<function Error.add_source_mapping>>
+%<<global [[Error.source_map]]>>
+%<<function [[Error.add_source_mapping]]>>
 %@
 
 %%To compute the line number of a source position, we do a linear search
 %%through the pairs of integers.
 %<<error.ml>>=
-%<<function Error.line_number>>
+%<<function [[Error.line_number]]>>
 %@
 
 %%Errors are printed with a prefix that indicates the type of error. If
 %%the source line number can be computed, then it is also printed along
 %%with the error message.
 %<<error.ml>>=
-%<<function Error.err_msg>>
+%<<function [[Error.err_msg]]>>
 %
 %<<function Error.warning>>
 %@
@@ -113,12 +113,12 @@ val line_number : int -> int * int
 %%(Section~\ref{sec:driver}) to print error messages and exit in the
 %%case of errors.
 %<<error.ml>>=
-%<<function Error.handle_exception>>
+%<<function [[Error.handle_exception]]>>
 %@
 
 %%Finally, here is the definition of the error raising functions.
 %<<error.ml>>=
-%<<function Error.type_err>>
+%<<function [[Error.type_err]]>>
 %<<function Error.undefined>>
 %<<function Error.internal>>
 %@ 
@@ -146,7 +146,7 @@ val line_number : int -> int * int
 %%modules may access the value of options through the accessor
 %%functions.
 <<option.mli>>=
-<<signature function Option.parse_cmdline>>
+<<signature function [[Option.parse_cmdline]]>>
 
 val dump_ast     : bool ref
 val dump_ext     : bool ref
@@ -189,7 +189,7 @@ val file      : string ref
 %%When an input file is specified by the user, the [[set_input]]
 %%function is called.
 <<option.ml>>=
-<<function Option.set_input>>
+<<function [[Option.set_input]]>>
 @
 
 
@@ -200,7 +200,7 @@ val file      : string ref
 <<option.ml>>=
 <<function Option.usage>>
 <<constant Option.options>>
-<<function Option.parse_cmdline>>
+<<function [[Option.parse_cmdline]]>>
 @ 
 
 
@@ -254,7 +254,7 @@ val new_symbol : string -> symbol
 
 <<function Symbol.symbol>>
 
-<<function Symbol.new_symbol>>
+<<function [[Symbol.new_symbol]]>>
 @ 
 
 \subsection{Symbol Tables}
@@ -316,7 +316,7 @@ val fold : (int -> symbol -> 'a -> 'b -> 'b) -> 'a table -> 'b -> 'b
 <<symbol.ml>>=
 <<constructor Symbol.create>>
 
-<<constructor Symbol.new_scope>>
+<<constructor [[Symbol.new_scope]]>>
 @
 
 %%Both [[iter]] and [[fold]] are implemented by lifting the
@@ -465,7 +465,7 @@ module S = Symbol
 %%an expression, and an outer function starts the process by calling the
 %%expression printer with an initial indenting level of 0.
 <<tree printer>>=
-<<function Ast.print_tree>>
+<<function [[Ast.print_tree]]>>
 @
 
 \section{[[parsing/parser.nw]]}
@@ -496,7 +496,7 @@ module S = Symbol
 <<type Environment.enventry>>
 <<type Environment.t>>
 
-<<signature function Environment.new_env>>
+<<signature function [[Environment.new_env]]>>
 
 <<environment.mli>>
 @
@@ -552,7 +552,7 @@ module S = Symbol
 %%type definitions and functions. All new environments are automatically
 %%given a new stack frame.
 %<<environment.mli>>=
-%<<signature function Environment.new_env>>
+%<<signature function [[Environment.new_env]]>>
 %@ 
 
 %%There are three functions for manipulating the variable scope and the
@@ -570,9 +570,9 @@ val new_frame : t -> Symbol.symbol -> t
 %%undefined symbol). Each lookup function takes an [[Ast.pos]] argument
 %%that is used to report errors.
 <<environment.mli>>=
-<<signature function Environment.lookup_type>>
-<<signature function Environment.lookup_value>>
-<<signature function Environment.lookup_exn>>
+<<signature function [[Environment.lookup_type]]>>
+<<signature function [[Environment.lookup_value]]>>
+<<signature function [[Environment.lookup_exn]]>>
 @ 
 
 %%New types, values, and exceptions can be added to an environment using
@@ -582,11 +582,11 @@ val new_frame : t -> Symbol.symbol -> t
 %%boolean parameter that is true if the new local or parameter will hold
 %%a pointer value.
 <<environment.mli>>=
-<<signature function Environment.enter_type>>
-<<signature function Environment.enter_fun>>
-<<signature function Environment.enter_param>>
-<<signature function Environment.enter_local>>
-<<signature function Environment.enter_exn>>
+<<signature function [[Environment.enter_type]]>>
+<<signature function [[Environment.enter_fun]]>>
+<<signature function [[Environment.enter_param]]>>
+<<signature function [[Environment.enter_local]]>>
+<<signature function [[Environment.enter_exn]]>>
 @ 
 
 
@@ -623,26 +623,26 @@ module T = Tree
 %%To create a new environment, we construct a record that contains the
 %%initial types and functions, and a base frame.
 <<environment.ml>>=
-<<function Environment.new_env>>
+<<function [[Environment.new_env]]>>
 @
 
 %%To create a new variable scope, we update the symbol tables.
 <<environment.ml>>=
-<<function Environment.new_scope>>
+<<function [[Environment.new_scope]]>>
 @
 
 %%Creating a new frame requires updating the frame and removing the
 %%current exception label in addition to updating the symbol tables.
 <<environment.ml>>=
 let frame env = env.frame
-<<function Environment.new_frame>>
+<<function [[Environment.new_frame]]>>
 @ 
 
 %%The lookup functions use the symbol table (Section~\ref{sec:symbols})
 %%implementation to lookup values in the various tables. If a symbol is
 %%not found, then we raise an undefined symbol error.
 <<environment.ml>>=
-<<functions Environment.lookup_xxx>>
+<<functions [[Environment.lookup_xxx]]>>
 @
 
 %%Entering new types, exceptions, and values into the environment is
@@ -650,7 +650,7 @@ let frame env = env.frame
 %%raise a duplicate symbol error if a name is defined twice in a source
 %%file.
 <<environment.ml>>=
-<<functions Environment.enter_xxx>>
+<<functions [[Environment.enter_xxx]]>>
 @ 
 
 %%For exceptions, we need to generate a unique identifier for each
@@ -672,14 +672,14 @@ let frame env = env.frame
 %%When a formal function parameter is entered in to the environment, a
 %%new slot is allocated in the current frame to hold the parameter.
 <<environment.ml>>=
-<<function Environment.enter_param>>
+<<function [[Environment.enter_param]]>>
 @
 
 %%When a new local variable is entered into the environment, we first
 %%allocate space in the current frame to hold a new temporary and then
 %%enter it into the value table.
 <<environment.ml>>=
-<<function Environment.enter_local>>
+<<function [[Environment.enter_local]]>>
 @
 
 %%To create a new break label, we generate a new label and store it in
@@ -751,13 +751,13 @@ module Trans = Translate
 
 open Environment
 
-<<function Semantics.type_name>>
-<<function Semantics.base_type>>
-<<function Semantics.lookup_base_type>>
+<<function [[Semantics.type_name]]>>
+<<function [[Semantics.base_type]]>>
+<<function [[Semantics.lookup_base_type]]>>
 
-<<function Semantics.is_ptr>>
-<<functions Semantics.check_type_xxx>>
-<<function Semantics.check_type_eq>>
+<<function [[Semantics.is_ptr]]>>
+<<functions [[Semantics.check_type_xxx]]>>
+<<function [[Semantics.check_type_eq]]>>
 
 <<translators>>
 <<function Semantics.translate>>
@@ -775,7 +775,7 @@ open Environment
 
 %%The [[type_name]] function will return a string representation of a
 %%type. This function is used by to report type errors.
-%<<function Semantics.type_name>>
+%<<function [[Semantics.type_name]]>>
 
 %%The internal type system allows type aliases by way of the [[NAME]]
 %%type. We often want to get the concrete base type for a type alias.
@@ -787,8 +787,8 @@ open Environment
 %%types until we reach a base type. If a [[NAME]] type references a type
 %%that is not defined, then there is something wrong with the compiler
 %%and we give up.
-%<<function Semantics.base_type>>=
-%<<function Semantics.lookup_base_type>>=
+%<<function [[Semantics.base_type]]>>=
+%<<function [[Semantics.lookup_base_type]]>>=
 
 %%For code generation we will be interested in partitioning the internal
 %%types into two classes: those that are represented by a pointer to a
@@ -800,11 +800,11 @@ open Environment
 %%The types [[INT]] and [[UNIT]] are represented as machine words, all
 %%others are pointers to data structures. The compiler should not call
 %%the [[is_ptr]] function with a [[NAME]] or and [[ANY]] type.
-%<<function Semantics.is_ptr>>=
+%<<function [[Semantics.is_ptr]]>>=
 
 %%During type-checking, we commonly want to assert that an expression
 %%either has type [[int]] or type [[unit]].
-%<<functions Semantics.check_type_xxx>>=
+%<<functions [[Semantics.check_type_xxx]]>>=
 
 %%Similarly, we often want to assert that two types are equivalent. In
 %%Tiger, [[nil]] is the type of an uninitialized record. Therefore, the
@@ -813,7 +813,7 @@ open Environment
 %%The [[ANY]] type can only be used in a few restricted ways. The
 %%[[ANY]] type is completely internal to the compiler, and it only has
 %%as much power as we need to define the initial basis.
-%<<function Semantics.check_type_eq>>
+%<<function [[Semantics.check_type_eq]]>>
 
 \subsection{The [[translate]] Entry Point}
 
@@ -824,7 +824,7 @@ open Environment
 %%expression into a function body.
 <<translators>>=
 <<global Semantics.functions>>
-<<function Semantics.add_function>>
+<<function [[Semantics.add_function]]>>
 @
 
 %%There are three private translation functions for handling
@@ -835,7 +835,7 @@ open Environment
 
 <<functions Semantics.trxxx>>
 @
-%old: <<type Semantics.ast_node>>
+%old: <<type [[Semantics.ast_node]]>>
 
 %%The entry point for the [[Semantics]] module is the [[translate]]
 %%function shown below.
@@ -1053,7 +1053,7 @@ open Environment
 <<type Tree.label>>
 <<type Tree.temp>>
 
-<<type Tree.is_ptr>>
+<<type [[Tree.is_ptr]]>>
 
 <<type Tree.stm>>
 <<type Tree.exp>>
@@ -1069,7 +1069,7 @@ module S = Symbol
 <<type Tree.label>>
 <<type Tree.temp>>
 
-<<type Tree.is_ptr>>
+<<type [[Tree.is_ptr]]>>
 
 <<type Tree.stm>>
 <<type Tree.exp>>
@@ -1160,7 +1160,7 @@ val cmm_relop      : relop -> string
 %%is true only if the temporary variable holds a pointer.
 <<utility functions>>=
 val is_ptr     : exp -> is_ptr
-<<signature function Tree.find_temps>>
+<<signature function [[Tree.find_temps]]>>
 @ 
 
 %%Finally, for debugging purposes, there are two functions for printing
@@ -1175,11 +1175,11 @@ val print_exp : exp -> unit
 %%New labels and temporaries are generated using the [[new_symbol]]
 %%function from the [[Symbol]] module.
 <<tree.ml>>=
-<<function Tree.new_label>>
-<<function Tree.new_temp>>
+<<function [[Tree.new_label]]>>
+<<function [[Tree.new_temp]]>>
 @ 
 
-<<function Tree.new_label>>=
+<<function [[Tree.new_label]]>>=
 let new_label s = 
   S.new_symbol ("L" ^ s)
 @
@@ -1267,13 +1267,13 @@ let find_temps stmts =
 %%statements and expressions. We will define the function for printing
 %%statements first.
 <<tree.ml>>=
-<<function Tree.print_stm>>
+<<function [[Tree.print_stm]]>>
 @ 
 
 %%The expression printer just calls the statement printer after
 %%converting the expression into a statement.
 <<tree.ml>>=
-<<function Tree.print_exp>>
+<<function [[Tree.print_exp]]>>
 @
 
 
@@ -1324,7 +1324,7 @@ module F = Frame
 <<function Translate.eseq>>
 
 <<function Translate.simplify>>
-<<function Translate.angles_xxx>>
+<<function [[Translate.angles_xxx]]>>
 
 <<function Translate.getfp>>
 
@@ -1334,15 +1334,15 @@ module F = Frame
 <<functions Translate.xxx literals>>
 <<function Translate.call>>
 
-<<functions Translate.ext_xxx_call>>
+<<functions [[Translate.ext_xxx_call]]>>
 
-<<function Translate.field_var>>
-<<function Translate.subscript_var>>
-<<function Translate.simple_var>>
+<<function [[Translate.field_var]]>>
+<<function [[Translate.subscript_var]]>>
+<<function [[Translate.simple_var]]>>
 
 <<function Translate.arithmetic>>
-<<function Translate.compare_int>>
-<<function Translate.compare_str>>
+<<function [[Translate.compare_int]]>>
+<<function [[Translate.compare_str]]>>
 
 <<function Translate.assign>>
 <<function Translate.ifexp>>
@@ -1351,15 +1351,15 @@ module F = Frame
 
 <<function Translate.alloc>>
 
-<<function Translate.new_record>>
-<<function Translate.new_array>>
+<<function [[Translate.new_record]]>>
+<<function [[Translate.new_array]]>>
 
 <<function Translate.sequence>>
 
 <<function Translate.func>>
 
-<<function Translate.try_block>>
-<<function Translate.raise_exn>>
+<<function [[Translate.try_block]]>>
+<<function [[Translate.raise_exn]]>>
 
 <<function Translate.spawn>>
 @
@@ -1395,13 +1395,13 @@ module F = Frame
 %%and statements. For the binary operators, we simplify expressions when
 %%possible.
 <<utilities>>=
-<<constant Translate.space_end>>
-<<constant Translate.alloc_ptr>>
+<<constant [[Translate.space_end]]>>
+<<constant [[Translate.alloc_ptr]]>>
 
 <<function Translate.goto>>
 <<function Translate.arrow>>
 <<function Translate.simplify>>
-<<function Translate.angles_xxx>>
+<<function [[Translate.angles_xxx]]>>
 @
 
 %%\paragraph{Literals}
@@ -1681,8 +1681,8 @@ val alloc_string : string -> Tree.label
 %%addition, this module will also output the string literals as
 %%initialized data.
 <<frame.mli>>=
-<<signature function Frame.output_header>>
-<<signature function Frame.output_footer>>
+<<signature function [[Frame.output_header]]>>
+<<signature function [[Frame.output_footer]]>>
 
 val output_strings : unit  -> unit
 @
@@ -1745,11 +1745,11 @@ let new_frame lbl parent = { base_frame with
 %%increment the stack size and return a stack access specification.
 %%Function parameters must be kept in order they are allocated.
 <<frame.ml>>=
-<<function Frame.stack_alloc>>
+<<function [[Frame.stack_alloc]]>>
 
-<<function Frame.alloc_param>>
+<<function [[Frame.alloc_param]]>>
 
-<<function Frame.alloc_local>>
+<<function [[Frame.alloc_local]]>>
 @
 
 %%Allocating temporaries is similar, but we return an access
@@ -1769,7 +1769,7 @@ let alloc_temp frm name ptr =
 %%strings.
 <<frame.ml>>=
 <<global Frame.strings>>
-<<function Frame.alloc_string>>
+<<function [[Frame.alloc_string]]>>
 @ 
 
 %%The output functions are a bit tedious to write and even more tedious
@@ -2655,17 +2655,17 @@ module F = Frame
 module Env = Environment
 module T = Environment
 
-<<constant Main.base_tenv>>
-<<constant Main.base_venv>>
+<<constant [[Main.base_tenv]]>>
+<<constant [[Main.base_venv]]>>
 <<constant Main.imports>>
 
-<<function Main.emit_function>>
+<<function [[Main.emit_function]]>>
 
 <<function Main.compile>>
 
 <<function Main.main>>
 
-<<toplevel Main._>>
+<<toplevel [[Main._]]>>
 @
 
 %%\paragraph{Standard Basis}
@@ -2673,14 +2673,14 @@ module T = Environment
 %%of initial functions, and a set of imports. There are only two initial
 %%type definitions in the standard basis: integers and strings.
 %<<standard basis>>=
-%<<constant Main.base_tenv>>
+%<<constant [[Main.base_tenv]]>>
 %@
 
 %%The set of initial functions includes all of the functions in the
 %%Tiger standard library. For each function, we give the function name,
 %%the calling convention, and the argument and return types.
 %<<standard basis>>=
-%<<constant Main.base_venv>>
+%<<constant [[Main.base_venv]]>>
 %@
 
 %%The set of imports includes all of the functions that may be called
@@ -2697,13 +2697,13 @@ module T = Environment
 %%and converted to the intermediate representation. Finally, we iterate
 %%over the functions and output each one by calling [[emit_function]].
 %<<compiler driver>>=
-%<<function Main.emit_function>>
+%<<function [[Main.emit_function]]>>
 %
 %<<function Main.compile>>
 %
 %<<function Main.main>>
 %
-%<<toplevel Main._>>
+%<<toplevel [[Main._]]>>
 %
 %@
 

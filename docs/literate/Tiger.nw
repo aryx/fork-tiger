@@ -123,7 +123,7 @@ Paul Govereau
 \onecolumn
 \hrule
 \begin{quote}
-    Copyright \copyright{} 2015 Yoann Padioleau \\
+    Copyright \copyright{} 2015, 2026 Yoann Padioleau \\
     Permission is granted to copy, distribute and/or modify this document,
     except all the source code it contains, under the terms of the GNU Free
     Documentation License, Version 1.3.
@@ -274,6 +274,8 @@ end
 %    holding functions)
 %  - statements are expressions. If is an expression :) no need ? : ugly 
 %    C syntax.
+
+\section{Output [[C--]] Portable assembly language}
 
 \section{Output ARM assembly language}
 
@@ -578,7 +580,7 @@ let rec look env sym =
 @
 
 
-<<constructor Symbol.new_scope>>=
+<<constructor [[Symbol.new_scope]]>>=
 let new_scope env = { 
   tbl = Hashtbl.create 20;
   level = env.level + 1;
@@ -702,7 +704,7 @@ and relop = EQ | NE   | LT | GT | LE | GE
 % not in source language, but concept used in intermediate language.
 % Do pointer arithmetic with MEM and offset and dereference.
 
-<<type Tree.is_ptr>>=
+<<type [[Tree.is_ptr]]>>=
 type is_ptr = bool
 @
 % important in compilation context, will see later, no need to track
@@ -710,7 +712,7 @@ type is_ptr = bool
 % pointer or word.
 %todo: why? for gc support in c--?
 
-<<function Semantics.is_ptr>>=
+<<function [[Semantics.is_ptr]]>>=
 let is_ptr = function
     INT | UNIT -> false
   | NIL | RECORD _ | STRING | ARRAY _ -> true
@@ -766,7 +768,7 @@ let main () =
 @
 % see handle_exception in Error appendix
 
-<<toplevel Main._>>=
+<<toplevel [[Main._]]>>=
 let _ = 
   main ()
 @
@@ -780,11 +782,11 @@ let inch   = ref stdin
 
 \section{Command line processing}
 
-<<signature function Option.parse_cmdline>>=
+<<signature function [[Option.parse_cmdline]]>>=
 val parse_cmdline : unit -> unit
 @
 % main -> <>
-<<function Option.parse_cmdline>>=
+<<function [[Option.parse_cmdline]]>>=
 let parse_cmdline() = 
   Arg.parse options set_input "Usage:"
 @
@@ -803,7 +805,7 @@ let file   = ref ""
 @
 
 % main -> parse_cmdline -> Arg.parse -> set_input (as x <- parse_cmdline)
-<<function Option.set_input>>=
+<<function [[Option.set_input]]>>=
 let set_input s =
   try 
     file := s; 
@@ -848,7 +850,7 @@ val program :
 @
 
 
-<<signature function Environment.new_env>>=
+<<signature function [[Environment.new_env]]>>=
 val new_env : (string * vartype) list ->
               (string * string option * vartype list * vartype) list -> t
 @
@@ -863,7 +865,7 @@ val translate : Environment.t -> Ast.exp -> (Frame.frame * Tree.exp) list
 \section{[[Main.emit_function()]]}
 
 
-<<function Main.emit_function>>=
+<<function [[Main.emit_function]]>>=
 let emit_function (frm, ex) =
   (* compiling *)
   <<[[Main.emit_function()]] if dump expression tree>>
@@ -884,10 +886,10 @@ val linearize : Tree.stm -> Tree.stm list
 % on the shape of the tree
 
 
-<<signature function Frame.output_header>>=
+<<signature function [[Frame.output_header]]>>=
 val output_header  : frame -> unit
 @
-<<signature function Frame.output_footer>>=
+<<signature function [[Frame.output_footer]]>>=
 val output_footer  : frame -> unit
 @
 
@@ -908,7 +910,7 @@ val emit               : Tree.stm list -> unit
 module E = Error
 module P = Parser
 
-<<global Lexer.keyword_table>>
+<<global [[Lexer.keyword_table]]>>
 <<function Lexer.escape>>
 <<Lexer globals>>
 }
@@ -1021,7 +1023,7 @@ let identchar = ['A'-'Z' 'a'-'z' '_' '0'-'9']
 @
 
 
-<<global Lexer.keyword_table>>=
+<<global [[Lexer.keyword_table]]>>=
 (* The table of keywords *)
 let keyword_table = Hashtbl.create 22;;
 List.iter (fun (key, data) -> Hashtbl.add keyword_table key data)
@@ -1265,10 +1267,10 @@ decs:
 
 <<subrules for decs>>=
 <<rule dec>>
-<<rule var_dec>>
-<<rule type_decs>>
-<<rule fun_decs>>
-<<rule exn_dec>>
+<<rule [[var_dec]]>>
+<<rule [[type_decs]]>>
+<<rule [[fun_decs]]>>
+<<rule [[exn_dec]]>>
 @
 
 <<rule dec>>=
@@ -1287,7 +1289,7 @@ dec:
 %| VarDec       of symbol * symbol option * exp * pos
 %@
 
-<<rule var_dec>>=
+<<rule [[var_dec]]>>=
 var_dec:
    VAR id ASSIGN expr          { mkVarDec $2 None $4 }
  | VAR id COLON id ASSIGN expr { mkVarDec $2 (Some $4) $6 }
@@ -1307,7 +1309,7 @@ id: ID { S.symbol $1 };
 %@
 % list so can have mutually recursive things
 
-<<rule type_decs>>=
+<<rule [[type_decs]]>>=
 type_decs:
    type_dec           { $1 :: [] }
  | type_dec type_decs { $1 :: $2 }
@@ -1327,7 +1329,7 @@ type_dec:
 % list again for mutually recursive possibilities
 % symbol option cos can be a procedure that returns nothing
 
-<<rule fun_decs>>=
+<<rule [[fun_decs]]>>=
 fun_decs:
    fun_dec          { $1 :: [] }
  | fun_dec fun_decs { $1 :: $2 }
@@ -1715,7 +1717,7 @@ let translate env ast =
 % alt: toplevel expr scheme of ocaml, not toplevel complex expr of C
 
 %old:
-%<<type Semantics.ast_node>>=
+%<<type [[Semantics.ast_node]]>>=
 %type ast_node = 
 % | DEC of Ast.dec 
 % | EXP of Ast.exp
@@ -1769,7 +1771,7 @@ List.rev !functions
 let functions                 = ref []
 @
 
-<<function Semantics.add_function>>=
+<<function [[Semantics.add_function]]>>=
 let add_function frm (ex,typ) =
   functions := (frm, Trans.func ex (is_ptr typ)) :: !functions
 @
@@ -1818,7 +1820,7 @@ type 'ty enventry =
 
 
 % trexp (LexExp case)-> <>
-<<function Environment.new_scope>>=
+<<function [[Environment.new_scope]]>>=
 let new_scope env = { env with
                       tenv = S.new_scope env.tenv;
                       venv = S.new_scope env.venv }
@@ -1829,16 +1831,16 @@ let new_scope env = { env with
 
 % 2 namespaces
 
-<<signature function Environment.lookup_type>>=
+<<signature function [[Environment.lookup_type]]>>=
 val lookup_type  : t -> Ast.typename -> Ast.pos -> vartype
 @
 % why pos? to give error msg?
 
-<<signature function Environment.lookup_value>>=
+<<signature function [[Environment.lookup_value]]>>=
 val lookup_value : t -> Ast.name -> Ast.pos -> vartype enventry
 @
 
-<<functions Environment.lookup_xxx>>=
+<<functions [[Environment.lookup_xxx]]>>=
 let lookup env sym pos =
   try S.look env sym
   with Not_found ->
@@ -1855,11 +1857,11 @@ let lookup_value env = lookup env.venv
 
 \subsection{Enters}
 
-<<signature function Environment.enter_type>>=
+<<signature function [[Environment.enter_type]]>>=
 val enter_type  : t -> Ast.typename -> vartype -> unit
 @
 
-<<functions Environment.enter_xxx>>=
+<<functions [[Environment.enter_xxx]]>>=
 let enter tbl sym v =
   if S.mem tbl sym
   then raise(E.Error(E.Duplicate_symbol (S.name sym), 0))
@@ -1870,14 +1872,14 @@ let enter_type env = enter env.tenv
 
 
 
-<<signature function Environment.enter_fun>>=
+<<signature function [[Environment.enter_fun]]>>=
 val enter_fun   : 
   t -> Ast.name -> string option -> vartype list -> vartype  -> t
 @
 % not enter_global??
 % this returns a new env because it's a new scope
 
-<<functions Environment.enter_xxx>>=
+<<functions [[Environment.enter_xxx]]>>=
 let enter_fun env sym cc args result =
   let lbl = S.new_symbol (S.name sym) in
   let fenv = new_frame env lbl in
@@ -1889,7 +1891,7 @@ let enter_fun env sym cc args result =
 % create a new scope
 %less: use S.name here, so why needed a uid in the first place?
 
-<<function Environment.new_frame>>=
+<<function [[Environment.new_frame]]>>=
 let new_frame env sym = { env with
                           tenv = S.new_scope env.tenv;
                           venv = S.new_scope env.venv;
@@ -1899,7 +1901,7 @@ let new_frame env sym = { env with
 
 
 % =~ gensym()
-<<function Symbol.new_symbol>>=
+<<function [[Symbol.new_symbol]]>>=
 let new_symbol prefix = 
   symbol (Printf.sprintf "%s_%d" prefix !nextsym)
 @
@@ -1908,22 +1910,22 @@ let new_symbol prefix =
 
 
 
-<<signature function Environment.enter_param>>=
+<<signature function [[Environment.enter_param]]>>=
 val enter_param : t -> Ast.name -> vartype -> Tree.is_ptr -> unit
 @
-<<signature function Environment.enter_local>>=
+<<signature function [[Environment.enter_local]]>>=
 val enter_local : t -> Ast.name -> vartype -> Tree.is_ptr -> Frame.access
 @
 % is_ptr is useful info for the compilation (but not for typechecking)
 % return unit because the info will be added in the frame of Env.t
 
-<<function Environment.enter_param>>=
+<<function [[Environment.enter_param]]>>=
 let enter_param env sym typ ptr =
   let access = F.alloc_param env.frame sym ptr in
   enter env.venv sym (VarEntry(access, typ))
 @
 
-<<function Environment.enter_local>>=
+<<function [[Environment.enter_local]]>>=
 let enter_local env sym typ ptr =
   let access = F.alloc_local env.frame sym ptr in
   enter env.venv sym (VarEntry(access, typ));
@@ -1936,7 +1938,7 @@ let enter_local env sym typ ptr =
 % remember in Main.compile():
 %  let base_env = Environment.new_env base_tenv base_venv in
 
-<<constant Main.base_tenv>>=
+<<constant [[Main.base_tenv]]>>=
 let base_tenv =
 (* name     type *)
 [ "int",    T.INT
@@ -1944,7 +1946,7 @@ let base_tenv =
 ]
 @
 
-<<constant Main.base_venv>>=
+<<constant [[Main.base_venv]]>>=
 let base_venv = 
 (* name        cc        args                    return *)
 [ "print",     Some "C", [T.STRING],             T.UNIT
@@ -1963,7 +1965,7 @@ let base_venv =
 @
 
 % Main.compile -> <>
-<<function Environment.new_env>>=
+<<function [[Environment.new_env]]>>=
 let new_env types funs =
   let mkfe (n,cc,a,r) = (n, FunEntry(S.symbol n,cc,F.base_frame,a,r))
   in { tenv        = Symbol.create types;
@@ -1982,7 +1984,7 @@ let new_env types funs =
 \section{Typechecking helpers}
 
 
-<<functions Semantics.check_type_xxx>>=
+<<functions [[Semantics.check_type_xxx]]>>=
 let check_type_t ty pos msg typ =
   if typ <> ty
   then E.type_err pos (msg ^ " must be of type " ^ type_name ty)
@@ -1993,7 +1995,7 @@ let check_type_unit = check_type_t UNIT
 
 
 % trdec | ... -> <>
-<<function Semantics.check_type_eq>>=
+<<function [[Semantics.check_type_eq]]>>=
 let check_type_eq pos msg t1 t2 =
   let are_equivalent = 
     match (t1,t2) with
@@ -2073,16 +2075,16 @@ and trdec env = function
 
 <<[[Semantics.trans.trdec()]] cases>>=
 | A.FunctionDec functions ->
-    <<local function Semantics.trans.trdec.mk_param (for FunctionDec case)>>
-    <<local function Semantics.trans.trdec.mk_func_env (for FunctionDec case)>>
-    <<local function Semantics.trans.trdec.trans_func (for FunctionDec case)>>
+    <<local function [[Semantics.trans.trdec.mk_param]] (for FunctionDec case)>>
+    <<local function [[Semantics.trans.trdec.mk_func_env]] (for FunctionDec case)>>
+    <<local function [[Semantics.trans.trdec.trans_func]] (for FunctionDec case)>>
     let envs = (List.map mk_func_env functions) in
     List.iter2 trans_func   envs functions;
     Trans.nil
 @
 % nil really?
 
-<<local function Semantics.trans.trdec.trans_func (for FunctionDec case)>>=
+<<local function [[Semantics.trans.trdec.trans_func]] (for FunctionDec case)>>=
 let trans_func fenv (_, _, _, body, _) =
   let b = trexp fenv body in
   add_function (Env.frame fenv) b
@@ -2091,7 +2093,7 @@ in
 % another function to translate
 
 
-<<local function Semantics.trans.trdec.mk_func_env (for FunctionDec case)>>=
+<<local function [[Semantics.trans.trdec.mk_func_env]] (for FunctionDec case)>>=
 let mk_func_env (name, params, typ, _, pos) =
   let ret_type = 
     match typ with
@@ -2106,7 +2108,7 @@ in
 @
 % env here is enclosing env in trans.
 
-<<local function Semantics.trans.trdec.mk_param (for FunctionDec case)>>=
+<<local function [[Semantics.trans.trdec.mk_param]] (for FunctionDec case)>>=
 let mk_param fenv (name, typ, pos) =
   let t = lookup_base_type env typ pos in
   Env.enter_param fenv name t (is_ptr t)
@@ -2201,7 +2203,7 @@ and trvar env = function
 
 <<[[Semantics.trans.trexp()]] cases>>=
   | A.RecordExp(var, fields, pos) ->
-      <<function Semantics.trans.trexp.chk_field>>
+      <<function [[Semantics.trans.trexp.chk_field]]>>
       (match Env.lookup_type env var pos with
         RECORD dec_fields ->
           begin try
@@ -2215,7 +2217,7 @@ and trvar env = function
       )
 @
 
-<<function Semantics.trans.trexp.chk_field>>=
+<<function [[Semantics.trans.trexp.chk_field]]>>=
 let chk_field (s1,e,p) (s2,vt) =
   if (s1 <> s2) 
   then E.type_err p "field names do not match";
@@ -2424,7 +2426,7 @@ let func body ptr =
 let temp ptr = 
   T.TEMP (T.new_temp(), ptr)
 @
-<<function Tree.new_temp>>=
+<<function [[Tree.new_temp]]>>=
 let new_temp () = 
   S.new_symbol "temp"
 @
@@ -2473,7 +2475,7 @@ let str_literal s = T.NAME (F.alloc_string s)
 <<global Frame.strings>>=
 let strings = H.create 20
 @
-<<function Frame.alloc_string>>=
+<<function [[Frame.alloc_string]]>>=
 let alloc_string s =
   try H.find strings s
   with Not_found ->
@@ -2488,13 +2490,13 @@ let alloc_string s =
 <<signature functions Translate.xxx>>=
 val field_var     : Tree.exp -> int -> Tree.is_ptr -> Tree.exp
 @
-<<function Translate.field_var>>=
+<<function [[Translate.field_var]]>>=
 let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
 @ 
 % has already done offsetization in caller 
 % (but assume all fields have the same width, hmmm)
 
-<<function Translate.angles_xxx>>=
+<<function [[Translate.angles_xxx]]>>=
 let (<+>) = simplify T.PLUS  ( + )
 let (<->) = simplify T.MINUS ( - )
 let (<*>) = simplify T.MUL   ( * )
@@ -2523,7 +2525,7 @@ let  ws    = 4
 <<signature functions Translate.xxx>>=
 val subscript_var : Tree.exp -> Tree.exp -> Tree.is_ptr -> int -> Tree.exp
 @
-<<function Translate.subscript_var>>=
+<<function [[Translate.subscript_var]]>>=
 let subscript_var e1 e2 ptr pos =
   let check = ext_c_call "bounds_check"
                         [e1;e2;T.CONST(fst (Error.line_number pos))] in
@@ -2539,7 +2541,7 @@ let subscript_var e1 e2 ptr pos =
 <<signature functions Translate.xxx>>=
 val simple_var    : Frame.frame -> Frame.access -> Tree.exp
 @
-<<function Translate.simple_var>>=
+<<function [[Translate.simple_var]]>>=
 let simple_var frm = function
   | F.Stack(var_frm, offset, ptr) ->
       T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
@@ -2555,19 +2557,19 @@ type access =
 % but useless because can't have Temp in Translation phase.
 
 % Semantics.trans.trdec -> Environment.enter_local -> <>
-<<function Frame.alloc_local>>=
+<<function [[Frame.alloc_local]]>>=
 let alloc_local frm name ptr =
   frm.vars <- (name,ptr) :: frm.vars;
   stack_alloc frm ptr
 @
 % Semantics.trans.trdec.mk_param -> Environment.enter_param -> <>
-<<function Frame.alloc_param>>=
+<<function [[Frame.alloc_param]]>>=
 let alloc_param frm name ptr =
   frm.params <- frm.params @ [(name,ptr)];
   stack_alloc frm ptr
 @
 
-<<function Frame.stack_alloc>>=
+<<function [[Frame.stack_alloc]]>>=
 let stack_alloc frm ptr =
   let v = Stack(frm, frm.size, ptr) in
   frm.size <- frm.size + 1; 
@@ -2614,7 +2616,7 @@ val new_record    : (Tree.exp * Tree.is_ptr) list -> Tree.exp
 val new_array     : Tree.exp -> Tree.exp -> Tree.is_ptr -> Tree.exp
 @
 
-<<function Translate.new_record>>=
+<<function [[Translate.new_record]]>>=
 let new_record init =
   let tmp  = temp true in
   let size = T.CONST (List.length init) in
@@ -2628,7 +2630,7 @@ let new_record init =
 % we will see alloc() later in Runtime chapter.
 
 
-<<function Translate.new_array>>=
+<<function [[Translate.new_array]]>>=
 let new_array sizeEx initEx ptr = 
   let ary  = temp true in
   let i    = temp false in
@@ -2669,7 +2671,7 @@ let arithmetic op ex1 ex2 =
   T.BINOP(oper, ex1, ex2)
 @
 
-<<function Translate.compare_int>>=
+<<function [[Translate.compare_int]]>>=
 let compare_int op ex1 ex2 =
   let oper = match op with
     A.EqOp  -> T.EQ
@@ -2682,7 +2684,7 @@ let compare_int op ex1 ex2 =
   in T.RELOP(oper, ex1, ex2)
 @
 
-<<function Translate.compare_str>>=
+<<function [[Translate.compare_str]]>>=
 let compare_str op ex1 ex2 =
   let result = ext_c_call "compare_str" [ex1;ex2] in
   compare_int op result (T.CONST 0)
@@ -2733,7 +2735,7 @@ let call caller_frm   lbl cc callee_frm   args k ptr =
 @
 % see alloc_ptr later
 
-<<functions Translate.ext_xxx_call>>=
+<<functions [[Translate.ext_xxx_call]]>>=
 let ext_call cc name args =
   call F.base_frame (S.symbol name) cc
        F.base_frame args None false
@@ -2983,7 +2985,7 @@ ltree |> Tree.find_temps |> List.iter (fun (x,p) ->
 );
 @
 
-<<signature function Tree.find_temps>>=
+<<signature function [[Tree.find_temps]]>>=
 val find_temps : stm list -> (temp * is_ptr) list
 @
 %why do that at the end? why not call those alloc_temp before?
@@ -3049,11 +3051,11 @@ let alloc size =
 %                (* ; T.EXP (ext_gc_call "call_gc" []) *)
 % GC interface here!!
 
-<<constant Translate.space_end>>=
+<<constant [[Translate.space_end]]>>=
 let space_end = T.MEM  (T.NAME (S.symbol "space_end"), true)
 @
 
-<<constant Translate.alloc_ptr>>=
+<<constant [[Translate.alloc_ptr]]>>=
 let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 @
 
@@ -3075,7 +3077,7 @@ let alloc_ptr = T.NAME (S.symbol "alloc_ptr")
 %less: in sml it was 	  | NAME of Symbol.symbol * ty option ref
 % could do that.
 
-<<function Semantics.base_type>>=
+<<function [[Semantics.base_type]]>>=
 let rec base_type env = function
     NAME s ->
       (try base_type env (Env.lookup_type env s 0)
@@ -3085,7 +3087,7 @@ let rec base_type env = function
 @
 % do it just one level, enough to not have a NAME
 
-<<function Semantics.lookup_base_type>>=
+<<function [[Semantics.lookup_base_type]]>>=
 let lookup_base_type env sym pos =
   base_type env (Env.lookup_type env sym pos)
 @ 
@@ -3113,7 +3115,7 @@ let lookup_base_type env sym pos =
 @
 
 %grammar def
-<<rule exn_dec>>=
+<<rule [[exn_dec]]>>=
 exn_dec:
    EXCEPTION id { mkException $2 }
 @
@@ -3156,17 +3158,17 @@ exn_label   : Tree.label option;
 xenv        : int Symbol.table;
 @
 
-<<signature function Environment.lookup_exn>>=
+<<signature function [[Environment.lookup_exn]]>>=
 val lookup_exn   : t -> Ast.name -> Ast.pos -> int
 @
-<<functions Environment.lookup_xxx>>=
+<<functions [[Environment.lookup_xxx]]>>=
 let lookup_exn   env = lookup env.xenv
 @
 
-<<signature function Environment.enter_exn>>=
+<<signature function [[Environment.enter_exn]]>>=
 val enter_exn   : t -> Ast.name -> unit
 @
-<<functions Environment.enter_xxx>>=
+<<functions [[Environment.enter_xxx]]>>=
 let enter_exn env sym = enter env.xenv sym (S.uid sym)
 @
 
@@ -3210,7 +3212,7 @@ val try_block     : Tree.exp -> Tree.label -> (int *Tree.exp) list -> Tree.exp
 val raise_exn     : int -> Tree.exp
 @
 
-<<function Translate.try_block>>=
+<<function [[Translate.try_block]]>>=
 let try_block exp exn_lbl hs =
   let cont l = function
       T.TEMP(t,_) -> T.CONT(l, [t])
@@ -3243,7 +3245,7 @@ let try_block exp exn_lbl hs =
 
 @ 
 
-<<function Translate.raise_exn>>=
+<<function [[Translate.raise_exn]]>>=
 let raise_exn uid =
   let fn = if !Option.unwind then "unwind" else "raise" in
   ext_cmm_call fn [T.CONST uid]
@@ -3355,7 +3357,7 @@ let parse_error s =
 %todo: dead?
 %less: inline? provide value?
 
-<<function Error.type_err>>=
+<<function [[Error.type_err]]>>=
 let type_err  pos msg = 
   raise(Error(Type_error msg, pos))
 @
@@ -3369,7 +3371,7 @@ let internal      msg =
   raise(Error(Internal_error msg, 0))
 @
 
-<<function Error.handle_exception>>=
+<<function [[Error.handle_exception]]>>=
 let handle_exception (ex,pos) =
   let msg = match ex with
     Internal_error s     -> "Compiler bug: " ^ s
@@ -3391,7 +3393,7 @@ let handle_exception (ex,pos) =
 @
 
 % type error dumper, should be the string in Type_error of string above
-<<function Semantics.type_name>>=
+<<function [[Semantics.type_name]]>>=
 let rec type_name = function
     RECORD l -> (List.fold_left (fun x y -> x ^ (type_name (snd y)))
                 "record {" l) ^ "}"
@@ -3406,7 +3408,7 @@ let rec type_name = function
 
 \section{Line position}
 
-<<function Error.err_msg>>=
+<<function [[Error.err_msg]]>>=
 let err_msg prefix pos msg =
   let (line,col) = line_number pos in
   if line > 0 
@@ -3422,7 +3424,7 @@ let warning = err_msg "Warning"
 @
 
 
-<<function Error.line_number>>=
+<<function [[Error.line_number]]>>=
 let line_number pos =
   let rec line ln last_p = function
       (p,l) :: rest ->
@@ -3439,12 +3441,12 @@ let line_number pos =
 type sm = { mutable sm: (int * int) list }
 @
 
-<<global Error.source_map>>=
+<<global [[Error.source_map]]>>=
 let source_map = { sm = [(0,0)] }
 @
 
 % should be called by the lexer
-<<function Error.add_source_mapping>>=
+<<function [[Error.add_source_mapping]]>>=
 let add_source_mapping pos line =
   source_map.sm <- source_map.sm @ [(pos,line)]
 @
@@ -3458,7 +3460,9 @@ let add_source_mapping pos line =
 
 %todo: use deriving? so save code?
 
-\section{[[tiger -dump_ast]]}
+\section{Dumpers}
+
+\subsection{[[tiger -dump_ast]]}
 
 <<command line flags>>=
 let dump_ast    = ref false
@@ -3473,7 +3477,7 @@ then Ast.print_tree ast;
 @
 
 
-<<function Ast.print_tree>>=
+<<function [[Ast.print_tree]]>>=
 let print_tree expression =
   <<declaration printer>>
   <<type printer>>
@@ -3625,7 +3629,7 @@ let opname = function
 @
 
 
-\section{[[tiger -dump_ext]]}
+\subsection{[[tiger -dump_ext]]}
 
 <<command line flags>>=
 let dump_ext    = ref false
@@ -3640,11 +3644,11 @@ then Tree.print_exp ex;
 @
 
 
-<<function Tree.print_exp>>=
+<<function [[Tree.print_exp]]>>=
 let print_exp e = print_stm (EXP e)
 @
 
-<<function Tree.print_stm>>=
+<<function [[Tree.print_stm]]>>=
 let print_stm =
   let rec iprintf = function
       0 -> Printf.printf
@@ -3679,7 +3683,7 @@ let print_stm =
   in prstm 0
 @
 
-\section{[[tiger -dump_lext]]}
+\subsection{[[tiger -dump_lext]]}
 
 <<command line flags>>=
 let dump_lext   = ref false
@@ -3697,9 +3701,7 @@ then List.iter Tree.print_stm ltree;
 
 \chapter{Extra Code}
 
-\ifallcode
 #include "Tiger_extra.nw"
-\fi
 
 \chapter{Changelog}
 \label{sec:changelog}
@@ -3716,21 +3718,22 @@ then List.iter Tree.print_stm ltree;
 %\chapter{References} 
 \addcontentsline{toc}{section}{References}
 
-\begin{thebibliography}{99}
+%TODO: why need that? fix that, fix Principia.bib?
+\nocite{lp-book,noweb,syncweb}
+\bibliography{latex/Principia}
+\bibliographystyle{alpha}
 
-\bibitem[1]{wp-literate-programming} Donald Knuth,,
-{\em Literate Programming}, 
-\url{http://en.wikipedia.org/wiki/Literate\_Program}
-
-\bibitem[2]{noweb} Norman Ramsey,
-{\em Noweb}, 
-\url{http://www.cs.tufts.edu/~nr/noweb/}
-
-\bibitem[3]{syncweb} Yoann Padioleau,
-{\em Syncweb, literate programming meets unison}, 
-\url{http://padator.org/software/project-syncweb/readme.txt}
-
-\end{thebibliography}
+%\begin{thebibliography}{99}
+%\bibitem[1]{wp-literate-programming} Donald Knuth,,
+%{\em Literate Programming}, 
+%\url{http://en.wikipedia.org/wiki/Literate\_Program}
+%\bibitem[2]{noweb} Norman Ramsey,
+%{\em Noweb}, 
+%\url{http://www.cs.tufts.edu/~nr/noweb/}
+%\bibitem[3]{syncweb} Yoann Padioleau,
+%{\em Syncweb, literate programming meets unison}, 
+%\url{http://padator.org/software/project-syncweb/readme.txt}
+%\end{thebibliography}
 
 %******************************************************************************
 % Postlude
