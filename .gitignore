@@ -79,3 +79,6 @@
 /runtime/qcmm/
 /runtime/build-ppc/
 /stdlib/build-ppc/
+/docs/literate/Tiger.tex
+/docs/literate/lineage.dot
+/docs/literate/lineage.pdf
