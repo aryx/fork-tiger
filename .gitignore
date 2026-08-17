@@ -44,23 +44,18 @@
 /parsing/parser.output
 
 /docs/literate/.Tiger.nwcache
+/docs/literate/Tiger-*.pdf
+/docs/literate/Tiger.tex
+/docs/literate/lineage.dot
+/docs/literate/lineage.pdf
 
 # binaries
-/tiger
-/tiger.opt
 
 # MISC/graph_code.marshall
 /graph_code.marshall
 /graph_code.marshall.opti
 /layer_graph_code.json
 /Fig_graph_ml.pdf
-/Tiger.pdf
-/Tiger.tex
-/Tiger.aux
-/Tiger.brf
-/Tiger.log
-/Tiger.out
-/Tiger.toc
 
 # ------------------------------------------------------------------------------
 
@@ -79,6 +74,3 @@
 /runtime/qcmm/
 /runtime/build-ppc/
 /stdlib/build-ppc/
-/docs/literate/Tiger.tex
-/docs/literate/lineage.dot
-/docs/literate/lineage.pdf
