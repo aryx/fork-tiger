@@ -51,3 +51,4 @@ sync_runtime:VI:
 	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/runtime/gc.h
 	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlib.h
 	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlib.c
+	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlibcmm.c--

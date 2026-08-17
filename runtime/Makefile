@@ -6,12 +6,6 @@ TOP=..
 -include $(TOP)/Makefile.config
 
 ##############################################################################
-# Generic variables
-##############################################################################
-
--include $(TOP)/Makefile.common
-
-##############################################################################
 # Backend selection
 ##############################################################################
 # claude: BACKEND picks qc--'s target; see stdlib/Makefile's header for the
@@ -110,18 +104,3 @@ clean::
 
 clean::
 	rm -f alloc.s runtime.s
-
-##############################################################################
-# Literate Programming rules
-##############################################################################
-
-sync:
-	$(SYNCWEB) -lang C runtime.nw runtime.c--
-	$(SYNCWEB) -lang C runtime.nw client.c
-	$(SYNCWEB) -lang C gc.nw gc.c
-	$(SYNCWEB) -lang C gc.nw gc.h
-	$(SYNCWEB) -lang C gc.nw alloc.c--
-
-
-lpdistclean::
-	rm -f $(LPSRC) .md5sum_*

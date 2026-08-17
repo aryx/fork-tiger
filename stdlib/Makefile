@@ -6,11 +6,6 @@ TOP=..
 -include $(TOP)/Makefile.config
 
 ##############################################################################
-# Generic variables
-##############################################################################
--include $(TOP)/Makefile.common
-
-##############################################################################
 # Backend selection
 ##############################################################################
 # claude: BACKEND picks qc--'s target, same knob qc--'s own runtime Makefile
@@ -86,14 +81,3 @@ clean::
 clean::
 	rm -f stdlibcmm.s
 
-##############################################################################
-# Literate Programming rules
-##############################################################################
-
-sync:
-	$(SYNCWEB) -lang C stdlib.nw stdlib.h
-	$(SYNCWEB) -lang C stdlib.nw stdlib.c
-	$(SYNCWEB) -lang C stdlib.nw stdlibcmm.c--
-
-lpdistclean::
-	rm -f $(LPSRC) .md5sum_*
