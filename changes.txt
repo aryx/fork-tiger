@@ -4,8 +4,8 @@
 
 Tiger is a compiler for Appel's Tiger language, written in OCaml.  It typechecks
 and translates Tiger to textual C--; Quick C-- (qc--) provides the native x86
-backend.  This release makes that intended path buildable, installable, and
-testable again.
+and ppc backend.  This release makes that intended path buildable, installable,
+and testable again.
 
 ** toolchain
 - make qc-- a configured dependency rather than a hard-coded checkout: find
