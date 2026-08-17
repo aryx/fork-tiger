@@ -7,7 +7,7 @@ module S = Symbol
 /*(*s: parser helper functions *)*/
 let getpos = Parsing.symbol_start
 /*(*x: parser helper functions *)*/
-let parse_error __s =
+let parse_error _s =
   let pos = getpos() in
   raise (E.Error(E.Syntax_error, pos))
 /*(*e: parser helper functions *)*/
@@ -236,12 +236,12 @@ dec:
  | fun_decs  { mkFunctionDec $1 }
  | exn_dec   { $1 }
 /*(*e: rule dec *)*/
-/*(*s: rule var_dec *)*/
+/*(*s: rule [[var_dec]] *)*/
 var_dec:
    VAR id ASSIGN expr          { mkVarDec $2 None $4 }
  | VAR id COLON id ASSIGN expr { mkVarDec $2 (Some $4) $6 }
-/*(*e: rule var_dec *)*/
-/*(*s: rule type_decs *)*/
+/*(*e: rule [[var_dec]] *)*/
+/*(*s: rule [[type_decs]] *)*/
 type_decs:
    type_dec           { $1 :: [] }
  | type_dec type_decs { $1 :: $2 }
@@ -249,8 +249,8 @@ type_decs:
 type_dec:
    TYPE id EQ ty { mkTyDec $2 $4 }
 ;
-/*(*e: rule type_decs *)*/
-/*(*s: rule fun_decs *)*/
+/*(*e: rule [[type_decs]] *)*/
+/*(*s: rule [[fun_decs]] *)*/
 fun_decs:
    fun_dec          { $1 :: [] }
  | fun_dec fun_decs { $1 :: $2 }
@@ -260,11 +260,11 @@ fun_dec:
      { mkFunDec $2 $4 None $7 }
  | FUNCTION id LPAREN ty_fields RPAREN COLON id EQ expr
      { mkFunDec $2 $4 (Some $7) $9 }
-/*(*e: rule fun_decs *)*/
-/*(*s: rule exn_dec *)*/
+/*(*e: rule [[fun_decs]] *)*/
+/*(*s: rule [[exn_dec]] *)*/
 exn_dec:
    EXCEPTION id { mkException $2 }
-/*(*e: rule exn_dec *)*/
+/*(*e: rule [[exn_dec]] *)*/
 /*(*e: subrules for decs *)*/
 
 /* Types */
