@@ -2597,6 +2597,29 @@ tig_concat("address" bits32 str_a, "address" bits32 str_b) {
 %%dynamically using the [[tig_set_handler]] function. Raising an
 %%exception can then be done with a [[C--]] cut to statement.
 <<C-- data>>=
+ /* claude: without this directive, curr_exn's byte offset in the data
+  * section is whatever falls out of substr_msg's length (a string
+  * literal, not a multiple of 4 in general) - qc-- lays out
+  * "section data" purely by walking the declarations in source order
+  * and packing them back to back; it never inserts alignment padding
+  * on its own before a scalar based on that scalar's own width, only
+  * where an explicit "align N;" directive appears in the source (see
+  * qc--'s codegen/ast2ir.ml "datum" function and ir/asm.ml's #align
+  * method - the whole pipeline from parser through codegen treats
+  * "align" as its own AST node, not an inferred property of a
+  * declaration's type). x86 and ppc silently tolerate the resulting
+  * misaligned bits32 load/store; SPARC does not - it traps on a
+  * misaligned access, so tig_set_handler (the first thing every tiger
+  * program's runtime.c-- calls, since it touches curr_exn on every
+  * program's very first cut/raise setup) was taking a SIGBUS before
+  * tiger_main even started, on every SPARC test except hello (which
+  * happens to get curr_exn 4-byte-aligned by coincidence, given the
+  * specific string lengths linked into that one binary - the bug was
+  * latent for it too, just not triggered). Confirmed by comparing
+  * `nm`'s address for curr_exn across different linked test binaries -
+  * it moved depending on what else was linked in, and landed on a
+  * non-multiple-of-4 offset for forloop/funcall/queens/sieve/etc. */
+ align 4;
  curr_exn : bits32;
 @ 
 <<C-- functions>>=
