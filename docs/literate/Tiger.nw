@@ -3350,7 +3350,7 @@ exception Error of ex
 
 %ex:
 <<parser helper functions>>=
-let parse_error s =
+let parse_error _s =
   let pos = getpos() in
   raise (E.Error(E.Syntax_error, pos))
 @
