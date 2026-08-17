@@ -46,7 +46,13 @@ let emit exl =
     and valexp = function
         T.BINOP(bop, e1, e2)  -> spf "%%%s(%s, %s)"
                                  (T.cmm_binop bop) (valexp e1) (valexp e2)
-      | T.RELOP _ as e        -> spf "%%sx32(%%bit(%s))" (boolexp e)
+      (* claude: this widens a 1-bit comparison result into a full Tiger
+       * value, so the extend width has to track word size (Frame.ws()/
+       * Option.arch64) exactly like everything else in this file - a bare
+       * %sx32 fed into a bits64 temp fails elaboration ("location of type
+       * bits64 cannot hold value of type bits32", confirmed against the
+       * installed qc). *)
+      | T.RELOP _ as e        -> spf "%%sx%d(%%bit(%s))" (Frame.ws()*8) (boolexp e)
       | T.MEM(e,_ptr)          -> spf "%s[%s]" (Frame.bits_str()) (valexp e)
       | T.TEMP(t,_ptr)         -> spf "%s" (S.name t)
       | T.NAME l              -> (S.name l)

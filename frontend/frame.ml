@@ -106,10 +106,19 @@ let output_header frm =
   List.iter temp frm.temps
 (*x: frame.ml *)
 let output_footer frm =
+  (* claude: under -64 a bare integer literal's default width tracks the
+   * target's native word size (qc-- elab/elabexp.ml: "const
+   * metrics.M.wordsize"), i.e. 64, which then fails elaboration against
+   * these tables' declared bits32 element type ("type of an initial value
+   * does not match declared type bits32", confirmed against the installed
+   * qc). So under -64 each literal needs an explicit "::bits32" suffix;
+   * leave the 32-bit case untouched (word size already matches) to keep
+   * the existing recorded test baseline unchanged. *)
+  let suffix = if !Option.arch64 then "::bits32" else "" in
   let var_data vl =
     let int_of_var (_,p) = if p then 1 else 0 in
     let data = List.length vl :: List.map int_of_var vl in
-    join_map string_of_int data
+    join_map (fun i -> string_of_int i ^ suffix) data
   in
   pf "}}\n";
   pf "section \"data\" {\n";
