@@ -65,12 +65,36 @@
 # scratch directory of the test runner
 /tests/build/
 /tests/build-ppc/
+/tests/build-sparc/
+/tests/build-alpha/
+/tests/build-mips/
+/tests/build-arm/
+/tests/build-riscv32/
+/tests/build-riscv64/
 
 # scratch directory of demos/Makefile
 /demos/build/
 /demos/build-ppc/
+/demos/build-sparc/
+/demos/build-alpha/
+/demos/build-mips/
+/demos/build-arm/
+/demos/build-riscv32/
+/demos/build-riscv64/
 
 # generated while building and testing
 /runtime/qcmm/
 /runtime/build-ppc/
+/runtime/build-sparc/
+/runtime/build-alpha/
+/runtime/build-mips/
+/runtime/build-arm/
+/runtime/build-riscv32/
+/runtime/build-riscv64/
 /stdlib/build-ppc/
+/stdlib/build-sparc/
+/stdlib/build-alpha/
+/stdlib/build-mips/
+/stdlib/build-arm/
+/stdlib/build-riscv32/
+/stdlib/build-riscv64/

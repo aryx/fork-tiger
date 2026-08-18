@@ -9,33 +9,98 @@ TOP=..
 # Backend selection
 ##############################################################################
 # claude: BACKEND picks qc--'s target; see stdlib/Makefile's header for the
-# fuller reasoning. Default (x86) keeps the original flat filenames
-# (runtime.o, stdlib.a, qcmm.a) so tests/run-tests.sh's existing paths are
-# untouched; ppc's outputs live under build-ppc/ instead, alongside
-# stdlib/'s build-ppc/.
+# fuller reasoning (including what XFORM's four values mean). Default (x86)
+# keeps the original flat filenames (runtime.o, stdlib.a, qcmm.a) so
+# tests/run-tests.sh's existing paths are untouched; every other backend's
+# outputs live under their own build-<backend>/ instead, alongside
+# stdlib/'s build-<backend>/.
+#
+# GLOBALS_DECL is qcmm.a's own client-globals declaration (see that rule's
+# comment below) - bits64 for the two 64-bit backends, matching
+# Frame.bits_str()'s "-64" choice in the frontend and XFORM=64's rewrite of
+# alloc_ptr's own declaration in alloc.c--/runtime.c--/stdlibcmm.c--.
 BACKEND ?= x86
 ifeq ($(BACKEND),x86)
-CC        = $(CC32)
-AR        = $(AR32)
-QCFLAG    =
-B         = .
-STDLIBDIR = ../stdlib
+CC           = $(CC32)
+AR           = $(AR32)
+QCFLAG       =
+B            = .
+STDLIBDIR    = ../stdlib
+XFORM        = none
+GLOBALS_DECL = bits32 alloc_ptr;
 else ifeq ($(BACKEND),ppc)
-CC        = $(CC_PPC)
-AR        = $(AR_PPC)
-QCFLAG    = -ppc-elf
-B         = build-ppc
-STDLIBDIR = ../stdlib/build-ppc
+CC           = $(CC_PPC)
+AR           = $(AR_PPC)
+QCFLAG       = -ppc-elf
+B            = build-ppc
+STDLIBDIR    = ../stdlib/build-ppc
+XFORM        = big
+GLOBALS_DECL = bits32 alloc_ptr;
+else ifeq ($(BACKEND),sparc)
+CC           = $(CC_SPARC)
+AR           = $(AR_SPARC)
+QCFLAG       = -sparc
+B            = build-sparc
+STDLIBDIR    = ../stdlib/build-sparc
+XFORM        = big
+GLOBALS_DECL = bits32 alloc_ptr;
+else ifeq ($(BACKEND),alpha)
+CC           = $(CC_ALPHA)
+AR           = $(AR_ALPHA)
+QCFLAG       = -alpha
+B            = build-alpha
+STDLIBDIR    = ../stdlib/build-alpha
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
+else ifeq ($(BACKEND),mips)
+CC           = $(CC_MIPS)
+AR           = $(AR_MIPS)
+QCFLAG       = -mips
+B            = build-mips
+STDLIBDIR    = ../stdlib/build-mips
+XFORM        = none
+GLOBALS_DECL = bits32 alloc_ptr;
+else ifeq ($(BACKEND),arm)
+CC           = $(CC_ARM)
+AR           = $(AR_ARM)
+QCFLAG       = -arm
+B            = build-arm
+STDLIBDIR    = ../stdlib/build-arm
+XFORM        = arm
+GLOBALS_DECL = bits32 alloc_ptr;
+else ifeq ($(BACKEND),riscv32)
+CC           = $(CC_RISCV32)
+AR           = $(AR_RISCV32)
+QCFLAG       = -riscv32
+B            = build-riscv32
+STDLIBDIR    = ../stdlib/build-riscv32
+XFORM        = none
+GLOBALS_DECL = bits32 alloc_ptr;
+else ifeq ($(BACKEND),riscv64)
+CC           = $(CC_RISCV64)
+AR           = $(AR_RISCV64)
+QCFLAG       = -riscv64
+B            = build-riscv64
+STDLIBDIR    = ../stdlib/build-riscv64
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
 else
-$(error unknown BACKEND=$(BACKEND) - expected x86 or ppc)
+$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32 or riscv64)
+endif
+
+# See stdlib/Makefile's identical block for why this is needed for these
+# six backends and not x86/ppc.
+ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64),$(BACKEND))
+export QC_AS := $(CC)
+export QC_LD := $(CC)
 endif
 
 ##############################################################################
 # Top rules
 ##############################################################################
 
-# See stdlib/Makefile for why CC32/CC_PPC, -fno-omit-frame-pointer and
-# -fcommon.
+# See stdlib/Makefile for why CC (CC32/CC_PPC/...), -fno-omit-frame-pointer
+# and -fcommon.
 all:: $(B)/stdlib.a $(B)/runtime.o $(B)/qcmm.a
 
 $(B):
@@ -49,16 +114,46 @@ $(B):
 $(B)/gc.o: gc.c gc.h $(QCINCLUDE)/qc--runtime.h | $(B)
 	$(CC) -w -fcommon -fno-omit-frame-pointer -I $(QCINCLUDE) -c gc.c -o $@
 
-# claude: alloc.c--/runtime.c-- declare "target byteorder little"; same
-# ppc byteorder flip as stdlib/Makefile's stdlibcmm.o, into a build-local
-# copy so the checked-in sources stay backend-neutral.
-ifeq ($(BACKEND),ppc)
+# claude: alloc.c--/runtime.c-- declare plain "target byteorder little"
+# (no explicit wordsize/pointersize - qc--'s default is 32); same four
+# XFORM cases as stdlib/Makefile's stdlibcmm.o rule, into a build-local
+# copy so the checked-in sources stay backend-neutral. alloc.c-- alone
+# also carries the allocator's alignment mask/round-up ("(size + 7) &
+# 0xFFFFFFFC"), which XFORM=64 has to rescale from 4-byte to 8-byte
+# alignment by hand (the generic bits32->bits64/+4->+8 substitutions don't
+# touch "+ 7" or the literal mask) - see stdlib/Makefile's XFORM=64 comment
+# and docs/claude_notes/notes_64bits.txt for the full reasoning, verified
+# against qc--'s own tests/tiger64/regenerate-riscv64.sh by hand.
+ifeq ($(XFORM),big)
 $(B)/alloc.o: alloc.c-- $(QC) | $(B)
 	sed 's/byteorder[ ][ ]*little/byteorder big/' alloc.c-- > $(B)/alloc.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
 
 $(B)/runtime.o: runtime.c-- $(QC) | $(B)
 	sed 's/byteorder[ ][ ]*little/byteorder big/' runtime.c-- > $(B)/runtime.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
+else ifeq ($(XFORM),arm)
+$(B)/alloc.o: alloc.c-- $(QC) | $(B)
+	sed 's/^target byteorder little\(.*\);/target byteorder little float "none"\1;/' \
+	  alloc.c-- > $(B)/alloc.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
+
+$(B)/runtime.o: runtime.c-- $(QC) | $(B)
+	sed 's/^target byteorder little\(.*\);/target byteorder little float "none"\1;/' \
+	  runtime.c-- > $(B)/runtime.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
+else ifeq ($(XFORM),64)
+$(B)/alloc.o: alloc.c-- $(QC) | $(B)
+	sed -e 's/^target byteorder little;/target byteorder little wordsize 64 pointersize 64;/' \
+	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\b/+8/g' \
+	    -e 's/(size + 7) & 0xFFFFFFFC/(size + 15) \& 0xFFFFFFFFFFFFFFF8/' \
+	  alloc.c-- > $(B)/alloc.c--
+	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
+
+$(B)/runtime.o: runtime.c-- $(QC) | $(B)
+	sed -e 's/^target byteorder little;/target byteorder little wordsize 64 pointersize 64;/' \
+	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\b/+8/g' \
+	  runtime.c-- > $(B)/runtime.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
 else
 $(B)/alloc.o: alloc.c-- $(QC) | $(B)
@@ -79,9 +174,11 @@ $(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibc
 # yield.c-- have to be compiled with *our* global-variable declarations and
 # *our* target: every C-- unit touching the global area references a
 # Cmm.globalsig.<hash> computed from them, and tiger declares
-# "bits32 alloc_ptr;". BACKEND is threaded through so the ppc build gets a
-# byteorder-flipped, -ppc-elf-compiled qcmm.a of its own rather than
-# reusing x86's.
+# "$(GLOBALS_DECL)" (bits64 rather than bits32 for the two 64-bit
+# backends - $(QCLIB)'s own Makefile rewrites cut.c--/thread.c--/yield.c--
+# to bits64 in that case too, keyed off the same BACKEND). BACKEND is
+# threaded through so every non-x86 build gets its own transformed,
+# correctly-flagged qcmm.a rather than reusing x86's.
 #
 # claude: qcmm.a has no real prerequisites of its own - it's a thin cp
 # around a recursive $(MAKE) into $(QCLIB), whose *own* Makefile is what
@@ -95,12 +192,12 @@ FORCE:
 
 $(B)/qcmm.a: FORCE | $(B)
 	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(BACKEND) QC=$(QC) CC32="$(CC)" \
-	  GLOBALS_DECL='bits32 alloc_ptr;'
+	  GLOBALS_DECL='$(GLOBALS_DECL)'
 	cp $(B)/qcmm/libqcmm.a $@
 
 clean::
 	rm -f *.o *.a
-	rm -rf qcmm build-ppc
+	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64
 
 clean::
 	rm -f alloc.s runtime.s

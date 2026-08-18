@@ -1,0 +1,14 @@
+arrays PASS
+colmajor FAIL
+exceptions PASS
+forloop PASS
+funcall PASS
+hello PASS
+merge FAIL
+qsort PASS
+queens PASS
+rb PASS
+rc4 PASS
+sieve FAIL
+wf PASS
+wff PASS

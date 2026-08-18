@@ -58,27 +58,59 @@ Assembly-output comparisons (`tests/x86/*.s.gz`) from the original suite were
 dropped since qc--'s register allocator differs from the one that produced
 them.
 
-### PPC (qc--'s `-ppc-elf` backend)
+### Other qc-- backends
+
+qc-- targets more than x86 (see `qc --help`): `-ppc-elf`, `-sparc`, `-alpha`,
+`-mips`, `-arm`, `-riscv32`, `-riscv64`, alongside the default `-x86`.
+`stdlib/Makefile` and `runtime/Makefile` take a `BACKEND=<arch>` argument
+(default `x86`; `<arch>` one of `ppc sparc alpha mips arm riscv32 riscv64`)
+and build into their own `build-<arch>/` instead of clobbering the x86
+objects. `demos/Makefile` and `tests/run-tests.sh` follow the same
+`BACKEND=<arch>` convention (`run-tests.sh` reads it from the environment
+rather than as a `make` argument).
 
 ```sh
-make test-ppc                     # builds stdlib+runtime for BACKEND=ppc, then runs the suite
-BACKEND=ppc tests/run-tests.sh    # same suite, driven directly
+make test-ppc                       # builds stdlib+runtime for BACKEND=ppc, then runs the suite
+make test-sparc test-alpha ...      # ditto for the other backends; make test-all runs every one
+BACKEND=ppc tests/run-tests.sh      # same suite, driven directly
 ```
 
-Same manifest, same `tests/x86/*.1`/`*.2` expected output (Tiger's observable
-behaviour isn't meant to depend on the target), but linked against qc--'s
-`-ppc-elf` backend and run under `qemu-ppc`. `stdlib/Makefile` and
-`runtime/Makefile` take a `BACKEND=ppc` argument (default `x86`) and build
-into `build-ppc/` instead of clobbering the x86 objects; `./configure`
-detects the ppc cross toolchain (`CC_PPC`, `AR_PPC`, `RUN_PPC` in
-`Makefile.config`, best-effort — a missing one only warns). tigerc itself
-always emits `target byteorder little`; both the Makefiles and
-`run-tests.sh` flip that to `big` in their own output on the fly, they don't
-touch the checked-in `.c--` sources.
+Same manifest, same `tests/x86/*.1`/`*.2` expected output for every backend
+(Tiger's observable behaviour isn't meant to depend on the target). `./configure`
+detects each backend's optional cross toolchain (`CC_<ARCH>`/`AR_<ARCH>`/
+`RUN_<ARCH>` in `Makefile.config`, best-effort — a missing one only warns)
+and, where relevant, its `qemu-user` emulator.
 
-Currently 6/14 pass (`tests/expected/tiger-ppc.txt`); the rest fail at `qc`
-with `Impossible("instantiated 0-key type scheme with 1 widths")`, a real
-qc--/target-metrics gap, not a regression in this suite.
+tigerc itself always emits 32-bit little-endian C-- (`target byteorder
+little`, `bits32` types) by default; each backend needs one of four
+transforms before qc-- will accept the result, applied on the fly by the
+Makefiles/`run-tests.sh` rather than by editing the checked-in `.c--`
+sources:
+
+| transform | backends | what happens |
+|---|---|---|
+| none | mips, riscv32 | already matches (32-bit little-endian, has an FPU) |
+| byteorder flip | ppc, sparc | `little` → `big` (both are 32-bit big-endian) |
+| float "none" splice | arm | arm has no FPU; every source here otherwise relies on the implicit ieee754 default |
+| `-64` / bits64 rewrite | alpha, riscv64 | both are 64-bit; `tigerc -64` emits bits64 C-- directly (see `docs/claude_notes/notes_64bits.txt`), but `runtime/alloc.c--`, `runtime/runtime.c--` and `stdlib/stdlibcmm.c--` are hand-written and need every `bits32`→`bits64`, `+4`→`+8`, and the allocator's alignment mask rewritten by hand (`XFORM=64` in `runtime/Makefile`/`stdlib/Makefile`) |
+
+riscv32 is also the only backend with no glibc cross toolchain on Ubuntu; its
+`CC_RISCV32` is a bare-metal `gcc-riscv64-unknown-elf` compiled against
+picolibc, and its final link (in `demos/Makefile` and `run-tests.sh`) goes
+through plain `ld` with an explicit `riscv32_crt0.o`, not `$(CC_RISCV32)` —
+see either file's riscv32 section for why (picolibc.specs' default link
+script and `--gc-sections` are both wrong for this target).
+
+None of the non-x86 backends is expected to be all-green — see each
+`tests/expected/tiger-<arch>.txt` for the current pass/fail split. As of the
+last recorded baselines: ppc and arm and riscv32 are fully green (14/14);
+riscv64 13/14 and alpha 11/14 fail on real qc-- instruction-selection gaps
+(`%quot`/`%sx` at 64-bit widths on alpha; a `malloc` corruption on riscv64's
+`colmajor`); sparc and mips are the least complete backends (2/14 and 1/14),
+mostly around exception/GC codegen — consistent with qc--'s own (much
+simpler) `tests/run-tiger-<arch>.sh` baselines in the qc-- checkout, so this
+reflects real backend completeness, not a gap in this suite's own
+infrastructure.
 
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural

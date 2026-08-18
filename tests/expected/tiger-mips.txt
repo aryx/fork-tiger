@@ -1,0 +1,14 @@
+arrays FAIL
+colmajor FAIL
+exceptions FAIL
+forloop FAIL
+funcall FAIL
+hello PASS
+merge FAIL
+qsort FAIL
+queens FAIL
+rb FAIL
+rc4 FAIL
+sieve FAIL
+wf FAIL
+wff FAIL

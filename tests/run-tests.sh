@@ -9,31 +9,48 @@
 # tiger.tst, which was Lua for qc--'s testdrv.lua; qc-- no longer embeds Lua.
 #
 # Results are checked against a recorded baseline (expected/tiger.txt, or
-# expected/tiger-ppc.txt for BACKEND=ppc) rather than "everything must
-# pass", so that a suite with known failures still reports *changes*, which
-# is what regression testing is for. Individual failures stay visible in
-# the output.
+# expected/tiger-<backend>.txt for BACKEND=<backend>) rather than
+# "everything must pass", so that a suite with known failures still reports
+# *changes*, which is what regression testing is for. Individual failures
+# stay visible in the output.
 #
-#   ./run-tests.sh              run them all (x86), check against the baseline
-#   ./run-tests.sh --update     re-record the baseline (review the diff!)
-#   ./run-tests.sh hello wf     run only those, report but do not compare
-#   BACKEND=ppc ./run-tests.sh  same, but for qc--'s -ppc-elf backend
+#   ./run-tests.sh                  run them all (x86), check against the baseline
+#   ./run-tests.sh --update         re-record the baseline (review the diff!)
+#   ./run-tests.sh hello wf         run only those, report but do not compare
+#   BACKEND=ppc ./run-tests.sh      same, but for qc--'s -ppc-elf backend
+#   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32, riscv64
 #
 # Needs ../Makefile.config, i.e. ./configure must have been run, and the
 # libraries built for the chosen backend:
-#   make -C ../stdlib [BACKEND=ppc] && make -C ../runtime [BACKEND=ppc]
+#   make -C ../stdlib BACKEND=<x> && make -C ../runtime BACKEND=<x>
 #
-# claude: tigerc itself is backend-agnostic - it always emits
-# "target byteorder little" (see backend/codegen.ml) - so for BACKEND=ppc
-# this flips that to big in its output before handing it to qc, the same
-# fix ../runtime/Makefile and ../stdlib/Makefile already apply to the
-# runtime/stdlib .c-- sources. Expected stdout/stderr (x86/<name>.1,
-# x86/<name>.2) are reused as-is for ppc: Tiger's observable behaviour
-# (what a program prints and returns) is not meant to depend on the
-# target, so there is nothing ppc-specific to record separately - if a
-# real target-dependent divergence ever turns up, follow qc--'s
-# cmm/output-ppc/ precedent (an override directory consulted first) rather
-# than duplicating the lot.
+# claude: tigerc itself is backend-agnostic by default - it always emits
+# "target byteorder little" with 32-bit metrics (see backend/codegen.ml) -
+# so non-x86 backends need their own transform applied to tigerc's output
+# before qc will accept it, mirroring exactly what ../runtime/Makefile and
+# ../stdlib/Makefile already apply to the runtime/stdlib .c-- sources (see
+# those Makefiles' XFORM comments for the fuller reasoning):
+#   none - mips, riscv32: already 32-bit little-endian ieee754, no change
+#   big  - ppc, sparc: byteorder little -> big
+#   arm  - splice float "none" (arm has no FPU)
+#   64   - alpha, riscv64: also pass tigerc "-64" so it emits bits64 C--
+#          (wordsize/pointersize 64) in the first place - see
+#          docs/claude_notes/notes_64bits.txt
+#
+# Expected stdout/stderr (x86/<name>.1, x86/<name>.2) are reused as-is for
+# every backend: Tiger's observable behaviour (what a program prints and
+# returns) is not meant to depend on the target, so there is nothing
+# backend-specific to record separately - if a real target-dependent
+# divergence ever turns up, follow qc--'s cmm/output-ppc/ precedent (an
+# override directory consulted first) rather than duplicating the lot.
+#
+# riscv32 is the one exception to "link with $CC -static": Ubuntu ships no
+# riscv32-linux-gnu glibc at all, so its toolchain is bare-metal
+# (gcc-riscv64-unknown-elf) against picolibc, and the final link has to be
+# done with plain `ld` rather than gcc+--specs=picolibc.specs - see the
+# link step below for the two independent reasons (picolibc.ld's load
+# address, and --gc-sections silently dropping .pcmap entries), verified
+# against qc--'s own tests/run-tiger-riscv32.sh.
 
 set -e
 
@@ -43,9 +60,8 @@ TOP=..
 
 BACKEND=${BACKEND:-x86}
 case "$BACKEND" in
-  x86) ;;
-  ppc) ;;
-  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86 or ppc)" >&2; exit 2 ;;
+  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64) ;;
+  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32 or riscv64)" >&2; exit 2 ;;
 esac
 
 if [ ! -f "$TOP/Makefile.config" ]; then
@@ -55,22 +71,82 @@ fi
 
 # Read the generated config without involving make.
 QC=$(sed -n 's/^QC=//p' "$TOP/Makefile.config")
+QCINCLUDE=$(sed -n 's/^QCINCLUDE=//p' "$TOP/Makefile.config")
 QCPCMAP=$(sed -n 's/^QCPCMAP=//p' "$TOP/Makefile.config")
-if [ "$BACKEND" = ppc ]; then
-  CC=$(sed -n 's/^CC_PPC=//p' "$TOP/Makefile.config")
-  RUN=$(sed -n 's/^RUN_PPC=//p' "$TOP/Makefile.config")
-  QCFLAG=-ppc-elf
-  RTDIR=$TOP/runtime/build-ppc
-  B=build-ppc
-  baseline=expected/tiger-ppc.txt
-else
-  CC=$(sed -n 's/^CC32=//p' "$TOP/Makefile.config")
-  RUN=$(sed -n 's/^RUN32=//p' "$TOP/Makefile.config")
-  QCFLAG=
-  RTDIR=$TOP/runtime
-  B=build
-  baseline=expected/tiger.txt
+
+TIGERFLAG=
+XFORM=none
+case "$BACKEND" in
+  x86)
+    CC=$(sed -n 's/^CC32=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN32=//p' "$TOP/Makefile.config")
+    QCFLAG=
+    ;;
+  ppc)
+    CC=$(sed -n 's/^CC_PPC=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_PPC=//p' "$TOP/Makefile.config")
+    QCFLAG=-ppc-elf
+    XFORM=big
+    ;;
+  sparc)
+    CC=$(sed -n 's/^CC_SPARC=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_SPARC=//p' "$TOP/Makefile.config")
+    QCFLAG=-sparc
+    XFORM=big
+    ;;
+  alpha)
+    CC=$(sed -n 's/^CC_ALPHA=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_ALPHA=//p' "$TOP/Makefile.config")
+    QCFLAG=-alpha
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
+  mips)
+    CC=$(sed -n 's/^CC_MIPS=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_MIPS=//p' "$TOP/Makefile.config")
+    QCFLAG=-mips
+    ;;
+  arm)
+    CC=$(sed -n 's/^CC_ARM=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_ARM=//p' "$TOP/Makefile.config")
+    QCFLAG=-arm
+    XFORM=arm
+    ;;
+  riscv32)
+    CC=$(sed -n 's/^CC_RISCV32=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_RISCV32=//p' "$TOP/Makefile.config")
+    QCFLAG=-riscv32
+    ;;
+  riscv64)
+    CC=$(sed -n 's/^CC_RISCV64=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_RISCV64=//p' "$TOP/Makefile.config")
+    QCFLAG=-riscv64
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
+esac
+RTDIR=$TOP/runtime
+B=build
+baseline=expected/tiger.txt
+if [ "$BACKEND" != x86 ]; then
+  RTDIR=$TOP/runtime/build-$BACKEND
+  B=build-$BACKEND
+  baseline=expected/tiger-$BACKEND.txt
 fi
+
+# claude: qc drives an external assembler/linker, defaulting to clang (able
+# to target i386/ppc from any host - see "qc -help"'s -as/-ld entry, which
+# is why x86/ppc need no override here). clang has no working backend for
+# the rest of these - same fix ../runtime/Makefile and ../stdlib/Makefile
+# apply for the same reason.
+case "$BACKEND" in
+  sparc|alpha|mips|arm|riscv32|riscv64)
+    QC_AS=$CC
+    QC_LD=$CC
+    export QC_AS QC_LD
+    ;;
+esac
+
 TIGERC=${TIGERC:-$TOP/bin/tigerc}
 
 for f in "$TIGERC" "$QC"; do
@@ -88,12 +164,38 @@ for f in "$RTDIR/runtime.o" "$RTDIR/stdlib.a" "$RTDIR/qcmm.a"; do
   fi
 done
 
+# riscv32's freestanding final link needs a few extra pieces up front - see
+# this script's header and the link step below for why plain `ld` rather
+# than $CC drives it.
+if [ "$BACKEND" = riscv32 ]; then
+  LDRISCV32=riscv64-unknown-elf-ld
+  RISCV32_MARCH="-march=rv32imac -mabi=ilp32"
+  GCCLIBDIR=$(dirname "$(riscv64-unknown-elf-gcc $RISCV32_MARCH -print-libgcc-file-name)")
+  MULTIDIR=$(riscv64-unknown-elf-gcc $RISCV32_MARCH -print-multi-directory)
+  PICOLIBDIR=/usr/lib/picolibc/riscv64-unknown-elf/lib/$MULTIDIR
+  if [ ! -f "$PICOLIBDIR/libc.a" ]; then
+    echo "run-tests.sh: no libc.a under $PICOLIBDIR - picolibc-riscv64-unknown-elf layout changed?" >&2
+    exit 2
+  fi
+fi
+
 update=no
 if [ "$1" = "--update" ]; then update=yes; shift; fi
 want=$*
 
 mkdir -p "$B" expected
 : > "$B/actual.txt"
+
+# claude: the freestanding entry point, built once here rather than via
+# runtime/Makefile - riscv32_crt0.o must never be archived into a .a (a
+# linker only pulls an archive member in for a referenced undefined
+# symbol, and nothing ever references "_start" by name - it is found via
+# entry-point lookup, a different mechanism), so, like qc--'s own
+# tests/run-tiger-riscv32.sh, it is passed as a plain object on the final
+# link command line instead.
+if [ "$BACKEND" = riscv32 ] && [ ! -f "$B/riscv32_crt0.o" ]; then
+  $CC -c "$QCINCLUDE/riscv32_crt0.s" -o "$B/riscv32_crt0.o"
+fi
 
 grep -v '^#' tiger.tests | grep -v '^[ 	]*$' > "$B/manifest.txt"
 
@@ -103,17 +205,25 @@ while read -r name src rc stdin_file; do
   fi
 
   # .tig -> .c--, the front end under test
-  if ! "$TIGERC" "$src" > "$B/$name.c--" 2>"$B/$name.tigerr"; then
+  if ! "$TIGERC" $TIGERFLAG "$src" > "$B/$name.c--" 2>"$B/$name.tigerr"; then
     echo "FAIL $name (tigerc)"; echo "$name FAIL" >> "$B/actual.txt"; continue
   fi
 
-  # claude: tigerc always emits "target byteorder little"; qc refuses that
-  # mismatch for -ppc-elf, so flip it in place before compiling - same fix
-  # as ../runtime/Makefile and ../stdlib/Makefile apply to their own
-  # sources (see this script's header).
-  if [ "$BACKEND" = ppc ]; then
-    sed -i 's/byteorder[ ][ ]*little/byteorder big/' "$B/$name.c--"
-  fi
+  # claude: apply this backend's XFORM to tigerc's output - see this
+  # script's header for what each value does. XFORM=64 needs nothing
+  # here: TIGERFLAG=-64 already made tigerc itself emit bits64 C-- with
+  # "wordsize 64 pointersize 64" and "+8" offsets (Frame.bits_str()/
+  # codegen.ml, unlike ../runtime/Makefile's hand-written sources, which
+  # have no -64 flag of their own to lean on) - so only "big"/"arm" need a
+  # post-hoc rewrite of the pragma line.
+  case "$XFORM" in
+    big)
+      sed -i 's/byteorder[ ][ ]*little/byteorder big/' "$B/$name.c--"
+      ;;
+    arm)
+      sed -i 's/^target byteorder little\(.*\);/target byteorder little float "none"\1;/' "$B/$name.c--"
+      ;;
+  esac
 
   # .c-- -> .o. -globals goes here and nowhere else: the global-variable area
   # is one object per program, and runtime.o and the libraries were built
@@ -125,10 +235,33 @@ while read -r name src rc stdin_file; do
 
   # runtime.o first: it supplies main, and by qc--(1)'s convention the unit
   # holding main comes first so the C-- globals work out.
-  if ! $CC -static "$RTDIR/runtime.o" "$B/$name.o" \
-       "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" "$QCPCMAP" \
-       -o "$B/$name" 2>"$B/$name.lderr"; then
-    echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
+  if [ "$BACKEND" = riscv32 ]; then
+    # claude: plain `ld`, NOT $CC (gcc + --specs=picolibc.specs) - two
+    # independent reasons, both found the hard way by qc--'s own
+    # tests/run-tiger-riscv32.sh (see its header comment for the full
+    # story): (1) picolibc.specs' link spec injects "-Tpicolibc.ld", a
+    # bare-metal memory map at a load address plain qemu-riscv32
+    # user-mode emulation cannot run; (2) it also adds "--gc-sections"
+    # unconditionally, which silently discards individual .pcmap entries
+    # even though pcmap.ld's Cmm_pc_map/Cmm_pc_map_limit symbols still
+    # bound a correctly-sized region - --gc-sections's liveness analysis
+    # doesn't understand a linker-script address-range reference. Plain
+    # ld sidesteps both; -lc/-lgcc and their search paths (normally
+    # supplied by the specs file) are added explicitly instead.
+    if ! $LDRISCV32 -m elf32lriscv -static -e _start \
+         -L"$PICOLIBDIR" -L"$GCCLIBDIR" \
+         "$B/riscv32_crt0.o" "$RTDIR/runtime.o" "$B/$name.o" \
+         "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" "$QCPCMAP" \
+         --start-group -lc -lgcc --end-group \
+         -o "$B/$name" 2>"$B/$name.lderr"; then
+      echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
+    fi
+  else
+    if ! $CC -static "$RTDIR/runtime.o" "$B/$name.o" \
+         "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" "$QCPCMAP" \
+         -o "$B/$name" 2>"$B/$name.lderr"; then
+      echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
+    fi
   fi
 
   if [ "$stdin_file" = "-" ]; then input=/dev/null; else input=$stdin_file; fi
