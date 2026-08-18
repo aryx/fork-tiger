@@ -1,12 +1,21 @@
 
-* Last
+* Architectures
 
-** Last1
+** support amd64
+
+** support arm64
+
+** fix the many bugs remaining in tiger testsuite for different archs
+
+* Tiger.nw
 
 *** tiger: omk index?
 need dune 2.7? but pb with toplevel symlinks bin
 
+* Testinfra
+
+** Dockerfile
+
 *** tiger: fix Dockerfile, run also tests in Docker
 hmm but need install qc itself! need pushed Docker image for qc
 somewhere? padator/qcmm ?
-
