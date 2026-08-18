@@ -75,6 +75,12 @@ let mkException s         = A.ExceptionDec(s, getpos())
 
 /* Precedences and associativities (from low to high) */
 /*(*s: token priorities *)*/
+/* claude: the TYPE/FUNCTION/HANDLE/LBRACK/DO/OF/THEN/ELSE precedences
+ * below exist only to silence shift/reduce conflicts, not to order real
+ * operators against each other -- see notes_conflicts.txt. */
+%right TYPE FUNCTION HANDLE LBRACK
+%nonassoc DO OF THEN
+%nonassoc ELSE
 %nonassoc ASSIGN
 %left AND OR
 %nonassoc EQ NEQ GT LT GE LE
@@ -92,7 +98,10 @@ let mkException s         = A.ExceptionDec(s, getpos())
 %type <Ast.dec list> decs
 /*(*e: rule type declarations *)*/
 
-/* %expect 63 */
+/* claude: the grammar is conflict-free ("ocamlyacc -v parser.mly" ->
+ * "0 shift/reduce conflicts"); see notes_conflicts.txt for how the
+ * conflicts that used to exist here were resolved via the precedence
+ * declarations above and the %prec annotations below. */
 
 %%
 /*(*s: grammar *)*/
@@ -130,7 +139,7 @@ expr:
    This rule is overly explicit to avoid conflicts with 
    the construction rule below */
 lvalue:
- | id                        { mkSimpleVar $1 }
+ | id                        %prec LBRACK { mkSimpleVar $1 }
  | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
 
  | lvalue DOT id             { mkFieldVar $1 $3 }
@@ -209,7 +218,7 @@ handler:
    HANDLE id expr END         { mkHandler $2 $3 }
 
 handlers:
-   handler          { $1 :: [] }
+   handler          %prec HANDLE { $1 :: [] }
  | handler handlers { $1 :: $2 }
 /*(*e: subrules for stmt *)*/
 
@@ -243,7 +252,7 @@ var_dec:
 /*(*e: rule [[var_dec]] *)*/
 /*(*s: rule [[type_decs]] *)*/
 type_decs:
-   type_dec           { $1 :: [] }
+   type_dec           %prec TYPE { $1 :: [] }
  | type_dec type_decs { $1 :: $2 }
 ;
 type_dec:
@@ -252,7 +261,7 @@ type_dec:
 /*(*e: rule [[type_decs]] *)*/
 /*(*s: rule [[fun_decs]] *)*/
 fun_decs:
-   fun_dec          { $1 :: [] }
+   fun_dec          %prec FUNCTION { $1 :: [] }
  | fun_dec fun_decs { $1 :: $2 }
 
 fun_dec:

@@ -1,0 +1,142 @@
+Eliminating parser.mly's shift/reduce conflicts
+================================================
+
+Written 2026-08-18, against commit 8dce7ec plus this session's changes to
+parser.mly. Verified by running `ocamlyacc -v parser.mly` and reading the
+generated parser.output; re-verify before acting on stale claims.
+
+Where the conflicts used to come from
+--------------------------------------
+Before this change, `ocamlyacc -v parser.mly` reported 65 shift/reduce
+conflicts (a stale `/* %expect 63 */` comment in the header undercounted
+even the old total by 2). They fell into three groups.
+
+1. Trailing-`expr` ambiguity in control constructs (61 of the 65).
+   `expr` is factored into separate `arithmetic`/`comparison`/`boolean`
+   sub-rules (`expr PLUS expr`, `expr AND expr`, ... 12 operator tokens
+   in all) that all reduce back into `expr`. Any rule ending in "... expr"
+   -- `if_statement`'s `THEN expr`, `loop_statement`'s `DO expr`,
+   `construction`'s `OF expr`, `if_statement`'s `... ELSE expr` -- faces a
+   shift/reduce choice at each of those 12 operator tokens: keep
+   extending the trailing expr (shift) or close the enclosing construct
+   now (reduce). `if_statement`'s bare `THEN expr` case also carries the
+   classic dangling-`else` conflict on top (13 there instead of 12).
+   Ordinary operator chaining (`a+b+c`, `a+b*c`) never showed up as a
+   *reported* conflict even before this change, because those cases were
+   already resolved silently by the existing %left/%nonassoc precedence
+   declarations -- ocamlyacc only warns when the reducing rule has no
+   assigned precedence to compare against the shift token, which was
+   true of `if_statement`/`loop_statement`/`construction` but not of
+   `arithmetic`/`comparison`/`boolean` themselves.
+
+2. Greedy right-recursive lists (3 of the 65): `type_decs`, `fun_decs`,
+   `handlers` are all written as `X: item | item X`. After matching one
+   item, seeing the token that starts another item (`TYPE`, `FUNCTION`,
+   `HANDLE`) is always correct to shift (consecutive type/function decs
+   merge into one mutually-recursive group per the comment above `decs`;
+   consecutive `handle` clauses all attach to the same `try`) -- but nothing
+   in the grammar proves that to ocamlyacc, so it warned and defaulted to
+   shift anyway.
+
+3. `id [ expr ]` ambiguity (1 of the 65): after `id [`, the parser can't
+   yet tell whether this is an array-subscript lvalue
+   (`lvalue: id LBRACK expr RBRACK`) or the start of an array-creation
+   expr (`construction: id LBRACK expr RBRACK OF expr`) -- both share an
+   identical prefix. Shift wins, so both productions are parsed via the
+   same states and the real disambiguation happens one token later, when
+   `OF` either does or doesn't follow the `RBRACK`.
+
+The fix
+-------
+In every case the parser already resolved the conflict by shifting, and
+shift was already the semantically correct choice -- so this was a matter
+of making the resolution explicit and warning-free, not changing any
+parse. Two mechanisms, both in the `%prec`/`%nonassoc` family:
+
+- Rules 1's four culprit rules (`if_statement`, `loop_statement`,
+  `construction`) each end in a distinctive terminal (`THEN`, `DO`, `OF`,
+  `ELSE`) that ocamlyacc uses as the rule's implicit precedence (a rule's
+  precedence defaults to that of its rightmost terminal). Declaring
+  `THEN`, `DO`, `OF` at the bottom of the precedence table (below every
+  real operator) and `ELSE` one notch above `THEN` (so dangling-`else`
+  still binds to the nearest `if`, matching the old default) lets
+  ocamlyacc's normal precedence comparison pick the same shift it always
+  picked -- just silently. No grammar rule needed to change.
+
+- Rules 2 and 3's culprit rules (`type_decs: type_dec`, `fun_decs:
+  fun_dec`, `handlers: handler`, `lvalue: id`) have no terminal of their
+  own in the relevant position (or none at all), so the implicit-rightmost-
+  terminal trick doesn't apply. These needed an explicit `%prec` tag
+  pointing at a new dummy-precedence token (`TYPE`, `FUNCTION`, `HANDLE`,
+  `LBRACK`) added directly to the singleton-list / bare-`id` alternative.
+  Each dummy token is compared against *itself* as the lookahead (e.g.
+  `LBRACK` lookahead vs. `lvalue: id %prec LBRACK`), so this group had to
+  be declared `%right`, not `%nonassoc`: at equal precedence `%nonassoc`
+  produces a hard parse error instead of picking a side, which briefly
+  broke every program using array creation (`arrtype1[10] of 80`) and
+  would equally have broken consecutive type/function decs and multiple
+  `handle` clauses -- caught by `make test` regressing 8 of 14 cases
+  before this line was fixed. `%right` resolves the tie by shifting,
+  which is what all four cases need.
+
+The %nonassoc -> %right pitfall, worked example
+-------------------------------------------------
+This tripped up the first cut of the fix above, so it's worth walking
+through concretely. Take tests/arrays.tig line 4:
+
+    var arr1 := arrtype1 [10] of 80
+
+Parsing the right-hand side of `:=`, the parser reads `arrtype1` (reduced
+to the `id` nonterminal) and peeks at the next token, LBRACK. Two rules
+are both viable continuations of what's on the stack:
+
+    lvalue       : id .                             (17)  reduce candidate
+    lvalue       : id . LBRACK expr RBRACK          (18)  shift candidate
+    construction : id . LBRACK expr RBRACK OF expr  (42)  shift candidate
+
+Reducing via (17) would treat `arrtype1` as a complete lvalue-expr on its
+own, leaving `[10] of 80` to be parsed as whatever comes after an
+expr -- but nothing in the grammar accepts `[` right after an expr in
+this position, so that reduction is always the wrong move whenever
+LBRACK follows. The parser must shift instead, continuing into (18) (a
+subscript, `arr[i]`) or (42) (array creation, `type[size] of init`) --
+which one depends on whether `OF` shows up after the matching `RBRACK`,
+resolved later without any further conflict (see point 3 above).
+
+The `%prec LBRACK` tag on rule (17) exists so ocamlyacc can compare (17)'s
+precedence against the LBRACK lookahead instead of defaulting-with-a-
+warning. But the *rule's* declared precedence and the *lookahead token's*
+precedence are literally the same symbol, LBRACK -- a same-precedence-
+level tie -- and yacc resolves same-level ties using the associativity
+that level was declared with:
+
+    %nonassoc LBRACK  =>  tie is an ERROR: both the shift and the reduce
+                           action are deleted, so seeing LBRACK here
+                           becomes a hard syntax error at parse time.
+    %left     LBRACK  =>  tie resolves to REDUCE (rule 17 wins).
+    %right    LBRACK  =>  tie resolves to SHIFT (rules 18/42 win).
+
+The first cut of this change used `%nonassoc`, copying the style of the
+existing ASSIGN/EQ/NEQ/... declarations (which really are meant to
+forbid chaining, e.g. reject `a < b < c`). That silently deleted the
+shift action needed for every array creation and subscript, which is
+exactly the `tests/arrays.tig:4,12: syntax error` that `make test` caught
+(8 of 14 tests failed: every one exercising array creation, consecutive
+type/function decs, or multiple `handle` clauses -- the identical
+self-comparison problem applies to `type_decs: type_dec %prec TYPE` vs.
+a following TYPE, `fun_decs: fun_dec %prec FUNCTION` vs. FUNCTION, and
+`handlers: handler %prec HANDLE` vs. HANDLE, since all four share one
+`%nonassoc`/`%right` declaration line).
+
+`%right` is the fix: it's the only associativity that resolves an
+exact-precedence tie by shifting. There's no real "associativity" being
+expressed here at all (these dummy tokens never appear as infix
+operators) -- `%right` is just the directive that happens to encode
+"shift, not reduce, when this exact token repeats."
+
+Verification: after all changes, `ocamlyacc -v parser.mly` reports 0
+shift/reduce conflicts, every state that used to carry a conflict has the
+identical shift/reduce action it had before (diffed parser.output
+before/after), and `make test` reproduces the recorded 14/14 baseline --
+confirming this only silenced warnings, it didn't change what the grammar
+accepts or how it parses.
