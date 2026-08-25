@@ -157,16 +157,30 @@ $(B)/runtime.o: runtime.c-- $(QC) | $(B)
 	  runtime.c-- > $(B)/runtime.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
 else ifeq ($(XFORM),64)
+# claude: "+[ ]*4\([^0-9]\)" -> "+8\1", NOT "+[ ]*4\b" -> "+8" - \b (word
+# boundary) is a GNU sed extension that macOS's BSD sed does not support at
+# all, so on a Mac (arm64 is the only XFORM=64 backend that ever runs
+# there) the old pattern silently matched nothing rather than erroring,
+# leaving every "alloc_ptr + 4"/"str_ptr+4" untouched. Found the hard way:
+# tig_alloc (below) returns "alloc_ptr + 4" as the pointer past its own
+# 8-byte size header on a 64-bit target - unrewritten, every allocated
+# object's data overlapped the last 4 bytes of its own header, corrupting
+# nearly everything allocated through it (see docs/claude_notes/
+# notes_64bits.txt's arm64 postscript for the full diagnosis). The fix
+# captures and re-emits whatever single character follows "4" instead of
+# asserting a word boundary - functionally identical, portable to both sed
+# implementations (verified: neither GNU nor BSD sed treats a bracket
+# expression like "\([^0-9]\)" specially, unlike "\b").
 $(B)/alloc.o: alloc.c-- $(QC) | $(B)
 	sed -e 's/^target byteorder little;/target byteorder little wordsize 64 pointersize 64;/' \
-	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\b/+8/g' \
+	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\([^0-9]\)/+8\1/g' \
 	    -e 's/(size + 7) & 0xFFFFFFFC/(size + 15) \& 0xFFFFFFFFFFFFFFF8/' \
 	  alloc.c-- > $(B)/alloc.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/alloc.c--
 
 $(B)/runtime.o: runtime.c-- $(QC) | $(B)
 	sed -e 's/^target byteorder little;/target byteorder little wordsize 64 pointersize 64;/' \
-	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\b/+8/g' \
+	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\([^0-9]\)/+8\1/g' \
 	  runtime.c-- > $(B)/runtime.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/runtime.c--
 else

@@ -172,3 +172,92 @@ unaffected. Verified from a clean state (`rm -rf stdlib/build-arm64
 runtime/build-arm64`) that plain `./configure && make` and `make test` now
 succeed and reproduce the same 6/14 baseline above, with no explicit
 BACKEND= anywhere on the command line.
+
+===============================================================================
+Follow-up: tig_compare_str's 32-vs-64-bit ABI mismatch - 6/14 to 13/14 (2026-08-25)
+===============================================================================
+
+Chasing individual tiger-arm64 failures (qsort's "sorted by name" output
+came back in the exact original, unsorted insertion order - a strong
+signature of "every string comparison returns the same answer") led to a
+real, general bug, not a per-test one: `frontend/main.ml`'s `imports` list
+declares every runtime helper's C-- import at native word width
+(`Frame.bits_str()`, "bits64" under -64) - correct for every genuine
+pointer/native-Tiger-int helper, but WRONG for `tig_compare_str`
+(stdlib.c), which is a real C function returning a plain 32-bit `int`.
+
+This was never a problem in the original 32-bit-only compiler (bits32 IS
+native word there, so no mismatch was possible), and stayed hidden on
+every 64-bit qc-- backend that existed before -arm64 purely by ABI luck:
+RISC-V64's LP64 calling convention sign-extends a 32-bit return value into
+its full 64-bit register automatically, so `tig_compare_str`'s raw x0-
+equivalent already held the mathematically correct 64-bit value by the
+time -riscv64/-alpha's own foreign-call marshalling read it. AArch64
+(confirmed empirically with a throwaway C-- probe comparing the raw result
+against both possible widenings directly) does the opposite: writing a
+32-bit (W) register architecturally ZERO-extends the corresponding 64-bit
+(X) register, with no notion that the value was "supposed to" be signed -
+so a negative strncmp() result like -1 came back as a huge positive 64-bit
+number (0x00000000FFFFFFFF, not 0xFFFFFFFFFFFFFFFF) on -arm64 specifically.
+
+Two fix shapes were tried, in order:
+1. First attempt: declare tig_compare_str's import as genuinely bits32
+   (special-cased in Codegen.output_file_header) and explicitly sign-
+   extend its result to native width before use. This needed a real new
+   Tree.exp constructor (SX32) - Tree.ml has no notion of a narrower-than-
+   native integer anywhere in its type (every temp/exp is implicitly
+   native-word-sized), so representing "a temp genuinely holds a 32-bit
+   value" meant touching Tree.ml, tree.mli, canonical.ml (the reorder/
+   linearization pass), codegen.ml, and a new Frame.ml side-table
+   (bits32_temps, since frm.temps carries no width field to hang this off
+   either). Built and confirmed it worked, but reverted anyway: for a
+   single occurrence of this bug (compare_str is still the only case
+   found), threading a width concept through the core IR was judged out
+   of proportion to the problem - "add the general mechanism when a
+   second real use case shows up, not preemptively."
+2. What shipped instead: a plain arithmetic correction, entirely local to
+   Translate.compare_str, no IR changes at all. If the raw result looks
+   like a negative 32-bit value read as an unsigned/zero-extended 64-bit
+   one (i.e. >= 2^31), subtract 2^32 to recover the true signed value.
+   This is a no-op whenever the value is already correctly sign-extended
+   (a genuine negative 64-bit number is never >= 2^31), so the exact same
+   code is correct on every backend - no Option.arch64 special-casing
+   needed, unlike fix #1's import-declaration override. Implemented with
+   Translate's own existing eseq/CJUMP/label primitives (the same ones
+   Translate.ifexp itself is built from - not called directly, since
+   ifexp is defined later in the file than compare_str and reordering
+   syncweb-chunked functions to fix that felt like its own can of worms).
+
+Result: tests/run-tests.sh BACKEND=arm64 went from 6/14 to 13/14 in one
+fix - every remaining string-comparison-dependent test (qsort, rb, rc4,
+wf, wff) started passing, plus merge (which the earlier +4/EOF-sentinel
+fix had already gotten to PASS, unaffected by this one). Only colmajor
+remains, and it is not a new failure: it needs a bigger heap than the
+8192-byte default to avoid a real GC-cycle-triggered crash - confirmed by
+hand with TIGER_HEAPSIZE=1000000 (exit 0, byte-for-byte correct output) -
+the same shape of failure fork-c--'s own tests/tiger64/README documents
+for -riscv64's colmajor at the same default heap size, believed to be the
+shared, not-yet-root-caused GC/register-allocator bug notes_arm.txt
+diagnoses for ARM32 (a GC-required temp not always kept live across every
+call site under high register pressure), not something new to -arm64.
+
+Also regenerated (fork-c--'s own tests/tiger64/*.c-- - see that repo's
+regenerate-c--.sh): colmajor.c--/merge.c--/qsort.c--/rc4.c--/rb.c--/
+wf.c--/wff.c-- all changed (new temps/labels from this fix's CJUMP-based
+correction); arrays.c--/exceptions.c--/forloop.c--/funcall.c--/hello.c--/
+queens.c--/sieve.c-- were byte-for-byte identical (no compare_str call in
+those tests), confirming the fix's blast radius is exactly the string-
+comparison-using tests and nothing else.
+
+Cross-repo footnote: fork-c--'s own copy of this test suite (tests/
+tiger64/, real stdin input rather than /dev/null for merge) briefly
+regressed to only 8/15 passing after this fix landed, even though every
+regenerated .c-- was confirmed correct - the actual cause turned out to be
+on qc--'s side (a since-abandoned arm64rec.mlb grammar rule, added then
+made unnecessary by this fix's final arithmetic shape but not yet deleted,
+was miscompiling unrelated runtime code by its mere presence in the
+compiler used to build tigermain-arm64.o/stdlib-arm64.a - see qc--'s own
+docs/claude_notes/notes_arm64.txt for the full diagnosis). Nothing to fix
+here; noted in case a similar "regenerated output looks right but tests
+still fail" symptom recurs - check whether the compiler, not the generated
+source, is the stale/wrong half.

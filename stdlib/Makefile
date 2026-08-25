@@ -143,10 +143,37 @@ $(B)/stdlibcmm.o: stdlibcmm.c-- $(QC) | $(B)
 	  stdlibcmm.c-- > $(B)/stdlibcmm.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/stdlibcmm.c--
 else ifeq ($(XFORM),64)
+# claude: "+[ ]*4\b" -> "+8" no longer uses \b - see runtime/Makefile's
+# identical XFORM=64 comment for why (macOS's BSD sed doesn't support \b
+# at all, so the substitution silently matched nothing there, corrupting
+# tig_alloc's own returned pointer).
+#
+# tig_getchar's EOF check ("if (ch == 0xFFFFFFFF)") is a SEPARATE, subtler
+# case: whether that literal needs widening to 0xFFFFFFFFFFFFFFFF at all
+# is backend-specific, not just a \b portability bug - it depends on how
+# each 64-bit backend's calling convention hands back a 32-bit C `int`
+# return value (getchar()'s actual C type) in a 64-bit register.
+# Empirically confirmed by a throwaway C-- probe (compare ch against both
+# widenings directly, see the arm64 build's own commit message for the
+# exact test): on -riscv64 (and, unverified but assumed from the same
+# LP64 calling-convention family, -alpha) a 32-bit int return gets SIGN-
+# extended, so ch really is 0xFFFFFFFFFFFFFFFF and needs the rewrite; on
+# -arm64, AArch64's architectural rule that writing a 32-bit (W) register
+# always ZERO-extends the corresponding 64-bit (X) register means ch is
+# actually 0x00000000FFFFFFFF - rewriting to all-Fs there made the EOF
+# check never fire, which silently broke every test reading from an empty
+# stdin (e.g. tests/merge.tig's readlist() never terminating its list,
+# printing a stray extra line). So: rewrite for alpha/riscv64, leave
+# untouched for arm64.
+ifeq ($(BACKEND),arm64)
+EOF_SENTINEL_SED =
+else
+EOF_SENTINEL_SED = -e 's/0xFFFFFFFF\([^0-9A-Fa-f]\)/0xFFFFFFFFFFFFFFFF\1/g'
+endif
 $(B)/stdlibcmm.o: stdlibcmm.c-- $(QC) | $(B)
 	sed -e 's/wordsize 32 pointersize 32/wordsize 64 pointersize 64/' \
-	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\b/+8/g' \
-	    -e 's/align 4;/align 8;/' -e 's/0xFFFFFFFF\b/0xFFFFFFFFFFFFFFFF/' \
+	    -e 's/bits32/bits64/g' -e 's/+[ ]*4\([^0-9]\)/+8\1/g' \
+	    -e 's/align 4;/align 8;/' $(EOF_SENTINEL_SED) \
 	  stdlibcmm.c-- > $(B)/stdlibcmm.c--
 	$(QC) $(QCFLAG) -stop .o -o $@ $(B)/stdlibcmm.c--
 else

@@ -180,8 +180,44 @@ let compare_int op ex1 ex2 =
   in T.RELOP(oper, ex1, ex2)
 (*e: function [[Translate.compare_int]] *)
 (*s: function [[Translate.compare_str]] *)
+(* claude: tig_compare_str is a real C function returning a plain 32-bit
+ * `int` (stdlib.c) - unlike every other imported runtime helper, which
+ * genuinely is native-word-sized (a pointer, or C-- itself). This IR has
+ * no notion of a narrower-than-native integer at all (Tree.ml's exp/temp
+ * carry no width field - everything is implicitly native-word), which
+ * was never a problem in the original 32-bit-only compiler (bits32 ==
+ * native word then, by definition) but is exposed now that -64 makes the
+ * two diverge: on qc--'s -arm64 backend, a negative result (e.g.
+ * strncmp's -1) came back as a huge positive 64-bit number instead,
+ * because AArch64 architecturally zero-extends a 32-bit register write
+ * into the corresponding 64-bit register - it does not know or care that
+ * the value was "supposed to" be sign-extended. (RISC-V64's LP64 calling
+ * convention happens to sign-extend automatically, which is why this
+ * was never caught there.)
+ *
+ * Fixed with a plain arithmetic correction instead of threading a real
+ * bits32 type through the IR: if the raw result looks like a negative
+ * 32-bit value read as an unsigned/zero-extended 64-bit one (i.e. >=
+ * 2^31), subtract 2^32 to recover the true signed value. This is a no-op
+ * whenever the value is already correctly sign-extended (a genuine
+ * negative 64-bit number is never >= 2^31), so the same code is correct
+ * on every backend with no Option.arch64 special-casing needed. *)
 let compare_str op ex1 ex2 =
-  let result = ext_c_call "compare_str" [ex1;ex2] in
+  let raw  = ext_c_call "compare_str" [ex1;ex2] in
+  let traw = temp false in
+  let tmp  = temp false in
+  let tru  = T.new_label "negCorrect" in
+  let fls  = T.new_label "noCorrect" in
+  let end' = T.new_label "correctEnd" in
+  let result =
+    eseq tmp
+      [ raw => traw
+      ; T.CJUMP(T.RELOP(T.GE, traw, T.CONST 0x80000000), tru, fls)
+      ; T.LABEL tru; (traw <-> T.CONST 0x100000000) => tmp; goto end'
+      ; T.LABEL fls; traw => tmp
+      ; T.LABEL end'
+      ]
+  in
   compare_int op result (T.CONST 0)
 (*e: function [[Translate.compare_str]] *)
 

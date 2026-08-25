@@ -134,10 +134,14 @@ riscv64 13/14 and alpha 11/14 fail on real qc-- instruction-selection gaps
 mostly around exception/GC codegen — consistent with qc--'s own (much
 simpler) `tests/run-tiger-<arch>.sh` baselines in the qc-- checkout, so this
 reflects real backend completeness, not a gap in this suite's own
-infrastructure. `arm64` is newer and lands at 6/14 — mostly a shared
-GC-allocation assertion also seen on qc--'s own `tests/tiger64/` suite for
-`-arm64`, not yet root-caused (see `docs/claude_notes/notes_64bits.txt`'s
-arm64 section and qc--'s own `notes_arm64.txt`).
+infrastructure. `arm64` is newer and lands at 13/14 (matching riscv64's own
+bar, and the same two failures: colmajor's GC-triggered heap corruption,
+merge's wrong exit code with otherwise-correct stdout) — see
+`docs/claude_notes/notes_64bits.txt`'s arm64 section and qc--'s own
+`notes_arm64.txt` for the fixes that got it there from an initial 6/14 (a
+macOS-sed portability bug, a real ABI mismatch in this compiler's own
+`tig_compare_str` import width, and a dead qc---side grammar rule that was
+miscompiling unrelated code by its mere presence).
 
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural
