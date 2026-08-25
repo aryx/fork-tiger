@@ -63,8 +63,16 @@ CC     = $(CC_RISCV64)
 QCFLAG = -riscv64
 B      = build-riscv64
 XFORM  = 64
+else ifeq ($(BACKEND),arm64)
+# claude: also 64-bit, like alpha/riscv64 above - same XFORM=64. Unlike
+# every backend above, CC_ARM64 needs no cross toolchain at all on an
+# Apple Silicon Mac (see runtime/Makefile's identical arm64 comment).
+CC     = $(CC_ARM64)
+QCFLAG = -arm64
+B      = build-arm64
+XFORM  = 64
 else
-$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32 or riscv64)
+$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64 or arm64)
 endif
 
 # claude: qc drives an external assembler/linker, defaulting to clang
@@ -75,7 +83,7 @@ endif
 # emitted assembly, e.g. "call foo, 0" - not a supported syntax), so point
 # qc at the real cross toolchain instead, same as qc--'s own tests/
 # run-tiger-<arch>.sh scripts do.
-ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64),$(BACKEND))
+ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64),$(BACKEND))
 export QC_AS := $(CC)
 export QC_LD := $(CC)
 endif
@@ -148,7 +156,7 @@ endif
 
 clean::
 	rm -f stdlib.o stdlibcmm.o
-	rm -rf build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64
+	rm -rf build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64 build-arm64
 
 clean::
 	rm -f o.o

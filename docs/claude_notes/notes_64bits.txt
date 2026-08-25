@@ -98,3 +98,77 @@ colmajor.tig's 2D-array pattern; a wrong exit code from merge.tig with
 otherwise-correct output) - see fork-c--'s tests/tiger64/README for the
 current detail, since that is where the test suite (and so the up-to-date
 pass/fail count) actually lives.
+
+===============================================================================
+Follow-up: a third 64-bit backend, arm64/macOS (2026-08-25)
+===============================================================================
+
+qc-- gained a native -arm64 backend (Mach-O, this host's own architecture
+on Apple Silicon - see fork-c--'s own docs/claude_notes/notes_arm64.txt).
+Wiring it up here needed ZERO changes to this repo's OCaml (frontend/,
+backend/codegen.ml) or C/C-- (runtime/, stdlib/) - confirms the -64
+machinery this note documents is genuinely target-generic, not something
+alpha/riscv64 needed patched a second time. `tigerc -64` already emits
+valid bits64 C-- for -arm64 unchanged; XFORM=64 in runtime/Makefile and
+stdlib/Makefile (the SAME sed block alpha/riscv64 already used) applies
+unmodified.
+
+All of the actual new work was build-plumbing, in three files:
+configure (new CC_ARM64/AR_ARM64/RUN_ARM64 detection - "clang", no cross
+toolchain, RUN_ARM64 always empty since this is the host's own native
+architecture), runtime/Makefile and stdlib/Makefile (new BACKEND=arm64
+branch, XFORM=64), plus demos/Makefile and tests/run-tests.sh needing one
+genuinely new wrinkle each backend before this one didn't: no "-static"
+on the final link (Apple does not support static-linking libSystem at
+all) and no $(QCPCMAP)/"$QCPCMAP" on the link line (that GNU-ld linker-
+script fragment has no Mach-O equivalent - ld64 has no "-T" mechanism at
+all; qc--'s own -arm64 backend doesn't need one, see notes_arm64.txt for
+what replaces it on qc--'s side).
+
+Verified end to end, natively (no qemu, no cross toolchain):
+  ./configure && make -C stdlib BACKEND=arm64 && make -C runtime BACKEND=arm64
+  ./bin/tigerc -64 demos/hello.tig > /tmp/hello.c--
+  qc -arm64 -globals -o /tmp/hello runtime/build-arm64/runtime.o \
+    runtime/build-arm64/stdlib.a runtime/build-arm64/qcmm.a /tmp/hello.c--
+  /tmp/hello        # "Hello, world.", exit 14 (tig_print's own return-count convention)
+Also `make run-arm64` (demos/Makefile: hello, forloop, queens) and
+`make test-arm64` (tests/run-tests.sh, the full tests/tiger.tests suite):
+queens.tig (a genuinely non-trivial program - correctly prints all 92
+solutions to 8-queens) runs correctly end to end. Full suite: 6/14
+(tests/expected/tiger-arm64.txt) - exceptions/funcall/hello/merge/queens/
+sieve pass; the rest fail the same way fork-c--'s own tests/tiger64/
+suite does for -arm64 there (mostly "Assertion failed: (size > 0),
+function internal_alloc, file gc.c, line 77" - see notes_arm64.txt in the
+fork-c-- checkout for the current grouping/diagnosis of those, not
+re-investigated separately here since this repo's own gc.c/stdlib.c are
+unmodified and the failure mode matches qc--'s own baseline exactly).
+
+Follow-up: plain "./configure && make" was still broken on this host
+------------------------------------------------------------------------
+Everything above was reachable via explicit `BACKEND=arm64`/`make
+test-arm64`, but plain `./configure && make` (CLAUDE.md's own Quick Start,
+and what a user actually tried) still failed: every Makefile/script here
+hardcodes "x86" as its OWN default (`BACKEND ?= x86` in stdlib/Makefile
+and runtime/Makefile; the top-level Makefile's `all`/`test` called those
+sub-makes with no BACKEND override at all, inheriting that x86 default),
+and CC32 defaults to `i686-linux-gnu-gcc` - a Linux-only cross-compiler
+with no macOS equivalent, so x86 was never buildable here no matter what.
+`./configure` already warned about the missing CC32, but the warning was
+easy to miss among a dozen other optional-backend warnings, and `make`
+itself treated it as fatal, not optional.
+
+Fixed with a new `DEFAULT_BACKEND` (configure picks it: "x86" normally,
+"arm64" only when CC32 is missing AND the host is genuinely
+`uname -s`=Darwin/`uname -m`=arm64 AND clang is on PATH - checking OS, not
+just CPU, matters: a Linux arm64 host, e.g. AWS Graviton, can easily have
+clang without an i686 cross toolchain either, and qc--'s -arm64 backend is
+Mach-O-only, so defaulting to it there would silently break Linux arm64
+instead of just x86). Only the TOP-LEVEL Makefile's `all`/`test` targets
+were changed to pass `BACKEND=$(DEFAULT_BACKEND)` down - stdlib/Makefile,
+runtime/Makefile, demos/Makefile, tests/run-tests.sh all keep defaulting
+to x86 on their own, unchanged, so every existing doc/script/workflow that
+names a BACKEND explicitly (or runs one of those Makefiles directly) is
+unaffected. Verified from a clean state (`rm -rf stdlib/build-arm64
+runtime/build-arm64`) that plain `./configure && make` and `make test` now
+succeed and reproduce the same 6/14 baseline above, with no explicit
+BACKEND= anywhere on the command line.

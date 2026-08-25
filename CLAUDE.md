@@ -13,7 +13,8 @@ register allocator or assembler.
 
 ## Build
 
-Requires OCaml, GCC, an i686 cross toolchain, and a built/installed `qc--`.
+Requires OCaml, GCC (or, on macOS, clang), an i686 cross toolchain (unless
+building for `-arm64` — see below), and a built/installed `qc--`.
 
 ```sh
 ./configure          # locates qc--, writes Makefile.config (generated, gitignored)
@@ -28,6 +29,17 @@ when the host isn't x86. Options: `--qc=PATH`, `--cc32=CMD`, or set
 `QC`/`CC32`/`RUN32`/`AR32` in the environment. `Makefile.config` is generated
 by this script — never edit it, re-run `./configure` instead.
 `configure.old` is the original Perl script, kept for reference but unused.
+
+`./configure` also picks `DEFAULT_BACKEND`, what the plain `make`/`make test`
+above actually build: normally `x86`, but on a genuine Apple Silicon Mac (no
+`i686-linux-gnu-gcc` on PATH, since that's a Linux-only cross-compiler with
+no macOS equivalent) it defaults to `arm64` instead — the one backend
+guaranteed to build there, since it's the host's own native architecture.
+Every other Makefile/script here (`stdlib/Makefile`, `runtime/Makefile`,
+`demos/Makefile`, `tests/run-tests.sh`) still defaults to `x86` on its own
+regardless — only the top-level `Makefile`'s `all`/`test` read
+`DEFAULT_BACKEND`. See the "Other qc-- backends" section below for how to
+target any backend explicitly (`make test-arm64`, `BACKEND=arm64 ...`).
 
 The compiler binary ends up at `bin/tigerc` (symlink to
 `_build/install/default/bin`).
@@ -61,13 +73,17 @@ them.
 ### Other qc-- backends
 
 qc-- targets more than x86 (see `qc --help`): `-ppc-elf`, `-sparc`, `-alpha`,
-`-mips`, `-arm`, `-riscv32`, `-riscv64`, alongside the default `-x86`.
-`stdlib/Makefile` and `runtime/Makefile` take a `BACKEND=<arch>` argument
-(default `x86`; `<arch>` one of `ppc sparc alpha mips arm riscv32 riscv64`)
-and build into their own `build-<arch>/` instead of clobbering the x86
-objects. `demos/Makefile` and `tests/run-tests.sh` follow the same
-`BACKEND=<arch>` convention (`run-tests.sh` reads it from the environment
-rather than as a `make` argument).
+`-mips`, `-arm`, `-riscv32`, `-riscv64`, `-arm64`, alongside the default
+`-x86`. `stdlib/Makefile` and `runtime/Makefile` take a `BACKEND=<arch>`
+argument (default `x86`; `<arch>` one of
+`ppc sparc alpha mips arm riscv32 riscv64 arm64`) and build into their own
+`build-<arch>/` instead of clobbering the x86 objects. `demos/Makefile` and
+`tests/run-tests.sh` follow the same `BACKEND=<arch>` convention
+(`run-tests.sh` reads it from the environment rather than as a `make`
+argument). `arm64` is the odd one out: it is this host's own native
+architecture on an Apple Silicon Mac (Mach-O, not ELF), needing no cross
+toolchain and no `qemu-user` at all — see `docs/claude_notes/notes_64bits.txt`'s
+own arm64 section.
 
 ```sh
 make test-ppc                       # builds stdlib+runtime for BACKEND=ppc, then runs the suite
@@ -92,7 +108,7 @@ sources:
 | none | mips, riscv32 | already matches (32-bit little-endian, has an FPU) |
 | byteorder flip | ppc, sparc | `little` → `big` (both are 32-bit big-endian) |
 | float "none" splice | arm | arm has no FPU; every source here otherwise relies on the implicit ieee754 default |
-| `-64` / bits64 rewrite | alpha, riscv64 | both are 64-bit; `tigerc -64` emits bits64 C-- directly (see `docs/claude_notes/notes_64bits.txt`), but `runtime/alloc.c--`, `runtime/runtime.c--` and `stdlib/stdlibcmm.c--` are hand-written and need every `bits32`→`bits64`, `+4`→`+8`, and the allocator's alignment mask rewritten by hand (`XFORM=64` in `runtime/Makefile`/`stdlib/Makefile`) |
+| `-64` / bits64 rewrite | alpha, riscv64, arm64 | all three are 64-bit; `tigerc -64` emits bits64 C-- directly (see `docs/claude_notes/notes_64bits.txt`), but `runtime/alloc.c--`, `runtime/runtime.c--` and `stdlib/stdlibcmm.c--` are hand-written and need every `bits32`→`bits64`, `+4`→`+8`, and the allocator's alignment mask rewritten by hand (`XFORM=64` in `runtime/Makefile`/`stdlib/Makefile`) |
 
 riscv32 is also the only backend with no glibc cross toolchain on Ubuntu; its
 `CC_RISCV32` is a bare-metal `gcc-riscv64-unknown-elf` compiled against
@@ -100,6 +116,14 @@ picolibc, and its final link (in `demos/Makefile` and `run-tests.sh`) goes
 through plain `ld` with an explicit `riscv32_crt0.o`, not `$(CC_RISCV32)` —
 see either file's riscv32 section for why (picolibc.specs' default link
 script and `--gc-sections` are both wrong for this target).
+
+`arm64` is the other exception to "link with `$(CC) -static ... $(QCPCMAP)`":
+Apple does not support static-linking libSystem at all, so its final link
+in `demos/Makefile`/`run-tests.sh` drops `-static`; and Mach-O's linker
+(`ld64`) has no `-T`/linker-script mechanism at all, so `$(QCPCMAP)` (a
+GNU-ld script fragment) is dropped from the link line too — qc--'s own
+`-arm64` backend needs no equivalent (see qc--'s own
+`docs/claude_notes/notes_arm64.txt`).
 
 None of the non-x86 backends is expected to be all-green — see each
 `tests/expected/tiger-<arch>.txt` for the current pass/fail split. As of the
@@ -110,7 +134,10 @@ riscv64 13/14 and alpha 11/14 fail on real qc-- instruction-selection gaps
 mostly around exception/GC codegen — consistent with qc--'s own (much
 simpler) `tests/run-tiger-<arch>.sh` baselines in the qc-- checkout, so this
 reflects real backend completeness, not a gap in this suite's own
-infrastructure.
+infrastructure. `arm64` is newer and lands at 6/14 — mostly a shared
+GC-allocation assertion also seen on qc--'s own `tests/tiger64/` suite for
+`-arm64`, not yet root-caused (see `docs/claude_notes/notes_64bits.txt`'s
+arm64 section and qc--'s own `notes_arm64.txt`).
 
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural

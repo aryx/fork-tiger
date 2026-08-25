@@ -71,6 +71,7 @@
 /tests/build-arm/
 /tests/build-riscv32/
 /tests/build-riscv64/
+/tests/build-arm64/
 
 # scratch directory of demos/Makefile
 /demos/build/
@@ -81,6 +82,7 @@
 /demos/build-arm/
 /demos/build-riscv32/
 /demos/build-riscv64/
+/demos/build-arm64/
 
 # generated while building and testing
 /runtime/qcmm/
@@ -91,6 +93,7 @@
 /runtime/build-arm/
 /runtime/build-riscv32/
 /runtime/build-riscv64/
+/runtime/build-arm64/
 /stdlib/build-ppc/
 /stdlib/build-sparc/
 /stdlib/build-alpha/
@@ -98,3 +101,4 @@
 /stdlib/build-arm/
 /stdlib/build-riscv32/
 /stdlib/build-riscv64/
+/stdlib/build-arm64/

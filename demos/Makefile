@@ -69,10 +69,11 @@ BM  = build-mips
 BAR = build-arm
 BR32 = build-riscv32
 BR64 = build-riscv64
+BAR64 = build-arm64
 
-.PHONY: all x86 ppc sparc alpha mips arm riscv32 riscv64 \
-        run run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 \
-        rt rt-ppc rt-sparc rt-alpha rt-mips rt-arm rt-riscv32 rt-riscv64 clean
+.PHONY: all x86 ppc sparc alpha mips arm riscv32 riscv64 arm64 \
+        run run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 run-arm64 \
+        rt rt-ppc rt-sparc rt-alpha rt-mips rt-arm rt-riscv32 rt-riscv64 rt-arm64 clean
 
 # claude: without this, make treats the .c--/.o files below as disposable
 # intermediates of the pattern-rule chain (.tig -> .c-- -> .o -> binary)
@@ -81,9 +82,9 @@ BR64 = build-riscv64
 # only the link step needs redoing.
 .SECONDARY:
 
-all: x86 ppc sparc alpha mips arm riscv32 riscv64
+all: x86 ppc sparc alpha mips arm riscv32 riscv64 arm64
 
-$(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64):
+$(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64):
 	mkdir -p $@
 
 # The runtime/stdlib system these demos link against (GC, alloc, print,
@@ -121,6 +122,10 @@ rt-riscv32:
 rt-riscv64:
 	$(MAKE) -C $(TOP)/stdlib BACKEND=riscv64
 	$(MAKE) -C $(TOP)/runtime BACKEND=riscv64
+
+rt-arm64:
+	$(MAKE) -C $(TOP)/stdlib BACKEND=arm64
+	$(MAKE) -C $(TOP)/runtime BACKEND=arm64
 
 # ---------------------------------------------------------------------------
 # x86
@@ -411,7 +416,46 @@ run-riscv64: riscv64
 	  fi; \
 	done
 
-run: run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64
+# ---------------------------------------------------------------------------
+# arm64 (byteorder little, wordsize/pointersize 64, the -arm64 backend)
+# ---------------------------------------------------------------------------
+# claude: same "-64" reasoning as alpha/riscv64 above - little-endian, so
+# no byteorder flip, but 64-bit, so tigerc needs "-64" to emit bits64 C--.
+# Unlike every backend above, this is this host's own native architecture
+# whenever it's an Apple Silicon Mac: no cross toolchain (CC_ARM64 is plain
+# "clang"), no QC_AS/QC_LD override needed (qc--'s own -arm64 default is
+# already "clang" - set anyway for uniformity with every backend above), no
+# "-static" (Apple does not support static-linking libSystem at all,
+# unlike every Linux-hosted backend here), and no $(QCPCMAP) on the link
+# line: that linker-script fragment is GNU-ld-specific (Mach-O's ld64 has
+# no "-T"/linker-script mechanism at all) - qc--'s own -arm64 backend
+# doesn't need one, see its docs/claude_notes/notes_arm64.txt for why
+# (ld64 auto-synthesizes the section-bounds symbols pcmap.ld would
+# otherwise define).
+$(BAR64)/%.c--: %.tig | $(BAR64)
+	$(TIGERC) -64 $< > $@
+
+$(BAR64)/%.o: $(BAR64)/%.c-- | $(BAR64)
+	QC_AS='$(CC_ARM64)' QC_LD='$(CC_ARM64)' $(QC) -arm64 -globals -stop .o -o $@ $<
+
+$(BAR64)/%: $(BAR64)/%.o
+	$(CC_ARM64) $(TOP)/runtime/build-arm64/runtime.o $< \
+	  $(TOP)/runtime/build-arm64/stdlib.a $(TOP)/runtime/build-arm64/qcmm.a -o $@
+
+arm64: rt-arm64
+	@$(MAKE) -k $(foreach d,$(DEMOS),$(BAR64)/$(d)) || true
+
+run-arm64: arm64
+	@for d in $(DEMOS); do \
+	  if [ -x $(BAR64)/$$d ]; then \
+	    echo "=== $$d (arm64) ==="; \
+	    $(RUN_ARM64) ./$(BAR64)/$$d; echo "[exit status $$?]"; \
+	  else \
+	    echo "=== $$d (arm64): build failed, skipping ==="; \
+	  fi; \
+	done
+
+run: run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 run-arm64
 
 clean:
-	rm -rf $(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64)
+	rm -rf $(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64)

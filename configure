@@ -30,8 +30,17 @@ set -eu
 #
 # This replaces configure.old, a Perl script from the original distribution.
 #
+# macOS/arm64: qc-- also has a native -arm64 backend (Mach-O, this host's
+# own architecture - see qc--'s docs/claude_notes/notes_arm64.txt), needing
+# no cross toolchain and no emulator at all, unlike every backend above.
+# Detected below via detect_backend the same way as the rest, just with
+# "clang"/"ar" as the (always-native) defaults and RUN_ARM64 always empty.
+#
 # TODO:
-#  - macOS, where the cross toolchain is not gcc-i686-linux-gnu
+#  - macOS CC32 (x86 needs i686-linux-gnu-gcc, which macOS has no
+#    equivalent for - only -arm64 is native here; CC32 still defaults to
+#    the Linux cross-compiler name and will just warn on macOS, same as
+#    any other missing optional backend toolchain)
 #  - let --prefix pick a qc-- that is not in an opam switch
 
 ###############################################################################
@@ -56,6 +65,8 @@ CC_RISCV32=${CC_RISCV32:-}
 RUN_RISCV32=${RUN_RISCV32:-}
 CC_RISCV64=${CC_RISCV64:-}
 RUN_RISCV64=${RUN_RISCV64:-}
+CC_ARM64=${CC_ARM64:-}
+RUN_ARM64=${RUN_ARM64:-}
 for arg in "$@"; do
     case "$arg" in
         --qc=*)
@@ -85,6 +96,9 @@ for arg in "$@"; do
         --cc-riscv64=*)
             CC_RISCV64="${arg#--cc-riscv64=}"
             ;;
+        --cc-arm64=*)
+            CC_ARM64="${arg#--cc-arm64=}"
+            ;;
         --help|-h)
             echo "Usage: ./configure [options]"
             echo "  --qc=PATH         use this qc rather than searching for one"
@@ -96,6 +110,8 @@ for arg in "$@"; do
             echo "  --cc-arm=CMD      the 32-bit arm C compiler to use (for -arm)"
             echo "  --cc-riscv32=CMD  the 32-bit riscv32 C compiler to use (for -riscv32)"
             echo "  --cc-riscv64=CMD  the 64-bit riscv64 C compiler to use (for -riscv64)"
+            echo "  --cc-arm64=CMD    the 64-bit arm64 C compiler to use (for -arm64; default"
+            echo "                    'clang', this host's own native compiler on macOS)"
             echo "QC, CC32, RUN32 and, per backend, CC_<ARCH>/AR_<ARCH>/RUN_<ARCH>"
             echo "may also be set in the environment."
             exit 0
@@ -305,12 +321,64 @@ detect_backend riscv64 RISCV64 "riscv64-linux-gnu-gcc" \
     "sudo apt install gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu libc6-dev-riscv64-cross" \
     qemu-riscv64 "riscv64"
 
+# arm64: 64-bit little-endian AArch64 (Apple Silicon). Unlike every backend
+# above, this is this host's own native architecture whenever it's a Mac
+# (uname -m "arm64") - "clang" needs no cross-toolchain package at all, and
+# RUN_ARM64 is always empty (native_pat "arm64" matches, so detect_backend's
+# own qemu-fallback branch never runs; on a non-arm64 host this would warn
+# about a missing "qemu-aarch64" instead, though qc--'s own -arm64 backend
+# is macOS/Mach-O only today - see qc--'s notes_arm64.txt - so that combination
+# isn't expected to work regardless).
+detect_backend arm64 ARM64 "clang" \
+    "install the Xcode command line tools: xcode-select --install" \
+    qemu-aarch64 "arm64"
+
+###############################################################################
+# Pick the default backend for plain "make"/"make test"
+###############################################################################
+# claude: every Makefile/script in this repo hardcodes "x86" as ITS OWN
+# default (BACKEND ?= x86 in stdlib/Makefile, runtime/Makefile; BACKEND=x86
+# in demos/Makefile; BACKEND=${BACKEND:-x86} in tests/run-tests.sh) - none
+# of that changes here, so running any of those directly (or with an
+# explicit BACKEND=...) behaves exactly as before, unchanged, on every
+# host. This section only picks what the TOP-LEVEL Makefile's own "all"/
+# "test" targets pass down, so that a plain "./configure && make"/"make
+# test" - the very first thing CLAUDE.md's own Quick Start says to run -
+# actually works on a host where x86 fundamentally cannot: CC32 defaults
+# to a Linux-only cross-compiler (i686-linux-gnu-gcc) that has no macOS
+# equivalent, so x86 was never going to build there no matter what a user
+# typed. On a genuine Apple Silicon Mac (arm64 host, no CC32 on PATH),
+# default to arm64 instead - the one backend that's actually guaranteed to
+# build (native, no cross toolchain). Every other combination (Linux
+# hosts, or a Mac with CC32 somehow installed) keeps the original x86
+# default untouched.
+#
+# Must check `uname -s` = Darwin too, not just `uname -m` = arm64: qc--'s
+# own -arm64 backend emits Mach-O only (see its docs/claude_notes/
+# notes_arm64.txt) - a Linux arm64 host (e.g. AWS Graviton) can easily have
+# clang on PATH with no i686 cross toolchain either, and would wrongly
+# match on CPU architecture alone, defaulting to a backend that cannot
+# link against that host's ELF/glibc at all.
+if ! command -v "$CC32" >/dev/null 2>&1 \
+   && [ "`uname -s`" = "Darwin" ] && [ "`uname -m`" = "arm64" ] \
+   && command -v "${CC_ARM64%% *}" >/dev/null 2>&1; then
+    DEFAULT_BACKEND=arm64
+else
+    DEFAULT_BACKEND=x86
+fi
+
 ###############################################################################
 # Write Makefile.config
 ###############################################################################
 
 cat > Makefile.config <<EOF
 # generated by ./configure - do not edit, re-run configure instead
+
+# What the TOP-LEVEL Makefile's own "all"/"test" targets build when no
+# BACKEND is given - see this script's own "Pick the default backend"
+# comment. Every other Makefile/script in this repo keeps defaulting to
+# x86 on its own, regardless of this value.
+DEFAULT_BACKEND=$DEFAULT_BACKEND
 
 # Where to install tigerc
 BINDIR=/usr/local/bin
@@ -369,9 +437,16 @@ RUN_RISCV32=$RUN_RISCV32
 CC_RISCV64=$CC_RISCV64
 AR_RISCV64=$AR_RISCV64
 RUN_RISCV64=$RUN_RISCV64
+
+# The 64-bit arm64 toolchain, for qc--'s -arm64 backend (optional; native,
+# no cross toolchain, on an Apple Silicon Mac)
+CC_ARM64=$CC_ARM64
+AR_ARM64=$AR_ARM64
+RUN_ARM64=$RUN_ARM64
 EOF
 
 echo "wrote Makefile.config"
+echo "  DEFAULT_BACKEND = $DEFAULT_BACKEND  (what plain 'make'/'make test' build)"
 echo "  QC           = $QC"
 echo "  QCLIB        = $QCLIB"
 echo "  CC32         = $CC32"
@@ -391,3 +466,5 @@ echo "  CC_RISCV32   = $CC_RISCV32"
 echo "  RUN_RISCV32  = ${RUN_RISCV32:-(native)}"
 echo "  CC_RISCV64   = $CC_RISCV64"
 echo "  RUN_RISCV64  = ${RUN_RISCV64:-(native)}"
+echo "  CC_ARM64     = $CC_ARM64"
+echo "  RUN_ARM64    = ${RUN_ARM64:-(native)}"

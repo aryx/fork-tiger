@@ -84,13 +84,27 @@ B            = build-riscv64
 STDLIBDIR    = ../stdlib/build-riscv64
 XFORM        = 64
 GLOBALS_DECL = bits64 alloc_ptr;
+else ifeq ($(BACKEND),arm64)
+# claude: also 64-bit (wordsize/pointersize 64), like alpha/riscv64 above -
+# same XFORM=64 rewrite (verified byte-for-byte against qc--'s own
+# tests/tiger64/regenerate-arm64.sh, which applies the identical sed
+# transforms by hand). Unlike every backend above, CC_ARM64 needs no cross
+# toolchain at all on an Apple Silicon Mac - it's this host's own native
+# architecture (see configure's own arm64 comment).
+CC           = $(CC_ARM64)
+AR           = $(AR_ARM64)
+QCFLAG       = -arm64
+B            = build-arm64
+STDLIBDIR    = ../stdlib/build-arm64
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
 else
-$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32 or riscv64)
+$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64 or arm64)
 endif
 
 # See stdlib/Makefile's identical block for why this is needed for these
-# six backends and not x86/ppc.
-ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64),$(BACKEND))
+# seven backends and not x86/ppc.
+ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64),$(BACKEND))
 export QC_AS := $(CC)
 export QC_LD := $(CC)
 endif
@@ -197,7 +211,7 @@ $(B)/qcmm.a: FORCE | $(B)
 
 clean::
 	rm -f *.o *.a
-	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64
+	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64 build-arm64
 
 clean::
 	rm -f alloc.s runtime.s

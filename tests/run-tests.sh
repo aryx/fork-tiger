@@ -18,7 +18,7 @@
 #   ./run-tests.sh --update         re-record the baseline (review the diff!)
 #   ./run-tests.sh hello wf         run only those, report but do not compare
 #   BACKEND=ppc ./run-tests.sh      same, but for qc--'s -ppc-elf backend
-#   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32, riscv64
+#   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64
 #
 # Needs ../Makefile.config, i.e. ./configure must have been run, and the
 # libraries built for the chosen backend:
@@ -33,9 +33,15 @@
 #   none - mips, riscv32: already 32-bit little-endian ieee754, no change
 #   big  - ppc, sparc: byteorder little -> big
 #   arm  - splice float "none" (arm has no FPU)
-#   64   - alpha, riscv64: also pass tigerc "-64" so it emits bits64 C--
-#          (wordsize/pointersize 64) in the first place - see
+#   64   - alpha, riscv64, arm64: also pass tigerc "-64" so it emits bits64
+#          C-- (wordsize/pointersize 64) in the first place - see
 #          docs/claude_notes/notes_64bits.txt
+#
+# arm64 is also the one exception (besides riscv32) to "link with $CC
+# -static": Apple does not support static-linking libSystem at all, and
+# there is no $QCPCMAP equivalent to pass either (Mach-O's ld64 has no
+# linker-script mechanism) - see the link step below and qc--'s own
+# docs/claude_notes/notes_arm64.txt.
 #
 # Expected stdout/stderr (x86/<name>.1, x86/<name>.2) are reused as-is for
 # every backend: Tiger's observable behaviour (what a program prints and
@@ -60,8 +66,8 @@ TOP=..
 
 BACKEND=${BACKEND:-x86}
 case "$BACKEND" in
-  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64) ;;
-  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32 or riscv64)" >&2; exit 2 ;;
+  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64|arm64) ;;
+  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64 or arm64)" >&2; exit 2 ;;
 esac
 
 if [ ! -f "$TOP/Makefile.config" ]; then
@@ -124,6 +130,18 @@ case "$BACKEND" in
     TIGERFLAG=-64
     XFORM=64
     ;;
+  arm64)
+    # claude: also 64-bit, like alpha/riscv64 above - TIGERFLAG=-64/XFORM=64
+    # need nothing arm64-specific (see the XFORM=64 comment further down).
+    # Unlike every backend above, this is this host's own native
+    # architecture whenever it's an Apple Silicon Mac - CC_ARM64 is plain
+    # "clang", no cross toolchain.
+    CC=$(sed -n 's/^CC_ARM64=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_ARM64=//p' "$TOP/Makefile.config")
+    QCFLAG=-arm64
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
 esac
 RTDIR=$TOP/runtime
 B=build
@@ -140,7 +158,7 @@ fi
 # the rest of these - same fix ../runtime/Makefile and ../stdlib/Makefile
 # apply for the same reason.
 case "$BACKEND" in
-  sparc|alpha|mips|arm|riscv32|riscv64)
+  sparc|alpha|mips|arm|riscv32|riscv64|arm64)
     QC_AS=$CC
     QC_LD=$CC
     export QC_AS QC_LD
@@ -253,6 +271,17 @@ while read -r name src rc stdin_file; do
          "$B/riscv32_crt0.o" "$RTDIR/runtime.o" "$B/$name.o" \
          "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" "$QCPCMAP" \
          --start-group -lc -lgcc --end-group \
+         -o "$B/$name" 2>"$B/$name.lderr"; then
+      echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
+    fi
+  elif [ "$BACKEND" = arm64 ]; then
+    # claude: no "-static" (Apple does not support static-linking
+    # libSystem at all, unlike every Linux-hosted backend above) and no
+    # "$QCPCMAP" (that linker-script fragment is GNU-ld-specific - Mach-O's
+    # ld64 has no "-T"/linker-script mechanism at all; qc--'s own -arm64
+    # backend doesn't need one, see its docs/claude_notes/notes_arm64.txt).
+    if ! $CC "$RTDIR/runtime.o" "$B/$name.o" \
+         "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" \
          -o "$B/$name" 2>"$B/$name.lderr"; then
       echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
     fi
