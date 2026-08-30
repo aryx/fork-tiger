@@ -36,11 +36,19 @@ set -eu
 # Detected below via detect_backend the same way as the rest, just with
 # "clang"/"ar" as the (always-native) defaults and RUN_ARM64 always empty.
 #
+# macOS/amd64: qc-- also has an -amd64 backend (x86-64 Mach-O, cross-
+# assembled via "clang -arch x86_64" - see qc--'s docs/claude_notes/
+# notes_amd64.txt), Mach-O only with no Linux/ELF sibling yet. Detected
+# separately below, not via detect_backend, since RUN_AMD64 is always
+# empty regardless of host arch (Rosetta 2 makes the Mach-O binary
+# directly runnable on Apple Silicon, no qemu-style wrapper exists or is
+# needed) - detect_backend's native-vs-qemu-fallback logic doesn't apply.
+#
 # TODO:
 #  - macOS CC32 (x86 needs i686-linux-gnu-gcc, which macOS has no
-#    equivalent for - only -arm64 is native here; CC32 still defaults to
-#    the Linux cross-compiler name and will just warn on macOS, same as
-#    any other missing optional backend toolchain)
+#    equivalent for - only -arm64/-amd64 are native/Mach-O here; CC32
+#    still defaults to the Linux cross-compiler name and will just warn
+#    on macOS, same as any other missing optional backend toolchain)
 #  - let --prefix pick a qc-- that is not in an opam switch
 
 ###############################################################################
@@ -67,6 +75,8 @@ CC_RISCV64=${CC_RISCV64:-}
 RUN_RISCV64=${RUN_RISCV64:-}
 CC_ARM64=${CC_ARM64:-}
 RUN_ARM64=${RUN_ARM64:-}
+CC_AMD64=${CC_AMD64:-}
+RUN_AMD64=${RUN_AMD64:-}
 for arg in "$@"; do
     case "$arg" in
         --qc=*)
@@ -99,6 +109,9 @@ for arg in "$@"; do
         --cc-arm64=*)
             CC_ARM64="${arg#--cc-arm64=}"
             ;;
+        --cc-amd64=*)
+            CC_AMD64="${arg#--cc-amd64=}"
+            ;;
         --help|-h)
             echo "Usage: ./configure [options]"
             echo "  --qc=PATH         use this qc rather than searching for one"
@@ -112,6 +125,9 @@ for arg in "$@"; do
             echo "  --cc-riscv64=CMD  the 64-bit riscv64 C compiler to use (for -riscv64)"
             echo "  --cc-arm64=CMD    the 64-bit arm64 C compiler to use (for -arm64; default"
             echo "                    'clang', this host's own native compiler on macOS)"
+            echo "  --cc-amd64=CMD    the 64-bit amd64 C compiler to use (for -amd64; default"
+            echo "                    'clang -arch x86_64', macOS/Mach-O only, no Linux/ELF"
+            echo "                    sibling yet - runs under Rosetta 2 on Apple Silicon)"
             echo "QC, CC32, RUN32 and, per backend, CC_<ARCH>/AR_<ARCH>/RUN_<ARCH>"
             echo "may also be set in the environment."
             exit 0
@@ -333,6 +349,30 @@ detect_backend arm64 ARM64 "clang" \
     "install the Xcode command line tools: xcode-select --install" \
     qemu-aarch64 "arm64"
 
+# amd64: 64-bit little-endian x86-64, but (unlike every backend above,
+# arm64 included) Mach-O-only - qc--'s -amd64 backend cross-assembles via
+# "clang -arch x86_64" (Apple clang's cross-arch flag) and has no Linux/ELF
+# sibling yet (see qc--'s own docs/claude_notes/notes_amd64.txt). The
+# resulting binary runs under Rosetta 2 translation on an Apple Silicon
+# host, or natively on an actual Intel Mac - either way with no separate
+# wrapper command, unlike every genuinely-emulated Linux-hosted backend
+# above: RUN_AMD64 is therefore always left empty rather than routed
+# through detect_backend's usual qemu-fallback logic (there is no
+# "qemu-x86_64-macos"-equivalent to fall back to, and none is needed).
+if [ -z "$CC_AMD64" ]; then
+    CC_AMD64="clang -arch x86_64"
+fi
+ccbin=${CC_AMD64%% *}
+if ! command -v "$ccbin" >/dev/null 2>&1; then
+    echo "configure: warning: no $ccbin on PATH (only needed for -amd64)" >&2
+    echo "  install the Xcode command line tools: xcode-select --install" >&2
+elif [ "`uname -s`" != "Darwin" ]; then
+    echo "configure: warning: -amd64 is macOS/Mach-O only (no Linux/ELF sibling yet)," >&2
+    echo "  but this is not a Darwin host - CC_AMD64=$CC_AMD64 will not work here" >&2
+fi
+AR_AMD64=${AR_AMD64:-ar}
+RUN_AMD64=
+
 ###############################################################################
 # Pick the default backend for plain "make"/"make test"
 ###############################################################################
@@ -443,6 +483,13 @@ RUN_RISCV64=$RUN_RISCV64
 CC_ARM64=$CC_ARM64
 AR_ARM64=$AR_ARM64
 RUN_ARM64=$RUN_ARM64
+
+# The 64-bit amd64 toolchain, for qc--'s -amd64 backend (optional;
+# macOS/Mach-O only, no Linux/ELF sibling yet - runs under Rosetta 2 on
+# Apple Silicon, natively on an Intel Mac)
+CC_AMD64=$CC_AMD64
+AR_AMD64=$AR_AMD64
+RUN_AMD64=$RUN_AMD64
 EOF
 
 echo "wrote Makefile.config"
@@ -468,3 +515,5 @@ echo "  CC_RISCV64   = $CC_RISCV64"
 echo "  RUN_RISCV64  = ${RUN_RISCV64:-(native)}"
 echo "  CC_ARM64     = $CC_ARM64"
 echo "  RUN_ARM64    = ${RUN_ARM64:-(native)}"
+echo "  CC_AMD64     = $CC_AMD64"
+echo "  RUN_AMD64    = ${RUN_AMD64:-(native/Rosetta)}"
