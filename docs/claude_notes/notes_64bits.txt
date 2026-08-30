@@ -261,3 +261,93 @@ docs/claude_notes/notes_arm64.txt for the full diagnosis). Nothing to fix
 here; noted in case a similar "regenerated output looks right but tests
 still fail" symptom recurs - check whether the compiler, not the generated
 source, is the stale/wrong half.
+
+===============================================================================
+Follow-up: qc-- repurposes bare -arm64/-amd64 as Linux/ELF, arm64 goes
+native on this dev host, amd64 joins the suite at 9/14 (2026-08-30)
+===============================================================================
+
+qc-- gained real Linux/ELF backends for arm64 and amd64 (arch/{amd64,
+arm64}/*asm.ml, ELF/Linux as the default), demoting the OLD macOS/Mach-O
+behaviour documented everywhere above to a separate, explicit
+-arm64-mach-o/-amd64-mach-o flag pair - see qc--'s own docs/claude_notes/
+notes_arm64.txt/notes_amd64.txt for that repo's side of the story. This
+dev host is itself aarch64-linux (not macOS), so this is the first time
+either backend has been buildable/testable here at all rather than only
+on a real Apple Silicon Mac.
+
+What changed in this repo: configure (CC_ARM64/CC_AMD64 now detected via
+the ordinary detect_backend path - real cross toolchains, qemu-aarch64/
+qemu-x86_64 fallback - with a new, separately-detected CC_ARM64_MACHO/
+CC_AMD64_MACHO pair for the old Darwin-only behaviour, probed only on a
+Darwin host), runtime/Makefile, stdlib/Makefile, demos/Makefile and
+tests/run-tests.sh (new BACKEND=amd64 branch alongside arm64, both now
+ordinary Linux-hosted backends - "$(CC) -static ... $(QCPCMAP)" link, no
+more of the old "no -static, no QCPCMAP" special-casing, which moved to
+the new arm64-mach-o/amd64-mach-o branches instead), and the top-level
+Makefile (DEFAULT_BACKEND's own Darwin-without-CC32 fallback now picks
+arm64-mach-o, not arm64, since plain arm64 can no longer link against
+Mach-O/libSystem; new test-amd64/test-arm64-mach-o/test-amd64-mach-o
+targets).
+
+A genuine, general configure bug found and fixed along the way: multi-
+alternative native_pat values (e.g. arm64's own "aarch64|arm64") were
+passed through an unquoted shell variable into a case pattern - POSIX
+shells do NOT treat a "|" arriving via parameter expansion as case
+alternation (that splitting happens at parse time, before expansion;
+verified directly against both dash and bash), so EVERY native-host
+detection with more than one alternative (ppc's own "ppc|ppc64|powerpc|
+powerpc64", mips's "mips|mipsel|mips64|mips64el", and now arm64's own)
+silently never matched, falling through to the qemu-fallback branch even
+on a genuinely native host. Never surfaced before because nobody had
+actually run this configure script on real ppc/mips hardware - but it
+directly broke arm64 native-detection on this very aarch64-linux dev box
+(RUN_ARM64 came back pointing at qemu-aarch64 instead of empty). Fixed by
+wrapping the case dispatch in `eval` so the alternation is parsed after
+substitution, same idiom needed anywhere a pattern has to come from a
+variable.
+
+Cross-repo bug found and fixed in qc-- itself (not just this repo's build
+files): runtime/arm64cont.s and runtime/amd64cont.s (the Cmm_unwindcont_pc
+trap stub every program's runtime.o references unconditionally) were
+Mach-O-only - Darwin's C symbol-mangling convention adds a leading
+underscore ("_Cmm_unwindcont_pc") that ELF hosts don't use - and were
+never split when the Linux/ELF backends were added, so every arm64/amd64
+Linux/ELF link failed with "undefined reference to `Cmm_unwindcont_pc'"
+even though qc alone compiled and linked the C-- units cleanly. Fixed by
+splitting each into an ELF variant (kept the original filename, no
+underscore - matches every other Linux-hosted *cont.s here) and a new
+arm64machocont.s/amd64machocont.s (with the underscore, wired to the new
+BACKEND=arm64-mach-o/amd64-mach-o cases) - see that repo's runtime/
+Makefile and runtime/dune. Required a `dune build && make install` in the
+qc-- checkout before this repo's own arm64/amd64 builds could link.
+
+Also picked up, already fixed on qc--'s side by the time this session
+started rebuilding it: a real x86-64 stack-misalignment bug (real "call"
+pushes an 8-byte return address the shared frame-layout equation solver
+didn't account for, so every amd64 call site was 8 bytes short of the
+16-byte alignment glibc's optimized vfprintf's %xmm0-7 spill requires -
+segfaulted on "call printf" under real qemu-x86_64 before the fix, silent
+on macOS/libSystem's own printf under Rosetta 2) - see qc--'s own commit
+for arch/amd64/amd64backend.ml's retaddr_block. Without this, amd64 would
+not have gotten past hello.tig at all.
+
+Results, natively/under qemu on this aarch64-linux host (no Mac involved):
+tests/expected/tiger-arm64.txt stays 13/14 (colmajor only) - identical
+bar to the old Mach-O baseline, now reached on real Linux/ELF instead.
+tests/expected/tiger-amd64.txt (new) is 9/14: colmajor plus rc4/rb/wf/wff,
+matching qc--'s own tests/tiger64/README findings for -amd64-mach-o
+almost exactly (same four extra failures beyond colmajor/merge) - fork-
+tiger's own suite input sizes happen to avoid triggering merge's wrong-
+exit-code gap (present in qc--'s own harsher fixtures, not in tests/
+tiger.tests' merge.tig), but hit the same underlying GC/liveness bug
+colmajor/rc4/rb/wf/wff share, believed the same not-yet-root-caused issue
+documented for arm64/riscv64/amd64 throughout this file and qc--'s own
+notes_amd64.txt/notes_arm64.txt - not chased further here, same
+"touching shared regalloc/codegen machinery, real regression risk to
+every other backend" call already made for every prior occurrence.
+
+The arm64-mach-o/amd64-mach-o (Darwin-only) tier could not be verified in
+this session (no macOS host available) - the build-plumbing (configure,
+Makefiles, run-tests.sh) is in place and mirrors the pre-rename arm64
+code path exactly, but has not been run.

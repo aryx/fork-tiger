@@ -4,12 +4,12 @@
 
 -include Makefile.config
 # claude: what plain "make"/"make test" below build when no BACKEND is
-# given - ./configure picks this (x86 normally; arm64 on a host where x86
-# fundamentally cannot build, e.g. a Mac with no i686 cross toolchain - see
-# configure's own "Pick the default backend" comment) and writes it into
-# Makefile.config. The "?=" here is only a fallback for a stale
-# Makefile.config from before this existed (or no configure run at all
-# yet) - re-run ./configure to get the real answer for this host.
+# given - ./configure picks this (x86 normally; arm64-mach-o on a Mac with
+# no i686 cross toolchain - see configure's own "Pick the default backend"
+# comment) and writes it into Makefile.config. The "?=" here is only a
+# fallback for a stale Makefile.config from before this existed (or no
+# configure run at all yet) - re-run ./configure to get the real answer
+# for this host.
 DEFAULT_BACKEND ?= x86
 
 all::
@@ -88,20 +88,46 @@ test-riscv64::
 	$(MAKE) -C runtime BACKEND=riscv64
 	BACKEND=riscv64 tests/run-tests.sh
 
-# claude: unlike every backend above, needs no cross toolchain at all on
-# an Apple Silicon Mac - this is the host's own native architecture (see
-# ./configure's own arm64 comment).
+# claude: Linux/ELF (qc--'s -arm64 bare flag) - needs no cross toolchain at
+# all on an aarch64-linux host (this dev box included), this being that
+# host's own native architecture, same as x86 on an x86 host (see
+# ./configure's own arm64 comment). The OLD macOS-only Mach-O behaviour is
+# test-arm64-mach-o below instead.
 test-arm64::
 	$(MAKE) -C stdlib BACKEND=arm64
 	$(MAKE) -C runtime BACKEND=arm64
 	BACKEND=arm64 tests/run-tests.sh
+
+# claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same shape as
+# arm64 above.
+test-amd64::
+	$(MAKE) -C stdlib BACKEND=amd64
+	$(MAKE) -C runtime BACKEND=amd64
+	BACKEND=amd64 tests/run-tests.sh
+
+# claude: the OLD arm64/amd64 behaviour (macOS/Mach-O only - see
+# configure's own arm64-mach-o/amd64-mach-o comment) - only buildable on
+# Darwin, kept out of test-all below for the same reason every other
+# optional cross toolchain isn't required to be present.
+test-arm64-mach-o::
+	$(MAKE) -C stdlib BACKEND=arm64-mach-o
+	$(MAKE) -C runtime BACKEND=arm64-mach-o
+	BACKEND=arm64-mach-o tests/run-tests.sh
+
+test-amd64-mach-o::
+	$(MAKE) -C stdlib BACKEND=amd64-mach-o
+	$(MAKE) -C runtime BACKEND=amd64-mach-o
+	BACKEND=amd64-mach-o tests/run-tests.sh
 
 # Runs every backend's test tier in one go - useful before a commit that
 # touches shared code (frontend/, backend/codegen.ml, runtime/, stdlib/)
 # to see the full cross-architecture blast radius at once. Each target
 # above already reports its own pass/fail count and diffs against its own
 # baseline; this adds nothing beyond running them all back to back.
-test-all:: test test-ppc test-sparc test-alpha test-mips test-arm test-riscv32 test-riscv64 test-arm64
+# claude: test-arm64-mach-o/test-amd64-mach-o are Darwin-only (see their
+# own comment above) - deliberately excluded here, same reasoning as every
+# other backend whose cross toolchain isn't assumed to be installed.
+test-all:: test test-ppc test-sparc test-alpha test-mips test-arm test-riscv32 test-riscv64 test-arm64 test-amd64
 
 build-docker:
 	docker build -t "tigerc" .

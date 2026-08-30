@@ -18,7 +18,8 @@
 #   ./run-tests.sh --update         re-record the baseline (review the diff!)
 #   ./run-tests.sh hello wf         run only those, report but do not compare
 #   BACKEND=ppc ./run-tests.sh      same, but for qc--'s -ppc-elf backend
-#   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64
+#   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32,
+#                                   riscv64, arm64, amd64, arm64-mach-o, amd64-mach-o
 #
 # Needs ../Makefile.config, i.e. ./configure must have been run, and the
 # libraries built for the chosen backend:
@@ -33,15 +34,17 @@
 #   none - mips, riscv32: already 32-bit little-endian ieee754, no change
 #   big  - ppc, sparc: byteorder little -> big
 #   arm  - splice float "none" (arm has no FPU)
-#   64   - alpha, riscv64, arm64: also pass tigerc "-64" so it emits bits64
-#          C-- (wordsize/pointersize 64) in the first place - see
-#          docs/claude_notes/notes_64bits.txt
+#   64   - alpha, riscv64, arm64, amd64, arm64-mach-o, amd64-mach-o: also
+#          pass tigerc "-64" so it emits bits64 C-- (wordsize/pointersize
+#          64) in the first place - see docs/claude_notes/notes_64bits.txt
 #
-# arm64 is also the one exception (besides riscv32) to "link with $CC
-# -static": Apple does not support static-linking libSystem at all, and
-# there is no $QCPCMAP equivalent to pass either (Mach-O's ld64 has no
-# linker-script mechanism) - see the link step below and qc--'s own
-# docs/claude_notes/notes_arm64.txt.
+# arm64-mach-o/amd64-mach-o are also the one exception (besides riscv32) to
+# "link with $CC -static": Apple does not support static-linking libSystem
+# at all, and there is no $QCPCMAP equivalent to pass either (Mach-O's
+# ld64 has no linker-script mechanism) - see the link step below and qc--'s
+# own docs/claude_notes/notes_arm64.txt/notes_amd64.txt. Plain arm64/amd64
+# (Linux/ELF, native or under qemu) link the ordinary way, like every other
+# Linux-hosted backend.
 #
 # Expected stdout/stderr (x86/<name>.1, x86/<name>.2) are reused as-is for
 # every backend: Tiger's observable behaviour (what a program prints and
@@ -66,8 +69,8 @@ TOP=..
 
 BACKEND=${BACKEND:-x86}
 case "$BACKEND" in
-  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64|arm64) ;;
-  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64 or arm64)" >&2; exit 2 ;;
+  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64|arm64|amd64|arm64-mach-o|amd64-mach-o) ;;
+  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64, amd64, arm64-mach-o or amd64-mach-o)" >&2; exit 2 ;;
 esac
 
 if [ ! -f "$TOP/Makefile.config" ]; then
@@ -133,12 +136,43 @@ case "$BACKEND" in
   arm64)
     # claude: also 64-bit, like alpha/riscv64 above - TIGERFLAG=-64/XFORM=64
     # need nothing arm64-specific (see the XFORM=64 comment further down).
-    # Unlike every backend above, this is this host's own native
-    # architecture whenever it's an Apple Silicon Mac - CC_ARM64 is plain
-    # "clang", no cross toolchain.
+    # Linux/ELF (qc--'s -arm64 bare flag) - native on an aarch64-linux host
+    # (this dev box included), via CC_ARM64/RUN_ARM64's cross toolchain/
+    # qemu otherwise, same as every Linux backend above. The OLD macOS-only
+    # Mach-O behaviour is arm64-mach-o below instead.
     CC=$(sed -n 's/^CC_ARM64=//p' "$TOP/Makefile.config")
     RUN=$(sed -n 's/^RUN_ARM64=//p' "$TOP/Makefile.config")
     QCFLAG=-arm64
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
+  amd64)
+    # claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same XFORM=64/
+    # TIGERFLAG=-64 as every other 64-bit backend. Needs qemu-x86_64 to run
+    # on this (aarch64) dev host; native on an x86-64 Linux host.
+    CC=$(sed -n 's/^CC_AMD64=//p' "$TOP/Makefile.config")
+    RUN=$(sed -n 's/^RUN_AMD64=//p' "$TOP/Makefile.config")
+    QCFLAG=-amd64
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
+  arm64-mach-o)
+    # claude: the OLD arm64 behaviour, before qc-- grew a Linux/ELF -arm64
+    # (see qc--'s docs/claude_notes/notes_arm64.txt) - macOS/Mach-O only,
+    # native on Apple Silicon, no cross toolchain, no qemu (RUN stays empty).
+    CC=$(sed -n 's/^CC_ARM64_MACHO=//p' "$TOP/Makefile.config")
+    RUN=
+    QCFLAG=-arm64-mach-o
+    TIGERFLAG=-64
+    XFORM=64
+    ;;
+  amd64-mach-o)
+    # claude: the OLD amd64 behaviour - macOS/Mach-O only, cross-assembled
+    # via "clang -arch x86_64", runs under Rosetta 2 on Apple Silicon (or
+    # natively on an Intel Mac) - no separate wrapper command either way.
+    CC=$(sed -n 's/^CC_AMD64_MACHO=//p' "$TOP/Makefile.config")
+    RUN=
+    QCFLAG=-amd64-mach-o
     TIGERFLAG=-64
     XFORM=64
     ;;
@@ -158,7 +192,7 @@ fi
 # the rest of these - same fix ../runtime/Makefile and ../stdlib/Makefile
 # apply for the same reason.
 case "$BACKEND" in
-  sparc|alpha|mips|arm|riscv32|riscv64|arm64)
+  sparc|alpha|mips|arm|riscv32|riscv64|arm64|amd64|arm64-mach-o|amd64-mach-o)
     QC_AS=$CC
     QC_LD=$CC
     export QC_AS QC_LD
@@ -274,12 +308,14 @@ while read -r name src rc stdin_file; do
          -o "$B/$name" 2>"$B/$name.lderr"; then
       echo "FAIL $name (link)"; echo "$name FAIL" >> "$B/actual.txt"; continue
     fi
-  elif [ "$BACKEND" = arm64 ]; then
+  elif [ "$BACKEND" = arm64-mach-o ] || [ "$BACKEND" = amd64-mach-o ]; then
     # claude: no "-static" (Apple does not support static-linking
     # libSystem at all, unlike every Linux-hosted backend above) and no
     # "$QCPCMAP" (that linker-script fragment is GNU-ld-specific - Mach-O's
-    # ld64 has no "-T"/linker-script mechanism at all; qc--'s own -arm64
-    # backend doesn't need one, see its docs/claude_notes/notes_arm64.txt).
+    # ld64 has no "-T"/linker-script mechanism at all; qc--'s own
+    # -arm64-mach-o/-amd64-mach-o backends don't need one, see their own
+    # docs/claude_notes/notes_arm64.txt/notes_amd64.txt). Plain arm64/amd64
+    # (Linux/ELF) fall through to the ordinary branch below instead.
     if ! $CC "$RTDIR/runtime.o" "$B/$name.o" \
          "$RTDIR/stdlib.a" "$RTDIR/qcmm.a" \
          -o "$B/$name" 2>"$B/$name.lderr"; then

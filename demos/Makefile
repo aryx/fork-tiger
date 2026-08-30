@@ -70,10 +70,15 @@ BAR = build-arm
 BR32 = build-riscv32
 BR64 = build-riscv64
 BAR64 = build-arm64
+BAMD64 = build-amd64
+BAR64MO = build-arm64-mach-o
+BAMD64MO = build-amd64-mach-o
 
-.PHONY: all x86 ppc sparc alpha mips arm riscv32 riscv64 arm64 \
+.PHONY: all x86 ppc sparc alpha mips arm riscv32 riscv64 arm64 amd64 arm64-mach-o amd64-mach-o \
         run run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 run-arm64 \
-        rt rt-ppc rt-sparc rt-alpha rt-mips rt-arm rt-riscv32 rt-riscv64 rt-arm64 clean
+        run-amd64 run-arm64-mach-o run-amd64-mach-o \
+        rt rt-ppc rt-sparc rt-alpha rt-mips rt-arm rt-riscv32 rt-riscv64 rt-arm64 \
+        rt-amd64 rt-arm64-mach-o rt-amd64-mach-o clean
 
 # claude: without this, make treats the .c--/.o files below as disposable
 # intermediates of the pattern-rule chain (.tig -> .c-- -> .o -> binary)
@@ -82,9 +87,11 @@ BAR64 = build-arm64
 # only the link step needs redoing.
 .SECONDARY:
 
-all: x86 ppc sparc alpha mips arm riscv32 riscv64 arm64
+# claude: amd64 (Linux/ELF) joins the default "all" - the two -mach-o
+# variants don't, same Darwin-only reasoning as the "run" aggregate below.
+all: x86 ppc sparc alpha mips arm riscv32 riscv64 arm64 amd64
 
-$(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64):
+$(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64) $(BAMD64) $(BAR64MO) $(BAMD64MO):
 	mkdir -p $@
 
 # The runtime/stdlib system these demos link against (GC, alloc, print,
@@ -126,6 +133,18 @@ rt-riscv64:
 rt-arm64:
 	$(MAKE) -C $(TOP)/stdlib BACKEND=arm64
 	$(MAKE) -C $(TOP)/runtime BACKEND=arm64
+
+rt-amd64:
+	$(MAKE) -C $(TOP)/stdlib BACKEND=amd64
+	$(MAKE) -C $(TOP)/runtime BACKEND=amd64
+
+rt-arm64-mach-o:
+	$(MAKE) -C $(TOP)/stdlib BACKEND=arm64-mach-o
+	$(MAKE) -C $(TOP)/runtime BACKEND=arm64-mach-o
+
+rt-amd64-mach-o:
+	$(MAKE) -C $(TOP)/stdlib BACKEND=amd64-mach-o
+	$(MAKE) -C $(TOP)/runtime BACKEND=amd64-mach-o
 
 # ---------------------------------------------------------------------------
 # x86
@@ -417,21 +436,16 @@ run-riscv64: riscv64
 	done
 
 # ---------------------------------------------------------------------------
-# arm64 (byteorder little, wordsize/pointersize 64, the -arm64 backend)
+# arm64 (byteorder little, wordsize/pointersize 64, the -arm64 backend,
+# Linux/ELF - the bare/default flag of qc--'s arm64 pair)
 # ---------------------------------------------------------------------------
 # claude: same "-64" reasoning as alpha/riscv64 above - little-endian, so
 # no byteorder flip, but 64-bit, so tigerc needs "-64" to emit bits64 C--.
-# Unlike every backend above, this is this host's own native architecture
-# whenever it's an Apple Silicon Mac: no cross toolchain (CC_ARM64 is plain
-# "clang"), no QC_AS/QC_LD override needed (qc--'s own -arm64 default is
-# already "clang" - set anyway for uniformity with every backend above), no
-# "-static" (Apple does not support static-linking libSystem at all,
-# unlike every Linux-hosted backend here), and no $(QCPCMAP) on the link
-# line: that linker-script fragment is GNU-ld-specific (Mach-O's ld64 has
-# no "-T"/linker-script mechanism at all) - qc--'s own -arm64 backend
-# doesn't need one, see its docs/claude_notes/notes_arm64.txt for why
-# (ld64 auto-synthesizes the section-bounds symbols pcmap.ld would
-# otherwise define).
+# Native on an aarch64-linux host (this dev box included) - no cross
+# toolchain, no qemu; via CC_ARM64/RUN_ARM64 otherwise. Ordinary
+# Linux-hosted link ($(CC) -static ... $(QCPCMAP)), exactly like riscv64
+# above - unlike the OLD arm64 (see arm64-mach-o below), this one runs on
+# real glibc/ELF, no Apple-specific link exceptions needed.
 $(BAR64)/%.c--: %.tig | $(BAR64)
 	$(TIGERC) -64 $< > $@
 
@@ -439,8 +453,8 @@ $(BAR64)/%.o: $(BAR64)/%.c-- | $(BAR64)
 	QC_AS='$(CC_ARM64)' QC_LD='$(CC_ARM64)' $(QC) -arm64 -globals -stop .o -o $@ $<
 
 $(BAR64)/%: $(BAR64)/%.o
-	$(CC_ARM64) $(TOP)/runtime/build-arm64/runtime.o $< \
-	  $(TOP)/runtime/build-arm64/stdlib.a $(TOP)/runtime/build-arm64/qcmm.a -o $@
+	$(CC_ARM64) -static $(TOP)/runtime/build-arm64/runtime.o $< \
+	  $(TOP)/runtime/build-arm64/stdlib.a $(TOP)/runtime/build-arm64/qcmm.a $(QCPCMAP) -o $@
 
 arm64: rt-arm64
 	@$(MAKE) -k $(foreach d,$(DEMOS),$(BAR64)/$(d)) || true
@@ -455,7 +469,113 @@ run-arm64: arm64
 	  fi; \
 	done
 
-run: run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 run-arm64
+# ---------------------------------------------------------------------------
+# amd64 (byteorder little, wordsize/pointersize 64, the -amd64 backend,
+# Linux/ELF - the bare/default flag of qc--'s amd64 pair)
+# ---------------------------------------------------------------------------
+# claude: same shape as arm64 above - real glibc/ELF, ordinary
+# $(CC) -static ... $(QCPCMAP) link. Needs qemu-x86_64 to run on a non-x86_64
+# host (this dev box included); native on an x86-64 Linux host.
+$(BAMD64)/%.c--: %.tig | $(BAMD64)
+	$(TIGERC) -64 $< > $@
+
+$(BAMD64)/%.o: $(BAMD64)/%.c-- | $(BAMD64)
+	QC_AS='$(CC_AMD64)' QC_LD='$(CC_AMD64)' $(QC) -amd64 -globals -stop .o -o $@ $<
+
+$(BAMD64)/%: $(BAMD64)/%.o
+	$(CC_AMD64) -static $(TOP)/runtime/build-amd64/runtime.o $< \
+	  $(TOP)/runtime/build-amd64/stdlib.a $(TOP)/runtime/build-amd64/qcmm.a $(QCPCMAP) -o $@
+
+amd64: rt-amd64
+	@$(MAKE) -k $(foreach d,$(DEMOS),$(BAMD64)/$(d)) || true
+
+run-amd64: amd64
+	@for d in $(DEMOS); do \
+	  if [ -x $(BAMD64)/$$d ]; then \
+	    echo "=== $$d (amd64) ==="; \
+	    $(RUN_AMD64) ./$(BAMD64)/$$d; echo "[exit status $$?]"; \
+	  else \
+	    echo "=== $$d (amd64): build failed, skipping ==="; \
+	  fi; \
+	done
+
+# ---------------------------------------------------------------------------
+# arm64-mach-o (byteorder little, wordsize/pointersize 64, the
+# -arm64-mach-o backend) - the OLD arm64 behaviour, before qc-- grew a
+# Linux/ELF -arm64 (see qc--'s docs/claude_notes/notes_arm64.txt)
+# ---------------------------------------------------------------------------
+# claude: this is this host's own native architecture whenever it's an
+# Apple Silicon Mac: no cross toolchain (CC_ARM64_MACHO is plain "clang"),
+# no QC_AS/QC_LD override needed (qc--'s own -arm64-mach-o default is
+# already "clang" - set anyway for uniformity with every backend above), no
+# "-static" (Apple does not support static-linking libSystem at all,
+# unlike every Linux-hosted backend here), and no $(QCPCMAP) on the link
+# line: that linker-script fragment is GNU-ld-specific (Mach-O's ld64 has
+# no "-T"/linker-script mechanism at all) - qc--'s own -arm64-mach-o
+# backend doesn't need one, see its docs/claude_notes/notes_arm64.txt for
+# why (ld64 auto-synthesizes the section-bounds symbols pcmap.ld would
+# otherwise define). Only ever buildable on Darwin - CC_ARM64_MACHO is
+# empty everywhere else, so this target's own sub-make will fail there,
+# same as every other missing optional toolchain.
+$(BAR64MO)/%.c--: %.tig | $(BAR64MO)
+	$(TIGERC) -64 $< > $@
+
+$(BAR64MO)/%.o: $(BAR64MO)/%.c-- | $(BAR64MO)
+	QC_AS='$(CC_ARM64_MACHO)' QC_LD='$(CC_ARM64_MACHO)' $(QC) -arm64-mach-o -globals -stop .o -o $@ $<
+
+$(BAR64MO)/%: $(BAR64MO)/%.o
+	$(CC_ARM64_MACHO) $(TOP)/runtime/build-arm64-mach-o/runtime.o $< \
+	  $(TOP)/runtime/build-arm64-mach-o/stdlib.a $(TOP)/runtime/build-arm64-mach-o/qcmm.a -o $@
+
+arm64-mach-o: rt-arm64-mach-o
+	@$(MAKE) -k $(foreach d,$(DEMOS),$(BAR64MO)/$(d)) || true
+
+run-arm64-mach-o: arm64-mach-o
+	@for d in $(DEMOS); do \
+	  if [ -x $(BAR64MO)/$$d ]; then \
+	    echo "=== $$d (arm64-mach-o) ==="; \
+	    ./$(BAR64MO)/$$d; echo "[exit status $$?]"; \
+	  else \
+	    echo "=== $$d (arm64-mach-o): build failed, skipping ==="; \
+	  fi; \
+	done
+
+# ---------------------------------------------------------------------------
+# amd64-mach-o (byteorder little, wordsize/pointersize 64, the
+# -amd64-mach-o backend) - the OLD amd64 behaviour
+# ---------------------------------------------------------------------------
+# claude: same Apple-specific link exceptions as arm64-mach-o above
+# (no -static, no $(QCPCMAP)), but cross-assembled via "clang -arch
+# x86_64" and run under Rosetta 2 rather than natively - only ever
+# buildable/runnable on Darwin.
+$(BAMD64MO)/%.c--: %.tig | $(BAMD64MO)
+	$(TIGERC) -64 $< > $@
+
+$(BAMD64MO)/%.o: $(BAMD64MO)/%.c-- | $(BAMD64MO)
+	QC_AS='$(CC_AMD64_MACHO)' QC_LD='$(CC_AMD64_MACHO)' $(QC) -amd64-mach-o -globals -stop .o -o $@ $<
+
+$(BAMD64MO)/%: $(BAMD64MO)/%.o
+	$(CC_AMD64_MACHO) $(TOP)/runtime/build-amd64-mach-o/runtime.o $< \
+	  $(TOP)/runtime/build-amd64-mach-o/stdlib.a $(TOP)/runtime/build-amd64-mach-o/qcmm.a -o $@
+
+amd64-mach-o: rt-amd64-mach-o
+	@$(MAKE) -k $(foreach d,$(DEMOS),$(BAMD64MO)/$(d)) || true
+
+run-amd64-mach-o: amd64-mach-o
+	@for d in $(DEMOS); do \
+	  if [ -x $(BAMD64MO)/$$d ]; then \
+	    echo "=== $$d (amd64-mach-o) ==="; \
+	    ./$(BAMD64MO)/$$d; echo "[exit status $$?]"; \
+	  else \
+	    echo "=== $$d (amd64-mach-o): build failed, skipping ==="; \
+	  fi; \
+	done
+
+# claude: amd64 (Linux/ELF) is added to the default all/run aggregates,
+# same status as every other Linux-hosted backend above - the two -mach-o
+# variants are NOT (Darwin-only, would just fail/skip on every other host);
+# invoke them explicitly ("make arm64-mach-o", "make run-amd64-mach-o").
+run: run-x86 run-ppc run-sparc run-alpha run-mips run-arm run-riscv32 run-riscv64 run-arm64 run-amd64
 
 clean:
-	rm -rf $(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64)
+	rm -rf $(BX) $(BP) $(BS) $(BA) $(BM) $(BAR) $(BR32) $(BR64) $(BAR64) $(BAMD64) $(BAR64MO) $(BAMD64MO)

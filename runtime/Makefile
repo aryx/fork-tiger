@@ -88,9 +88,11 @@ else ifeq ($(BACKEND),arm64)
 # claude: also 64-bit (wordsize/pointersize 64), like alpha/riscv64 above -
 # same XFORM=64 rewrite (verified byte-for-byte against qc--'s own
 # tests/tiger64/regenerate-arm64.sh, which applies the identical sed
-# transforms by hand). Unlike every backend above, CC_ARM64 needs no cross
-# toolchain at all on an Apple Silicon Mac - it's this host's own native
-# architecture (see configure's own arm64 comment).
+# transforms by hand). Linux/ELF (qc--'s -arm64 bare flag) - native on an
+# aarch64-linux host (this dev box included), via CC_ARM64's cross
+# toolchain/qemu otherwise, same as every other Linux backend above; see
+# configure's own arm64 comment. The OLD macOS-only Mach-O behaviour lives
+# under BACKEND=arm64-mach-o below instead.
 CC           = $(CC_ARM64)
 AR           = $(AR_ARM64)
 QCFLAG       = -arm64
@@ -98,13 +100,45 @@ B            = build-arm64
 STDLIBDIR    = ../stdlib/build-arm64
 XFORM        = 64
 GLOBALS_DECL = bits64 alloc_ptr;
+else ifeq ($(BACKEND),amd64)
+# claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same XFORM=64 as
+# every other 64-bit backend. Needs qemu-x86_64 to run on this (aarch64)
+# dev host; native on an x86-64 Linux host.
+CC           = $(CC_AMD64)
+AR           = $(AR_AMD64)
+QCFLAG       = -amd64
+B            = build-amd64
+STDLIBDIR    = ../stdlib/build-amd64
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
+else ifeq ($(BACKEND),arm64-mach-o)
+# claude: the OLD arm64 behaviour, before qc-- grew a Linux/ELF -arm64
+# (see configure's own arm64-mach-o comment) - macOS/Mach-O only, native on
+# Apple Silicon, no cross toolchain.
+CC           = $(CC_ARM64_MACHO)
+AR           = $(AR_ARM64_MACHO)
+QCFLAG       = -arm64-mach-o
+B            = build-arm64-mach-o
+STDLIBDIR    = ../stdlib/build-arm64-mach-o
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
+else ifeq ($(BACKEND),amd64-mach-o)
+# claude: the OLD amd64 behaviour - macOS/Mach-O only, cross-assembled via
+# "clang -arch x86_64", runs under Rosetta 2 on Apple Silicon.
+CC           = $(CC_AMD64_MACHO)
+AR           = $(AR_AMD64_MACHO)
+QCFLAG       = -amd64-mach-o
+B            = build-amd64-mach-o
+STDLIBDIR    = ../stdlib/build-amd64-mach-o
+XFORM        = 64
+GLOBALS_DECL = bits64 alloc_ptr;
 else
-$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64 or arm64)
+$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64, amd64, arm64-mach-o or amd64-mach-o)
 endif
 
 # See stdlib/Makefile's identical block for why this is needed for these
-# seven backends and not x86/ppc.
-ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64),$(BACKEND))
+# backends and not x86/ppc.
+ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64 amd64 arm64-mach-o amd64-mach-o),$(BACKEND))
 export QC_AS := $(CC)
 export QC_LD := $(CC)
 endif
@@ -218,14 +252,26 @@ $(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibc
 .PHONY: FORCE
 FORCE:
 
+# claude: QCLIB's own installed Makefile predates qc--'s arm64/amd64
+# Linux/ELF rename (it still only knows BACKEND names "arm64"/"amd64",
+# meaning what this repo now calls arm64-mach-o/amd64-mach-o) - map the
+# two -mach-o names down to the plain ones it recognizes (right choice of
+# GLOBALS_DECL/CONTOBJ filename either way - arm64cont.s/amd64cont.s are
+# the same trap stub regardless of ELF vs Mach-O, an ISA property not an
+# OS one), and separately force QCFLAG on the command line to the REAL
+# flag (-arm64-mach-o/-amd64-mach-o) - a command-line variable always wins
+# over that Makefile's own per-BACKEND "QCFLAG = -arm64" assignment, same
+# reasoning as CC32 below.
+QCLIB_BACKEND = $(patsubst %-mach-o,%,$(BACKEND))
+
 $(B)/qcmm.a: FORCE | $(B)
-	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(BACKEND) QC=$(QC) CC32="$(CC)" \
-	  GLOBALS_DECL='$(GLOBALS_DECL)'
+	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(QCLIB_BACKEND) QCFLAG='$(QCFLAG)' \
+	  QC=$(QC) CC32="$(CC)" GLOBALS_DECL='$(GLOBALS_DECL)'
 	cp $(B)/qcmm/libqcmm.a $@
 
 clean::
 	rm -f *.o *.a
-	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64 build-arm64
+	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64 build-arm64 build-amd64 build-arm64-mach-o build-amd64-mach-o
 
 clean::
 	rm -f alloc.s runtime.s
