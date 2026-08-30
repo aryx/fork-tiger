@@ -200,16 +200,22 @@ let compare_int op ex1 ex2 =
  * 32-bit value read as an unsigned/zero-extended 64-bit one (i.e. >=
  * 2^31), subtract 2^32 to recover the true signed value. This is a no-op
  * whenever the value is already correctly sign-extended (a genuine
- * negative 64-bit number is never >= 2^31), so the same code is correct
- * on every backend with no Option.arch64 special-casing needed. *)
+ * negative 64-bit number is never >= 2^31) - but the correction can only
+ * even apply when native words are wider than the 32-bit result being
+ * corrected, so it's guarded on Option.arch64: on a 32-bit backend, raw
+ * already IS the 32-bit register, and the correction's own literals
+ * (2^31, 2^32) don't fit as bits32 C-- constants there - qc-- rejects
+ * them outright rather than treating this as the intended no-op. *)
 let compare_str op ex1 ex2 =
   let raw  = ext_c_call "compare_str" [ex1;ex2] in
-  let traw = temp false in
-  let tmp  = temp false in
-  let tru  = T.new_label "negCorrect" in
-  let fls  = T.new_label "noCorrect" in
-  let end' = T.new_label "correctEnd" in
   let result =
+    if not !Option.arch64 then raw
+    else
+    let traw = temp false in
+    let tmp  = temp false in
+    let tru  = T.new_label "negCorrect" in
+    let fls  = T.new_label "noCorrect" in
+    let end' = T.new_label "correctEnd" in
     eseq tmp
       [ raw => traw
       ; T.CJUMP(T.RELOP(T.GE, traw, T.CONST 0x80000000), tru, fls)
