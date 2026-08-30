@@ -25,6 +25,9 @@ all::
 	$(MAKE) -C runtime BACKEND=$(DEFAULT_BACKEND)
 clean::
 	dune clean
+	$(MAKE) -C stdlib BACKEND=$(DEFAULT_BACKEND) clean
+	$(MAKE) -C runtime BACKEND=$(DEFAULT_BACKEND) clean
+	$(MAKE) -C demos clean
 install::
 	dune install
 uninstall::
