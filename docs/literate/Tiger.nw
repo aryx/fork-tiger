@@ -2502,7 +2502,7 @@ let alloc_string s =
 val field_var     : Tree.exp -> int -> Tree.is_ptr -> Tree.exp
 @
 <<function [[Translate.field_var]]>>=
-let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws), ptr)
+let field_var ex i ptr = T.MEM(ex <+> T.CONST(i * ws()), ptr)
 @ 
 % has already done offsetization in caller 
 % (but assume all fields have the same width, hmmm)
@@ -2523,10 +2523,14 @@ let simplify tig_op op =
 @
 
 <<constant Translate.ws>>=
-(* claude: target is always 32-bit x86 (qc-- only emits i386), regardless of
- * the host OCaml runtime's word size, so this must be a fixed constant and
- * not derived from Sys.word_size. *)
-let  ws    = 4
+(* claude: word size follows -64 (Frame.ws/Option.arch64), not the host
+ * OCaml runtime's word size - qc-- emits i386 by default (32-bit) or,
+ * under -64, a 64-bit backend such as alpha, but never the host's own
+ * width, so this can't be derived from Sys.word_size either way. Reads as
+ * a function call, not a constant, since Option.arch64 is only set once
+ * Option.parse_cmdline() runs in Main.main, which is after this module's
+ * own top-level bindings would otherwise have been evaluated. *)
+let  ws()  = F.ws()
 @
 %less: hmm size in bytes so rename wsb?
 
@@ -2540,7 +2544,7 @@ val subscript_var : Tree.exp -> Tree.exp -> Tree.is_ptr -> int -> Tree.exp
 let subscript_var e1 e2 ptr pos =
   let check = ext_c_call "bounds_check"
                         [e1;e2;T.CONST(fst (Error.line_number pos))] in
-  let offset = (e2 <+> T.CONST 1) <*> T.CONST ws in
+  let offset = (e2 <+> T.CONST 1) <*> T.CONST (ws()) in
   eseq (T.MEM(e1 <+> offset, ptr)) [T.EXP check]
 @
 % nice, bound checks.
@@ -2555,7 +2559,7 @@ val simple_var    : Frame.frame -> Frame.access -> Tree.exp
 <<function [[Translate.simple_var]]>>=
 let simple_var frm = function
   | F.Stack(var_frm, offset, ptr) ->
-      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws), ptr)
+      T.MEM(getfp frm var_frm <+> T.CONST(offset * ws()), ptr)
 @ 
 %old:  | F.Temp lbl ->   T.NAME lbl
 
@@ -2652,7 +2656,7 @@ let new_array sizeEx initEx ptr =
       sizeEx => T.MEM(ary, false);
       T.CONST 1 => i;
       T.LABEL lbeg;
-      initEx => T.MEM (ary <+> (i <*> T.CONST ws), ptr);
+      initEx => T.MEM (ary <+> (i <*> T.CONST (ws())), ptr);
       i <+> T.CONST 1 => i;
       T.CJUMP(T.RELOP(T.LE, i, sizeEx <+> T.CONST 1), lbeg, lend);
       T.LABEL lend ]
@@ -2696,8 +2700,50 @@ let compare_int op ex1 ex2 =
 @
 
 <<function [[Translate.compare_str]]>>=
+(* claude: tig_compare_str is a real C function returning a plain 32-bit
+ * `int` (stdlib.c) - unlike every other imported runtime helper, which
+ * genuinely is native-word-sized (a pointer, or C-- itself). This IR has
+ * no notion of a narrower-than-native integer at all (Tree.ml's exp/temp
+ * carry no width field - everything is implicitly native-word), which
+ * was never a problem in the original 32-bit-only compiler (bits32 ==
+ * native word then, by definition) but is exposed now that -64 makes the
+ * two diverge: on qc--'s -arm64 backend, a negative result (e.g.
+ * strncmp's -1) came back as a huge positive 64-bit number instead,
+ * because AArch64 architecturally zero-extends a 32-bit register write
+ * into the corresponding 64-bit register - it does not know or care that
+ * the value was "supposed to" be sign-extended. (RISC-V64's LP64 calling
+ * convention happens to sign-extend automatically, which is why this
+ * was never caught there.)
+ *
+ * Fixed with a plain arithmetic correction instead of threading a real
+ * bits32 type through the IR: if the raw result looks like a negative
+ * 32-bit value read as an unsigned/zero-extended 64-bit one (i.e. >=
+ * 2^31), subtract 2^32 to recover the true signed value. This is a no-op
+ * whenever the value is already correctly sign-extended (a genuine
+ * negative 64-bit number is never >= 2^31) - but the correction can only
+ * even apply when native words are wider than the 32-bit result being
+ * corrected, so it's guarded on Option.arch64: on a 32-bit backend, raw
+ * already IS the 32-bit register, and the correction's own literals
+ * (2^31, 2^32) don't fit as bits32 C-- constants there - qc-- rejects
+ * them outright rather than treating this as the intended no-op. *)
 let compare_str op ex1 ex2 =
-  let result = ext_c_call "compare_str" [ex1;ex2] in
+  let raw  = ext_c_call "compare_str" [ex1;ex2] in
+  let result =
+    if not !Option.arch64 then raw
+    else
+    let traw = temp false in
+    let tmp  = temp false in
+    let tru  = T.new_label "negCorrect" in
+    let fls  = T.new_label "noCorrect" in
+    let end' = T.new_label "correctEnd" in
+    eseq tmp
+      [ raw => traw
+      ; T.CJUMP(T.RELOP(T.GE, traw, T.CONST 0x80000000), tru, fls)
+      ; T.LABEL tru; (traw <-> T.CONST 0x100000000) => tmp; goto end'
+      ; T.LABEL fls; traw => tmp
+      ; T.LABEL end'
+      ]
+  in
   compare_int op result (T.CONST 0)
 @
 % will see ext_c_call below
@@ -3050,7 +3096,7 @@ Frame.output_strings();
 % (Translate.new_record | Translate.new_array) -> <>
 <<function Translate.alloc>>=
 let alloc size =
-  let size = (size <+> T.CONST 1) <*> T.CONST ws in
+  let size = (size <+> T.CONST 1) <*> T.CONST (ws()) in
   let test = T.RELOP(T.GT, alloc_ptr <+> size, space_end) in
   let tmp  = temp true in
   let tru  = T.new_label "alc_gc" in
@@ -3059,7 +3105,7 @@ let alloc size =
              T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
              T.LABEL fls;
              size => T.MEM(alloc_ptr, true);
-             (alloc_ptr <+> T.CONST ws) => tmp;
+             (alloc_ptr <+> T.CONST (ws())) => tmp;
              (alloc_ptr <+> size) => alloc_ptr
             ]
 @
@@ -3274,9 +3320,11 @@ let raise_exn uid =
 
 <<command line flags>>=
 let unwind = ref false
+let arch64 = ref false
 @
 <<command line options>>=
 "-unwind",   Arg.Set unwind, "\tuse unwind continuations for exceptions";
+"-64",       Arg.Set arch64, "\temit bits64 C-- (wordsize/pointersize 64) for a 64-bit qc-- backend (e.g. alpha), instead of the default 32-bit bits32";
 @
 
 

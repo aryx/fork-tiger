@@ -153,6 +153,7 @@ val dump_ext     : bool ref
 val dump_lext    : bool ref
 
 val unwind    : bool ref
+val arch64    : bool ref
 val file      : string ref
 <<signature global Option.inch>>
 @
@@ -1651,6 +1652,9 @@ type frame
 val fp    : frame -> Tree.exp
 val name  : frame -> Tree.label
 val level : frame -> int
+val ws       : unit -> int
+val bits_str : unit -> string
+val align    : unit -> int
 @
 
 
@@ -1770,6 +1774,16 @@ let alloc_temp frm name ptr =
 <<frame.ml>>=
 <<global Frame.strings>>
 <<function [[Frame.alloc_string]]>>
+(* claude: cell width/alignment follow -64 (Option.arch64). qc-- ties this
+ * to the "target ... wordsize N pointersize N" pragma Codegen emits, which
+ * must match the chosen qc-- backend's metrics exactly - verified against
+ * the installed qc's -x86 backend, which rejects a wordsize-64 pragma with
+ * "metrics of source code don't match the target". So every stack slot,
+ * global and memory access width has to track this too, not just the
+ * pragma line. *)
+let ws()       = if !Option.arch64 then 8 else 4
+let bits_str() = if !Option.arch64 then "bits64" else "bits32"
+let align()    = if !Option.arch64 then 8 else 4
 @ 
 
 %%The output functions are a bit tedious to write and even more tedious
@@ -1791,13 +1805,14 @@ let iter_ndx f   = let n   = ref(-1) in
 %%parameters, and declaring of all temporaries.
 <<frame.ml>>=
 let output_header frm =
-  let param  (p,_) = spf "bits32 %s" (S.name p)
-  and init n (p,_) = pf "  bits32[fp+%d] = %s;\n" (4*n) (S.name p)
-  and temp   (t,_) = pf "  bits32 %s;\n" (S.name t)
+  let bits          = bits_str() in
+  let param  (p,_) = spf "%s %s" bits (S.name p)
+  and init n (p,_) = pf "  %s[fp+%d] = %s;\n" bits (ws()*n) (S.name p)
+  and temp   (t,_) = pf "  %s %s;\n" bits (S.name t)
   and name         = (S.name frm.name) in
   pf "%s(%s) {\n" name (join_map param frm.params);
   pf " span 1 %s_gc_data {\n" name;
-  pf "  stackdata { align 4; fp : bits32[%d]; }\n" frm.size;
+  pf "  stackdata { align %d; fp : %s[%d]; }\n" (align()) bits frm.size;
   iter_ndx  init frm.params;
   List.iter temp frm.temps
 @
@@ -1808,14 +1823,27 @@ let output_header frm =
 %%pointer information for the [[C--]] variables.
 <<frame.ml>>=
 let output_footer frm =
+  (* claude: under -64 a bare integer literal's default width tracks the
+   * target's native word size (qc-- elab/elabexp.ml: "const
+   * metrics.M.wordsize"), i.e. 64, which then fails elaboration against
+   * these tables' declared bits32 element type ("type of an initial value
+   * does not match declared type bits32", confirmed against the installed
+   * qc). So under -64 each literal needs an explicit "::bits32" suffix;
+   * leave the 32-bit case untouched (word size already matches) to keep
+   * the existing recorded test baseline unchanged. *)
+  let suffix = if !Option.arch64 then "::bits32" else "" in
   let var_data vl =
     let int_of_var (_,p) = if p then 1 else 0 in
     let data = List.length vl :: List.map int_of_var vl in
-    join_map string_of_int data
+    join_map (fun i -> string_of_int i ^ suffix) data
   in
   pf "}}\n";
   pf "section \"data\" {\n";
   pf " %s_gc_data:\n" (S.name frm.name);
+  (* claude: these GC descriptor tables are counts and 0/1 pointer flags,
+   * not Tiger-value words, and runtime/gc.c reads them as plain 4-byte
+   * "unsigned"/"int" regardless of target - so unlike everything else in
+   * this file they intentionally stay bits32 even under -64. *)
   pf "   bits32[] { %s };\n" (var_data (frm.params @ List.rev frm.vars));
   pf "   bits32[] { %s };\n" (var_data (frm.params @ frm.temps));
   pf "}\n\n"
@@ -1829,10 +1857,10 @@ let output_strings() =
   let print_string str lbl =
     let len = String.length str
     and str = String.escaped str in
-    pf " %s: bits32 { %d }; bits8[] \"%s\\000\";\n"
-       (S.name lbl) len str
+    pf " %s: %s { %d }; bits8[] \"%s\\000\";\n"
+       (S.name lbl) (bits_str()) len str
   in
-  pf "section \"data\" { align 4;\n";
+  pf "section \"data\" { align %d;\n" (align());
   H.iter print_string strings;
   pf "}\n\n"
 @
@@ -1880,11 +1908,20 @@ let join_map f l = String.concat "," (List.map f l)
 %%
 <<codegen.ml>>=
 let output_file_header imports =
-  let pr_import x = pf "import bits32 \"tig_%s\" as %s;\n" x x in
-  pf "target byteorder little;\n";
+  let bits        = Frame.bits_str() in
+  let pr_import x = pf "import %s \"tig_%s\" as %s;\n" bits x x in
+  (* claude: -64 (Option.arch64) needs "wordsize 64 pointersize 64" on this
+   * line - qc-- checks the source's declared metrics against the chosen
+   * backend's and refuses to proceed on a mismatch (confirmed against the
+   * installed qc's -x86 backend: "metrics of source code don't match the
+   * target"). x86/ppc are also wordsize 32, but leave their output as-is
+   * (no clause at all) rather than making them declare it explicitly, to
+   * keep the existing recorded test baseline unchanged. *)
+  pf "target byteorder little%s;\n"
+     (if !Option.arch64 then " wordsize 64 pointersize 64" else "");
   List.iter pr_import imports;
   pf "export tiger_main;\n\n";
-  pf "bits32 alloc_ptr;\n";
+  pf "%s alloc_ptr;\n" bits;
   pf "import space_end;\n\n"
 @
 
@@ -1936,8 +1973,14 @@ let emit exl =
   and valexp = function
       T.BINOP(bop, e1, e2)  -> spf "%%%s(%s, %s)"
                                (T.cmm_binop bop) (valexp e1) (valexp e2)
-    | T.RELOP _ as e        -> spf "%%sx32(%%bit(%s))" (boolexp e)
-    | T.MEM(e,_ptr)          -> spf "bits32[%s]" (valexp e)
+    (* claude: this widens a 1-bit comparison result into a full Tiger
+     * value, so the extend width has to track word size (Frame.ws()/
+     * Option.arch64) exactly like everything else in this file - a bare
+     * %sx32 fed into a bits64 temp fails elaboration ("location of type
+     * bits64 cannot hold value of type bits32", confirmed against the
+     * installed qc). *)
+    | T.RELOP _ as e        -> spf "%%sx%d(%%bit(%s))" (Frame.ws()*8) (boolexp e)
+    | T.MEM(e,_ptr)          -> spf "%s[%s]" (Frame.bits_str()) (valexp e)
     | T.TEMP(t,_ptr)         -> spf "%s" (S.name t)
     | T.NAME l              -> (S.name l)
     | T.CONST i             -> string_of_int i
