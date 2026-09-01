@@ -121,7 +121,20 @@ let output_footer frm =
     join_map (fun i -> string_of_int i ^ suffix) data
   in
   pf "}}\n";
-  pf "section \"data\" {\n";
+  (* claude: was "section \"data\" {\n" with no alignment, unlike
+   * output_strings's own "section \"data\" { align %d;\n" two functions
+   * below - runtime/gc.c reads every word of this table as a plain 4-byte
+   * "unsigned" (see the comment on the bits32[] lines below), but x86/ppc
+   * silently tolerate an unaligned word load while SPARC traps (SIGBUS).
+   * Landed on a misaligned address purely by data-layout luck (4 of 5
+   * spot-checked fork-c-- sparc tiger tests; qsort/arrays/colmajor/merge
+   * misaligned, queens happened to land aligned) - same bug class as the
+   * already-fixed curr_exn global (fork-c--'s
+   * notes_debugging_techniques.txt entry 33), just for this table
+   * instead. Confirmed via fork-c--: qsort's SIGBUS was reading
+   * spans[1]'s pointed-to descriptor, tiger_main_gc_data, at real linked
+   * address 0xb013a (0xb013a & 3 = 2). *)
+  pf "section \"data\" { align %d;\n" (align());
   pf " %s_gc_data:\n" (S.name frm.name);
   (* claude: these GC descriptor tables are counts and 0/1 pointer flags,
    * not Tiger-value words, and runtime/gc.c reads them as plain 4-byte
