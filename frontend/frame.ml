@@ -149,6 +149,19 @@ let output_strings() =
   let print_string str lbl =
     let len = String.length str
     and str = String.escaped str in
+    (* claude: the section-level "align %d;" below only guarantees the
+     * FIRST entry starts aligned - each string's payload
+     * (bits8[]"str\000") is a variable length, so without a fresh align
+     * here too every entry after the first drifts to whatever offset
+     * the previous string's length happened to leave it at. This table
+     * is read back as bits32 words (the leading length field) by
+     * runtime/gc.c and the tig_* stdlib (tig_size/tig_compare_str/...);
+     * x86/ppc silently tolerate an unaligned word load, SPARC traps
+     * (SIGBUS) - same bug class fixed for output_footer's own
+     * _gc_data table just above, just needing a per-entry fix here
+     * instead of a once-per-section one, since that table's every field
+     * is already word-sized throughout. *)
+    pf " align %d;\n" (align());
     pf " %s: %s { %d }; bits8[] \"%s\\000\";\n"
        (S.name lbl) (bits_str()) len str
   in
