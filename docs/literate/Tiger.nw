@@ -1190,7 +1190,10 @@ module S = Symbol
 %start program
 <<rule type declarations>>
 
-/* %expect 63 */
+/* claude: the grammar is conflict-free ("ocamlyacc -v parser.mly" ->
+ * "0 shift/reduce conflicts"); see notes_conflicts.txt for how the
+ * conflicts that used to exist here were resolved via the precedence
+ * declarations above and the %prec annotations below. */
 
 %%
 <<grammar>>
@@ -1318,7 +1321,7 @@ id: ID { S.symbol $1 };
 
 <<rule [[type_decs]]>>=
 type_decs:
-   type_dec           { $1 :: [] }
+   type_dec           %prec TYPE { $1 :: [] }
  | type_dec type_decs { $1 :: $2 }
 ;
 type_dec:
@@ -1338,7 +1341,7 @@ type_dec:
 
 <<rule [[fun_decs]]>>=
 fun_decs:
-   fun_dec          { $1 :: [] }
+   fun_dec          %prec FUNCTION { $1 :: [] }
  | fun_dec fun_decs { $1 :: $2 }
 
 fun_dec:
@@ -1398,7 +1401,7 @@ literal:
    This rule is overly explicit to avoid conflicts with 
    the construction rule below */
 lvalue:
- | id                        { mkSimpleVar $1 }
+ | id                        %prec LBRACK { mkSimpleVar $1 }
  | id LBRACK expr RBRACK     { mkSubscriptVar (mkSimpleVar $1) $3 }
 
  | lvalue DOT id             { mkFieldVar $1 $3 }
@@ -1416,6 +1419,12 @@ lvalue:
 \subsection{Arithmetic}
 
 <<token priorities>>=
+/* claude: the TYPE/FUNCTION/HANDLE/LBRACK/DO/OF/THEN/ELSE precedences
+ * below exist only to silence shift/reduce conflicts, not to order real
+ * operators against each other -- see notes_conflicts.txt. */
+%right TYPE FUNCTION HANDLE LBRACK
+%nonassoc DO OF THEN
+%nonassoc ELSE
 %nonassoc ASSIGN
 %left AND OR
 %nonassoc EQ NEQ GT LT GE LE
@@ -2348,12 +2357,28 @@ in
       check_type_eq  pos
         "type of then expression (%s) does not match else (%s)" tty ety;
       let typ = base_type env tty in
-      (* claude: a UNIT-typed branch (e.g. a print() call) has no
-       * meaningful value - force both branches to the canonical nil
-       * instead of merging whatever garbage was left in the result
-       * register. See Translate.discard. *)
+      (* claude: only force-discard when there's no else branch - see
+       * this function's own git history for the original bug this was
+       * fixing: an if-with-no-else's implicit else is Trans.nil (a
+       * real, defined 0, set just above), so a unit-typed then-branch
+       * (e.g. a bare print() call) leaking its OWN raw return value
+       * only on the taken path produced an inconsistent, branch-
+       * dependent exit code (colmajor: 0 normally, a stray byte count
+       * on the rare branch that actually printed). But an if-WITH-an-
+       * else where both branches are unit-typed (e.g. printlist's
+       * `if l = nil then print("\n") else (...; printlist(rest))`) has
+       * no such inconsistency - both arms already produce a real,
+       * well-defined value on every call, and qc--'s C-- backend needs
+       * SOME return value regardless of Tiger's own "unit" typing
+       * (Translate.func always does `body => tmp; T.RET tmp`) - so
+       * that value ends up propagating all the way to tiger_main's own
+       * return, i.e. the process exit code. Discarding both branches
+       * unconditionally (the previous fix's real bug) silently forced
+       * that to 0 - confirmed against upstream qc--'s own checked-in
+       * tiger/merge.c-- reference and its rc=1 baseline, both of which
+       * expect the taken branch's real value to survive. *)
       let tex, eex =
-        if typ = UNIT then (Trans.discard tex, Trans.discard eex)
+        if typ = UNIT && else' = None then (Trans.discard tex, Trans.discard eex)
         else (tex, eex)
       in
       (Trans.ifexp iex tex eex (is_ptr typ), typ)
@@ -3101,8 +3126,20 @@ let alloc size =
   let tmp  = temp true in
   let tru  = T.new_label "alc_gc" in
   let fls  = T.new_label "alc" in
+  (* claude: pass the requested size through to call_gc/tig_gc, not just a
+   * bare trigger - a copying collector can free up AT MOST heap_size
+   * bytes per cycle, so "gc once, then proceed unconditionally" silently
+   * overflows past space_end whenever a single object's size exceeds
+   * what's available even in a freshly-collected, empty semispace (a real
+   * bug found via qc--'s -arm64/-riscv64/-alpha backends: a
+   * stringlist[1024] array needs more room than either 64-bit semispace
+   * had, and the resulting write past space_end corrupted an unrelated,
+   * later malloc() call's arena bookkeeping - "malloc(): corrupted top
+   * size" - rather than failing anywhere near the actual overflow).
+   * tig_gc now uses this to grow the heap on the spot if collecting
+   * alone didn't free enough room - see runtime/gc.c's own comment. *)
   eseq tmp [ T.CJUMP(test, tru, fls);
-             T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
+             T.LABEL tru; T.EXP (ext_gc_call "call_gc" [size]);
              T.LABEL fls;
              size => T.MEM(alloc_ptr, true);
              (alloc_ptr <+> T.CONST (ws())) => tmp;
@@ -3207,7 +3244,7 @@ handler:
    HANDLE id expr END         { mkHandler $2 $3 }
 
 handlers:
-   handler          { $1 :: [] }
+   handler          %prec HANDLE { $1 :: [] }
  | handler handlers { $1 :: $2 }
 @
 %$

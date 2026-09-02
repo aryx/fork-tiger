@@ -54,3 +54,5 @@ sync_runtime:VI:
 	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlib.c
 	syncweb $SYNCFLAGS2 $SRC_ORIG $TOP/stdlib/stdlibcmm.c--
 	syncweb $SYNCFLAGS3 $SRC_ORIG $TOP/parsing/parser.mly
+
+sync_others:V: sync_runtime
