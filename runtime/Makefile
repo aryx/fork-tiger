@@ -171,7 +171,7 @@ $(B)/qcmm.a: FORCE | $(B)
 
 clean::
 	rm -f *.o *.a
-	rm -rf qcmm build-ppc build-sparc build-alpha build-mips build-arm build-riscv32 build-riscv64 build-arm64 build-amd64 build-arm64-mach-o build-amd64-mach-o
+	rm -rf qcmm $(addprefix build-,$(ARCHS))
 
 clean::
 	rm -f alloc.s runtime.s
