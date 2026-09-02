@@ -19,16 +19,19 @@ WORKDIR /src
 
 # Install dependencies
 COPY tigerc.opam configure ./
+COPY libs/commons/commons.opam libs/commons/
+COPY caps/caps.opam caps/
 # no need to install anything for now?
 #RUN ./configure
-RUN opam install --deps-only -y .
+RUN opam install --deps-only -y ./tigerc.opam ./libs/commons/commons.opam ./caps/caps.opam
 
 # Now let's build from source
 COPY . .
 
 # Build
-RUN eval $(opam env) && make
+RUN eval $(opam env) && dune build
+#TODO: for make we also need qc installed and qc--runtime.h etc.
 
 # Test
-#RUN make test
 RUN ./bin/tigerc --help
+#TODO RUN make test
