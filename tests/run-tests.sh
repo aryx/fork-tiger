@@ -30,7 +30,12 @@
 # so non-x86 backends need their own transform applied to tigerc's output
 # before qc will accept it, mirroring exactly what ../runtime/Makefile and
 # ../stdlib/Makefile already apply to the runtime/stdlib .c-- sources (see
-# those Makefiles' XFORM comments for the fuller reasoning):
+# those Makefiles' XFORM comments for the fuller reasoning). Which of the
+# four (none/big/arm/64) a given BACKEND needs isn't hand-listed in this
+# script any more - it's read from Makefile.config's XFORM_<ARCH>
+# (../configure asks qc--'s own -print-metrics and derives it - see
+# ../Makefile.backends' header), keyed off ../Makefile.backends' backend.
+# <name> table below:
 #   none - mips, riscv32: already 32-bit little-endian ieee754, no change
 #   big  - ppc, sparc: byteorder little -> big
 #   arm  - splice float "none" (arm has no FPU)
@@ -68,115 +73,56 @@ cd "$here"
 TOP=..
 
 BACKEND=${BACKEND:-x86}
-case "$BACKEND" in
-  x86|ppc|sparc|alpha|mips|arm|riscv32|riscv64|arm64|amd64|arm64-mach-o|amd64-mach-o) ;;
-  *) echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64, amd64, arm64-mach-o or amd64-mach-o)" >&2; exit 2 ;;
-esac
 
 if [ ! -f "$TOP/Makefile.config" ]; then
   echo "run-tests.sh: no ../Makefile.config; run ./configure first" >&2
   exit 2
 fi
+if [ ! -f "$TOP/Makefile.backends" ]; then
+  echo "run-tests.sh: no ../Makefile.backends" >&2
+  exit 2
+fi
+
+# claude: this used to be a ~90-line case statement, one branch per
+# backend, each hardcoding that backend's Makefile.config variable names
+# and XFORM/TIGERFLAG - duplicated near-verbatim in stdlib/Makefile and
+# runtime/Makefile's own (now similarly collapsed) ifeq chains. Backend
+# data now lives in exactly one place, ../Makefile.backends (see its own
+# header) - CCVAR is the CC_<ARCH> variable name ./configure wrote into
+# Makefile.config for $BACKEND (CC32 for x86 - the one irregular name);
+# ARVAR/RUNVAR/XFORMVAR aren't hand-listed there at all, just CCVAR with
+# its "CC" prefix swapped for "AR"/"RUN"/"XFORM" (mirroring
+# stdlib/Makefile's own $(subst CC,XFORM,$(CCVAR)) trick). XFORM_<ARCH>
+# itself comes from ./configure asking qc--'s own -print-metrics, not
+# hand-maintained here or anywhere else any more.
+ARCHS=$(sed -n 's/^ARCHS[ 	]*=[ 	]*//p' "$TOP/Makefile.backends")
+CCVAR=$(sed -n "s/^backend\\.$BACKEND[ 	]*=[ 	]*//p" "$TOP/Makefile.backends")
+if [ -z "$CCVAR" ]; then
+  echo "run-tests.sh: unknown BACKEND=$BACKEND (expected x86 $ARCHS)" >&2
+  exit 2
+fi
+RUNVAR=$(echo "$CCVAR" | sed 's/^CC/RUN/')
+XFORMVAR=$(echo "$CCVAR" | sed 's/^CC/XFORM/')
 
 # Read the generated config without involving make.
 QC=$(sed -n 's/^QC=//p' "$TOP/Makefile.config")
 QCINCLUDE=$(sed -n 's/^QCINCLUDE=//p' "$TOP/Makefile.config")
 QCPCMAP=$(sed -n 's/^QCPCMAP=//p' "$TOP/Makefile.config")
 
+CC=$(sed -n "s/^$CCVAR=//p" "$TOP/Makefile.config")
+# claude: RUN stays empty for arm64-mach-o/amd64-mach-o (no RUN_ARM64_MACHO/
+# RUN_AMD64_MACHO in Makefile.config at all - see ./configure's own
+# arm64-mach-o/amd64-mach-o section, no qemu/wrapper for either) - this sed
+# just naturally finds nothing and yields "", same effect as those two
+# backends' old dedicated "RUN=" branch.
+RUN=$(sed -n "s/^$RUNVAR=//p" "$TOP/Makefile.config")
+XFORM=$(sed -n "s/^$XFORMVAR=//p" "$TOP/Makefile.config")
+
+QCFLAG=
+[ "$BACKEND" != x86 ] && QCFLAG="-$BACKEND"
 TIGERFLAG=
-XFORM=none
-case "$BACKEND" in
-  x86)
-    CC=$(sed -n 's/^CC32=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN32=//p' "$TOP/Makefile.config")
-    QCFLAG=
-    ;;
-  ppc)
-    CC=$(sed -n 's/^CC_PPC=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_PPC=//p' "$TOP/Makefile.config")
-    QCFLAG=-ppc
-    XFORM=big
-    ;;
-  sparc)
-    CC=$(sed -n 's/^CC_SPARC=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_SPARC=//p' "$TOP/Makefile.config")
-    QCFLAG=-sparc
-    XFORM=big
-    ;;
-  alpha)
-    CC=$(sed -n 's/^CC_ALPHA=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_ALPHA=//p' "$TOP/Makefile.config")
-    QCFLAG=-alpha
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-  mips)
-    CC=$(sed -n 's/^CC_MIPS=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_MIPS=//p' "$TOP/Makefile.config")
-    QCFLAG=-mips
-    ;;
-  arm)
-    CC=$(sed -n 's/^CC_ARM=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_ARM=//p' "$TOP/Makefile.config")
-    QCFLAG=-arm
-    XFORM=arm
-    ;;
-  riscv32)
-    CC=$(sed -n 's/^CC_RISCV32=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_RISCV32=//p' "$TOP/Makefile.config")
-    QCFLAG=-riscv32
-    ;;
-  riscv64)
-    CC=$(sed -n 's/^CC_RISCV64=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_RISCV64=//p' "$TOP/Makefile.config")
-    QCFLAG=-riscv64
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-  arm64)
-    # claude: also 64-bit, like alpha/riscv64 above - TIGERFLAG=-64/XFORM=64
-    # need nothing arm64-specific (see the XFORM=64 comment further down).
-    # Linux/ELF (qc--'s -arm64 bare flag) - native on an aarch64-linux host
-    # (this dev box included), via CC_ARM64/RUN_ARM64's cross toolchain/
-    # qemu otherwise, same as every Linux backend above. The OLD macOS-only
-    # Mach-O behaviour is arm64-mach-o below instead.
-    CC=$(sed -n 's/^CC_ARM64=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_ARM64=//p' "$TOP/Makefile.config")
-    QCFLAG=-arm64
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-  amd64)
-    # claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same XFORM=64/
-    # TIGERFLAG=-64 as every other 64-bit backend. Needs qemu-x86_64 to run
-    # on this (aarch64) dev host; native on an x86-64 Linux host.
-    CC=$(sed -n 's/^CC_AMD64=//p' "$TOP/Makefile.config")
-    RUN=$(sed -n 's/^RUN_AMD64=//p' "$TOP/Makefile.config")
-    QCFLAG=-amd64
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-  arm64-mach-o)
-    # claude: the OLD arm64 behaviour, before qc-- grew a Linux/ELF -arm64
-    # (see qc--'s docs/claude_notes/notes_arm64.txt) - macOS/Mach-O only,
-    # native on Apple Silicon, no cross toolchain, no qemu (RUN stays empty).
-    CC=$(sed -n 's/^CC_ARM64_MACHO=//p' "$TOP/Makefile.config")
-    RUN=
-    QCFLAG=-arm64-mach-o
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-  amd64-mach-o)
-    # claude: the OLD amd64 behaviour - macOS/Mach-O only, cross-assembled
-    # via "clang -arch x86_64", runs under Rosetta 2 on Apple Silicon (or
-    # natively on an Intel Mac) - no separate wrapper command either way.
-    CC=$(sed -n 's/^CC_AMD64_MACHO=//p' "$TOP/Makefile.config")
-    RUN=
-    QCFLAG=-amd64-mach-o
-    TIGERFLAG=-64
-    XFORM=64
-    ;;
-esac
+[ "$XFORM" = 64 ] && TIGERFLAG=-64
+
 RTDIR=$TOP/runtime
 B=build
 baseline=expected/tiger.txt
@@ -190,12 +136,14 @@ fi
 # to target i386/ppc from any host - see "qc -help"'s -as/-ld entry, which
 # is why x86/ppc need no override here). clang has no working backend for
 # the rest of these - same fix ../runtime/Makefile and ../stdlib/Makefile
-# apply for the same reason.
-case "$BACKEND" in
-  sparc|alpha|mips|arm|riscv32|riscv64|arm64|amd64|arm64-mach-o|amd64-mach-o)
-    QC_AS=$CC
-    QC_LD=$CC
-    export QC_AS QC_LD
+# apply for the same reason. Every ARCHS entry needs this except ppc.
+case " $ARCHS " in
+  *" $BACKEND "*)
+    if [ "$BACKEND" != ppc ]; then
+      QC_AS=$CC
+      QC_LD=$CC
+      export QC_AS QC_LD
+    fi
     ;;
 esac
 
