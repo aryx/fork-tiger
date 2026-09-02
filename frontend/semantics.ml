@@ -187,12 +187,28 @@ let rec trexp env = function
         check_type_eq  pos
           "type of then expression (%s) does not match else (%s)" tty ety;
         let typ = base_type env tty in
-        (* claude: a UNIT-typed branch (e.g. a print() call) has no
-         * meaningful value - force both branches to the canonical nil
-         * instead of merging whatever garbage was left in the result
-         * register. See Translate.discard. *)
+        (* claude: only force-discard when there's no else branch - see
+         * this function's own git history for the original bug this was
+         * fixing: an if-with-no-else's implicit else is Trans.nil (a
+         * real, defined 0, set just above), so a unit-typed then-branch
+         * (e.g. a bare print() call) leaking its OWN raw return value
+         * only on the taken path produced an inconsistent, branch-
+         * dependent exit code (colmajor: 0 normally, a stray byte count
+         * on the rare branch that actually printed). But an if-WITH-an-
+         * else where both branches are unit-typed (e.g. printlist's
+         * `if l = nil then print("\n") else (...; printlist(rest))`) has
+         * no such inconsistency - both arms already produce a real,
+         * well-defined value on every call, and qc--'s C-- backend needs
+         * SOME return value regardless of Tiger's own "unit" typing
+         * (Translate.func always does `body => tmp; T.RET tmp`) - so
+         * that value ends up propagating all the way to tiger_main's own
+         * return, i.e. the process exit code. Discarding both branches
+         * unconditionally (the previous fix's real bug) silently forced
+         * that to 0 - confirmed against upstream qc--'s own checked-in
+         * tiger/merge.c-- reference and its rc=1 baseline, both of which
+         * expect the taken branch's real value to survive. *)
         let tex, eex =
-          if typ = UNIT then (Trans.discard tex, Trans.discard eex)
+          if typ = UNIT && else' = None then (Trans.discard tex, Trans.discard eex)
           else (tex, eex)
         in
         (Trans.ifexp iex tex eex (is_ptr typ), typ)
