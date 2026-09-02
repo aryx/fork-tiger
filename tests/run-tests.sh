@@ -17,7 +17,7 @@
 #   ./run-tests.sh                  run them all (x86), check against the baseline
 #   ./run-tests.sh --update         re-record the baseline (review the diff!)
 #   ./run-tests.sh hello wf         run only those, report but do not compare
-#   BACKEND=ppc ./run-tests.sh      same, but for qc--'s -ppc-elf backend
+#   BACKEND=ppc ./run-tests.sh      same, but for qc--'s -ppc backend
 #   BACKEND=<x> ./run-tests.sh      x in ppc, sparc, alpha, mips, arm, riscv32,
 #                                   riscv64, arm64, amd64, arm64-mach-o, amd64-mach-o
 #
@@ -94,7 +94,7 @@ case "$BACKEND" in
   ppc)
     CC=$(sed -n 's/^CC_PPC=//p' "$TOP/Makefile.config")
     RUN=$(sed -n 's/^RUN_PPC=//p' "$TOP/Makefile.config")
-    QCFLAG=-ppc-elf
+    QCFLAG=-ppc
     XFORM=big
     ;;
   sparc)

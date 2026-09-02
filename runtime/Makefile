@@ -31,7 +31,7 @@ GLOBALS_DECL = bits32 alloc_ptr;
 else ifeq ($(BACKEND),ppc)
 CC           = $(CC_PPC)
 AR           = $(AR_PPC)
-QCFLAG       = -ppc-elf
+QCFLAG       = -ppc
 B            = build-ppc
 STDLIBDIR    = ../stdlib/build-ppc
 XFORM        = big

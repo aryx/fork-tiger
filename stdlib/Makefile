@@ -30,7 +30,7 @@ B      = .
 XFORM  = none
 else ifeq ($(BACKEND),ppc)
 CC     = $(CC_PPC)
-QCFLAG = -ppc-elf
+QCFLAG = -ppc
 B      = build-ppc
 XFORM  = big
 else ifeq ($(BACKEND),sparc)

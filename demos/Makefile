@@ -1,6 +1,6 @@
 # claude: build and run the Tiger demo programs in this directory
 # (hello.tig, forloop.tig, queens.tig) end to end, for every backend qc--
-# supports (see "qc --help"): its default x86, plus -ppc-elf, -sparc,
+# supports (see "qc --help"): its default x86, plus -ppc, -sparc,
 # -alpha, -mips, -arm, -riscv32 and -riscv64. Modeled on
 # ~/c--/demos/Makefile, adapted for the extra front-end stage and the
 # runtime/GC system a Tiger program needs that a bare C-- one (like that
@@ -174,10 +174,10 @@ run-x86: x86
 	done
 
 # ---------------------------------------------------------------------------
-# ppc (byteorder big, the -ppc-elf backend)
+# ppc (byteorder big, the -ppc backend)
 # ---------------------------------------------------------------------------
 # claude: tigerc always emits "target byteorder little" (see
-# backend/codegen.ml); qc refuses that mismatch for -ppc-elf ("metrics of
+# backend/codegen.ml); qc refuses that mismatch for -ppc ("metrics of
 # source code don't match the target"), so flip it here the same way
 # ../runtime/Makefile, ../stdlib/Makefile and tests/run-tests.sh already do
 # for their own C-- sources/output.
@@ -185,7 +185,7 @@ $(BP)/%.c--: %.tig | $(BP)
 	$(TIGERC) $< | sed 's/byteorder[ ][ ]*little/byteorder big/' > $@
 
 $(BP)/%.o: $(BP)/%.c-- | $(BP)
-	$(QC) -ppc-elf -globals -stop .o -o $@ $<
+	$(QC) -ppc -globals -stop .o -o $@ $<
 
 $(BP)/%: $(BP)/%.o
 	$(CC_PPC) -static $(TOP)/runtime/build-ppc/runtime.o $< \

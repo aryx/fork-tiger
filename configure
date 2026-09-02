@@ -28,22 +28,34 @@ set -eu
 # and stdlib/Makefile's BACKEND sections for what each backend's byteorder/
 # float/wordsize quirk actually requires of the C-- sources.
 #
+# claude: this script used to do its own toolchain detection here (a
+# "detect_backend" reimplementing, almost line for line, qc--'s own
+# configure - same package names, same apt hints, same native-uname-m
+# patterns), just to know which cross-compiler/archiver/emulator to use
+# per backend. qc-- grew its own "qc -<arch> -print-cc/-print-ar/
+# -print-run/-available-archs" for exactly this - see qc--'s own
+# docs/claude_notes/plan_toolchain_dispatcher.txt for the full story -
+# so this script now does none of that itself: every CC_<ARCH>/AR_<ARCH>/
+# RUN_<ARCH> below (including the primary CC32/AR32/RUN32) comes from
+# asking qc, unless explicitly overridden on the command line or in the
+# environment (an explicit override is not "detection", so that stays).
+# This also means a future qc-- frontend gets the same toolchains for
+# free, with no detection logic of its own to write or keep in sync.
+#
 # This replaces configure.old, a Perl script from the original distribution.
 #
 # arm64/amd64: qc-- grew real Linux/ELF backends for these (previously
 # Mach-O-only) - see qc--'s own docs/claude_notes/notes_arm64.txt and
-# notes_amd64.txt. Like -ppc/-ppc-elf, the pair now has two flags each: the
-# bare name (-arm64, -amd64) is the Linux/ELF one, cross-toolchain/qemu
-# detected via detect_backend exactly like ppc/sparc/alpha/mips/arm/
-# riscv32/riscv64 below - arm64 is in fact this host's own native
-# architecture whenever it's aarch64 Linux (e.g. this dev box, or AWS
-# Graviton), needing no cross toolchain or qemu at all there, same as x86
-# on an x86 host. The OLD macOS/Mach-O behaviour (native on Apple Silicon,
-# cross-assembled via "clang -arch x86_64" under Rosetta 2 for amd64) moved
-# to a separate, explicit -arm64-mach-o/-amd64-mach-o flag pair, detected
-# only on a Darwin host (there is nothing to probe for a Mach-O backend
-# anywhere else) - see the dedicated block below, after detect_backend's
-# per-arch calls.
+# notes_amd64.txt. Like -ppc/-ppc-mach-o, the pair now has two flags each:
+# the bare name (-arm64, -amd64) is the Linux/ELF one - arm64 is in fact
+# this host's own native architecture whenever it's aarch64 Linux (e.g.
+# this dev box, or AWS Graviton), needing no cross toolchain or qemu at
+# all there, same as x86 on an x86 host. The OLD macOS/Mach-O behaviour
+# (native on Apple Silicon, cross-assembled via "clang -arch x86_64"
+# under Rosetta 2 for amd64) moved to a separate, explicit
+# -arm64-mach-o/-amd64-mach-o flag pair, queried only on a Darwin host
+# (there is nothing meaningful to ask for a Mach-O backend anywhere else)
+# - see the dedicated block below.
 #
 # TODO:
 #  - macOS CC32 (x86 needs i686-linux-gnu-gcc, which macOS has no
@@ -60,92 +72,58 @@ set -eu
 # Parse options
 QC=${QC:-}
 CC32=${CC32:-}
+AR32=${AR32:-}
 RUN32=${RUN32:-}
 CC_PPC=${CC_PPC:-}
+AR_PPC=${AR_PPC:-}
 RUN_PPC=${RUN_PPC:-}
 CC_SPARC=${CC_SPARC:-}
+AR_SPARC=${AR_SPARC:-}
 RUN_SPARC=${RUN_SPARC:-}
 CC_ALPHA=${CC_ALPHA:-}
+AR_ALPHA=${AR_ALPHA:-}
 RUN_ALPHA=${RUN_ALPHA:-}
 CC_MIPS=${CC_MIPS:-}
+AR_MIPS=${AR_MIPS:-}
 RUN_MIPS=${RUN_MIPS:-}
 CC_ARM=${CC_ARM:-}
+AR_ARM=${AR_ARM:-}
 RUN_ARM=${RUN_ARM:-}
 CC_RISCV32=${CC_RISCV32:-}
+AR_RISCV32=${AR_RISCV32:-}
 RUN_RISCV32=${RUN_RISCV32:-}
 CC_RISCV64=${CC_RISCV64:-}
+AR_RISCV64=${AR_RISCV64:-}
 RUN_RISCV64=${RUN_RISCV64:-}
 CC_ARM64=${CC_ARM64:-}
+AR_ARM64=${AR_ARM64:-}
 RUN_ARM64=${RUN_ARM64:-}
 CC_AMD64=${CC_AMD64:-}
+AR_AMD64=${AR_AMD64:-}
 RUN_AMD64=${RUN_AMD64:-}
 CC_ARM64_MACHO=${CC_ARM64_MACHO:-}
 AR_ARM64_MACHO=${AR_ARM64_MACHO:-}
 CC_AMD64_MACHO=${CC_AMD64_MACHO:-}
 AR_AMD64_MACHO=${AR_AMD64_MACHO:-}
+# claude: no more --cc-<arch>= flags, one per backend (there used to be
+# 11 of them) - CC_<ARCH>/AR_<ARCH>/RUN_<ARCH> (CC32/AR32/RUN32 for the
+# primary x86 backend) are still override-able, just via the environment
+# only now, not a dedicated CLI flag each: an override is a rare escape
+# hatch (everything is asked of qc by default - see query_backend below),
+# not something worth this much per-backend flag-parsing/--help bulk for.
 for arg in "$@"; do
     case "$arg" in
         --qc=*)
             QC="${arg#--qc=}"
             ;;
-        --cc32=*)
-            CC32="${arg#--cc32=}"
-            ;;
-        --cc-ppc=*)
-            CC_PPC="${arg#--cc-ppc=}"
-            ;;
-        --cc-sparc=*)
-            CC_SPARC="${arg#--cc-sparc=}"
-            ;;
-        --cc-alpha=*)
-            CC_ALPHA="${arg#--cc-alpha=}"
-            ;;
-        --cc-mips=*)
-            CC_MIPS="${arg#--cc-mips=}"
-            ;;
-        --cc-arm=*)
-            CC_ARM="${arg#--cc-arm=}"
-            ;;
-        --cc-riscv32=*)
-            CC_RISCV32="${arg#--cc-riscv32=}"
-            ;;
-        --cc-riscv64=*)
-            CC_RISCV64="${arg#--cc-riscv64=}"
-            ;;
-        --cc-arm64=*)
-            CC_ARM64="${arg#--cc-arm64=}"
-            ;;
-        --cc-amd64=*)
-            CC_AMD64="${arg#--cc-amd64=}"
-            ;;
-        --cc-arm64-mach-o=*)
-            CC_ARM64_MACHO="${arg#--cc-arm64-mach-o=}"
-            ;;
-        --cc-amd64-mach-o=*)
-            CC_AMD64_MACHO="${arg#--cc-amd64-mach-o=}"
-            ;;
         --help|-h)
             echo "Usage: ./configure [options]"
-            echo "  --qc=PATH         use this qc rather than searching for one"
-            echo "  --cc32=CMD        the 32-bit x86 C compiler to use"
-            echo "  --cc-ppc=CMD      the 32-bit ppc C compiler to use (for -ppc-elf)"
-            echo "  --cc-sparc=CMD    the 32-bit sparc C compiler to use (for -sparc)"
-            echo "  --cc-alpha=CMD    the 64-bit alpha C compiler to use (for -alpha)"
-            echo "  --cc-mips=CMD     the 32-bit mipsel C compiler to use (for -mips)"
-            echo "  --cc-arm=CMD      the 32-bit arm C compiler to use (for -arm)"
-            echo "  --cc-riscv32=CMD  the 32-bit riscv32 C compiler to use (for -riscv32)"
-            echo "  --cc-riscv64=CMD  the 64-bit riscv64 C compiler to use (for -riscv64)"
-            echo "  --cc-arm64=CMD    the 64-bit arm64 C compiler to use (for -arm64, Linux/ELF;"
-            echo "                    default 'aarch64-linux-gnu-gcc', native on aarch64-linux)"
-            echo "  --cc-amd64=CMD    the 64-bit amd64 C compiler to use (for -amd64, Linux/ELF;"
-            echo "                    default 'x86_64-linux-gnu-gcc')"
-            echo "  --cc-arm64-mach-o=CMD  the 64-bit arm64 C compiler (for -arm64-mach-o;"
-            echo "                    default 'clang', macOS only, native on Apple Silicon)"
-            echo "  --cc-amd64-mach-o=CMD  the 64-bit amd64 C compiler (for -amd64-mach-o;"
-            echo "                    default 'clang -arch x86_64', macOS only, runs under"
-            echo "                    Rosetta 2 on Apple Silicon)"
-            echo "QC, CC32, RUN32 and, per backend, CC_<ARCH>/AR_<ARCH>/RUN_<ARCH>"
-            echo "may also be set in the environment."
+            echo "  --qc=PATH  use this qc rather than searching for one"
+            echo
+            echo "QC, and per backend CC_<ARCH>/AR_<ARCH>/RUN_<ARCH> (CC32/AR32/RUN32 for the"
+            echo "primary x86 backend), may be set in the environment. Any of these you don't"
+            echo "set is asked of qc itself (qc -<arch> -print-cc/-print-ar/-print-run) rather"
+            echo "than detected here - this script does no toolchain detection of its own."
             exit 0
             ;;
         *)
@@ -190,222 +168,157 @@ if [ ! -f "$QCLIB/qc--runtime.h" ]; then
     exit 1
 fi
 
-###############################################################################
-# The 32-bit x86 toolchain
-###############################################################################
-# qc only emits i386, so the host compiler cannot assemble or link its output
-# whatever the host architecture is. Not gcc-multilib: multilib offers
-# secondary ABIs of the host's own architecture family, which on arm64 means
-# 32-bit ARM, not i386.
-
-if [ -z "$CC32" ]; then
-    CC32=i686-linux-gnu-gcc
-fi
-if ! command -v "$CC32" >/dev/null 2>&1; then
-    echo "configure: warning: no $CC32 on PATH" >&2
-    echo "  sudo apt install gcc-i686-linux-gnu libc6-dev-i386-cross" >&2
-fi
-
-# The matching archiver. A cross gcc is <triple>-gcc and its binutils are
-# <triple>-ar, so derive one from the other; plain "ar" would build an archive
-# the cross linker cannot read.
-AR32=${AR32:-}
-if [ -z "$AR32" ]; then
-    case "$CC32" in
-        *-gcc) AR32="${CC32%-gcc}-ar" ;;
-        *)     AR32=ar ;;
-    esac
+# claude: everything below asks $QC for toolchains via -print-cc/-print-ar/
+# -print-run/-available-archs - fail clearly here rather than with a
+# confusing "unknown option" further down if $QC predates those (e.g. an
+# opam switch with an old qc-- build still installed).
+if ! "$QC" -available-archs >/dev/null 2>&1; then
+    echo "configure: found qc at $QC but it does not support -available-archs" >&2
+    echo "  (too old - rebuild/reinstall qc--: cd <qc-- checkout> && dune build && make install)" >&2
+    exit 1
 fi
 
 ###############################################################################
-# How to run a 32-bit binary
+# Ask qc for a backend's toolchain
 ###############################################################################
-# Named explicitly rather than relying on binfmt_misc, which is a host-wide
-# kernel registration that a container inherits only by accident.
+# arg1 = display name (for -$name in messages and as the actual qc flag),
+# arg2 = CC var name, arg3 = AR var name, arg4 = RUN var name. Each of the
+# three is left alone if already set (explicit override, from the command
+# line or the environment - not detection, so qc is not asked); otherwise
+# queried from qc, which itself now does the real detection (see this
+# script's own header comment). A backend qc found nothing for becomes
+# NONE, a warning, not a configure failure - matches this script's
+# previous behaviour for every backend, including the primary x86 one
+# (qc--'s own configure only warns on a missing CCX86 too, not a hard
+# failure, so there is nothing to special-case here).
+#
+# qc's stderr is discarded (not embedded in the warning message): a
+# -print-* failure is an uncaught OCaml exception at the moment (raised
+# from inside Arg.parse's own callback, before main_action's nicer
+# "Failure s -> Logs.err" handling ever sees it), so its stderr is a full
+# multi-line backtrace dump, not a clean one-liner - not worth surfacing
+# here.
+#
+# AR is always re-queried with QC_AS set to whatever CC ended up being
+# (even if CC came from an explicit override) rather than trusted from a
+# separate, independent qc query - so AR always matches the CC this
+# script (and its Makefiles) actually use, not qc's own unrelated
+# default for that backend.
+query_backend() {
+    name=$1; ccvar=$2; arvar=$3; runvar=$4
 
-if [ -z "$RUN32" ]; then
-    ARCH=`uname -m`
-    case "$ARCH" in
-        i?86 | x86_64)
-            RUN32=
-            ;;
-        *)
-            RUN32=`command -v qemu-i386 2>/dev/null || true`
-            if [ -z "$RUN32" ]; then
-                echo "configure: warning: $ARCH host and no qemu-i386 on PATH" >&2
-                echo "  sudo apt install qemu-user" >&2
-            fi
-            ;;
-    esac
-fi
+    eval "cc=\${$ccvar}"
+    eval "ar=\${$arvar}"
+    eval "run=\${$runvar}"
+
+    if [ -z "$cc" ]; then
+        if cc=`"$QC" "-$name" -print-cc 2>/dev/null`; then
+            :
+        else
+            echo "configure: warning: qc found no toolchain for -$name (only needed for that backend)" >&2
+            cc=NONE
+        fi
+    fi
+
+    if [ -z "$ar" ]; then
+        if [ "$cc" = NONE ]; then
+            ar=NONE
+        else
+            ar=`QC_AS="$cc" "$QC" "-$name" -print-ar`
+        fi
+    fi
+
+    if [ -z "$run" ]; then
+        if run=`"$QC" "-$name" -print-run 2>/dev/null`; then
+            :
+        else
+            echo "configure: warning: qc found no emulator for -$name (only needed for that backend)" >&2
+            run=NONE
+        fi
+    fi
+
+    eval "$ccvar=\$cc"
+    eval "$arvar=\$ar"
+    eval "$runvar=\$run"
+}
+
+###############################################################################
+# The 32-bit x86 toolchain (the primary backend)
+###############################################################################
+# qc only emits i386, so the host compiler cannot assemble or link its
+# output whatever the host architecture is. Same query_backend as every
+# other backend below, just under the CC32/AR32/RUN32 names this script's
+# Makefiles already expect (not CC_X86/AR_X86/RUN_X86 - an existing
+# naming quirk, not introduced here).
+query_backend x86 CC32 AR32 RUN32
 
 ###############################################################################
 # The other qc-- backends (all optional)
 ###############################################################################
-# Same reasoning as CC32/AR32/RUN32 above, one block per backend qc--
-# supports beyond its default x86 (see "qc --help"). Detection is
-# best-effort only: unlike CC32, none of these is the primary backend, so a
-# missing toolchain is a warning, not a configure failure - "make
-# test-<arch>" (or demos/Makefile's per-arch targets) will simply fail
-# later with a clearer message. AR_<ARCH> is derived from CC_<ARCH>'s first
-# word the same way AR32 is derived from CC32, since several of these
-# (sparc, arm, riscv32) carry extra flags after the compiler name.
-#
-# arg1 = display name, arg2 = var prefix, arg3 = default CC (may have
-# flags), arg4 = apt hint, arg5 = default qemu binary, arg6 = uname -m
-# patterns this arch is native on (RUN left empty there).
-detect_backend() {
-    name=$1; prefix=$2; default_cc=$3; apt_hint=$4; default_run=$5; native_pat=$6
+# Same query_backend as x86 above, one call per backend qc-- supports
+# beyond its default x86 (see "qc --help" or "qc -available-archs").
+query_backend ppc      CC_PPC     AR_PPC     RUN_PPC
+query_backend sparc     CC_SPARC   AR_SPARC   RUN_SPARC
+query_backend alpha     CC_ALPHA   AR_ALPHA   RUN_ALPHA
+query_backend mips      CC_MIPS    AR_MIPS    RUN_MIPS
 
-    eval "cc=\${CC_$prefix:-}"
-    eval "ar=\${AR_$prefix:-}"
-    eval "run=\${RUN_$prefix:-}"
+# claude: -fno-stack-protector is not part of what qc queried for -arm
+# (qc-- itself has no need for it - this is specific to tiger's own
+# runtime/stdlib C sources spuriously tripping gcc's default stack
+# protector on this toolchain, see runtime/Makefile's BACKEND=arm
+# comment) so it is appended here rather than asked of qc, same as this
+# script always did - but only when CC_ARM wasn't already set explicitly
+# (an override is trusted as given, unchanged from before).
+cc_arm_was_set=false
+[ -n "$CC_ARM" ] && cc_arm_was_set=true
+query_backend arm       CC_ARM     AR_ARM     RUN_ARM
+if [ "$cc_arm_was_set" = false ] && [ "$CC_ARM" != NONE ]; then
+    CC_ARM="$CC_ARM -fno-stack-protector"
+fi
 
-    if [ -z "$cc" ]; then cc=$default_cc; fi
-    ccbin=${cc%% *}
-    if ! command -v "$ccbin" >/dev/null 2>&1; then
-        echo "configure: warning: no $ccbin on PATH (only needed for -$name)" >&2
-        echo "  $apt_hint" >&2
-    fi
-
-    if [ -z "$ar" ]; then
-        case "$ccbin" in
-            *-gcc) ar="${ccbin%-gcc}-ar" ;;
-            *)     ar=ar ;;
-        esac
-    fi
-
-    if [ -z "$run" ]; then
-        ARCH=`uname -m`
-        # claude: eval, not a plain "case $ARCH in $native_pat)" - a "|"
-        # arriving via unquoted parameter expansion is NOT treated as case
-        # alternation by POSIX shells (dash and bash both agree: pattern
-        # splitting on "|" happens at parse time, before expansion), so
-        # multi-alternative native_pats (ppc, mips, and now arm64's own
-        # "aarch64|arm64") silently never matched - every "native" host
-        # fell through to the qemu-fallback branch below regardless.
-        # Confirmed the hard way: this dev host is aarch64-linux, arm64's
-        # own native_pat is "aarch64|arm64", and RUN_ARM64 still came back
-        # pointing at qemu-aarch64 instead of empty until this fix.
-        is_native=no
-        eval "case \"\$ARCH\" in $native_pat) is_native=yes ;; esac"
-        if [ "$is_native" = yes ]; then
-            run=
-        else
-            run=`command -v "$default_run" 2>/dev/null || true`
-            if [ -z "$run" ]; then
-                echo "configure: warning: $ARCH host and no $default_run on PATH (only needed for -$name)" >&2
-                echo "  sudo apt install qemu-user" >&2
-            fi
-        fi
-    fi
-
-    eval "CC_$prefix=\$cc"
-    eval "AR_$prefix=\$ar"
-    eval "RUN_$prefix=\$run"
-}
-
-# ppc: 32-bit big-endian PowerPC (-ppc-elf).
-detect_backend ppc-elf PPC "powerpc-linux-gnu-gcc" \
-    "sudo apt install gcc-powerpc-linux-gnu libc6-dev-powerpc-cross" \
-    qemu-ppc "ppc|ppc64|powerpc|powerpc64"
-
-# sparc: 32-bit big-endian SPARC V8. Ubuntu ships no plain 32-bit
-# sparc-linux-gnu cross toolchain, only sparc64-linux-gnu, which targets
-# 32-bit SPARC V8 via -m32 (same biarch trick x86_64 hosts use for -m32
-# i386) - so CC_SPARC is deliberately two words. Its -m32 output is
-# SPARC32PLUS-flagged (v8plus) even though the instructions used are plain
-# v8, so it needs qemu-sparc32plus, not plain qemu-sparc (which rejects it:
-# "Invalid ELF image for this architecture").
-detect_backend sparc SPARC "sparc64-linux-gnu-gcc -m32" \
-    "sudo apt install gcc-sparc64-linux-gnu binutils-sparc64-linux-gnu libc6-dev-sparc64-cross libc6-dev-sparc-sparc64-cross gcc-multilib-sparc64-linux-gnu" \
-    qemu-sparc32plus "sparc"
-
-# alpha: 64-bit little-endian DEC Alpha. A real glibc cross toolchain
-# exists, no freestanding workaround needed.
-detect_backend alpha ALPHA "alpha-linux-gnu-gcc" \
-    "sudo apt install gcc-alpha-linux-gnu binutils-alpha-linux-gnu libc6-dev-alpha-cross" \
-    qemu-alpha "alpha"
-
-# mips: 32-bit little-endian MIPS (mipsel) - qemu-mipsel, not qemu-mips
-# (big-endian MIPS), matches CC_MIPS's own little-endian choice.
-detect_backend mips MIPS "mipsel-linux-gnu-gcc" \
-    "sudo apt install gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu libc6-dev-mipsel-cross" \
-    qemu-mipsel "mips|mipsel|mips64|mips64el"
-
-# arm: 32-bit little-endian ARM. -march=armv7ve+fp: plain armv7-a has no
-# integer divide instruction, needed once the backend started emitting
-# "sdiv"; "+fp" is required too or cc1 refuses to compile at all
-# ("-mfloat-abi=hard: selected architecture lacks an FPU").
-# -fno-stack-protector: gcc's default stack-protector on this C code
-# spuriously fires against tiger's runtime/stdlib C sources; see
-# runtime/Makefile's BACKEND=arm comment.
-detect_backend arm ARM "arm-linux-gnueabihf-gcc -march=armv7ve+fp -fno-stack-protector" \
-    "sudo apt install gcc-arm-linux-gnueabihf libc6-dev-armhf-cross" \
-    qemu-arm "arm*"
-
-# riscv32: 32-bit little-endian RISC-V (RV32IMAC). Ubuntu ships no
-# riscv32-linux-gnu glibc at all, so CC_RISCV32 is a bare-metal
-# (gcc-riscv64-unknown-elf) compiler targeting rv32imac/ilp32 against
-# picolibc instead of glibc. Only stdlib.o/gc.o get compiled with this at
-# configure-derived-build time; the freestanding final link (crt0,
-# -nostartfiles, plain ld instead of gcc) is handled directly in
-# demos/Makefile and tests/run-tests.sh, not here - see their own comments.
-detect_backend riscv32 RISCV32 "riscv64-unknown-elf-gcc -march=rv32imac -mabi=ilp32 --specs=picolibc.specs" \
-    "sudo apt install gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf" \
-    qemu-riscv32 "never-native-freestanding-target"
-
-# riscv64: 64-bit little-endian RISC-V (RV64GC). A real glibc cross
-# toolchain exists, no freestanding workaround needed - like alpha and
-# unlike riscv32.
-detect_backend riscv64 RISCV64 "riscv64-linux-gnu-gcc" \
-    "sudo apt install gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu libc6-dev-riscv64-cross" \
-    qemu-riscv64 "riscv64"
-
-# arm64: 64-bit little-endian AArch64, Linux/ELF (-arm64, the bare/default
-# flag - see qc--'s own docs/claude_notes/notes_arm64.txt). Native on an
-# aarch64-linux host (this dev box included, and e.g. AWS Graviton) - no
-# cross toolchain, no qemu - via qemu-aarch64 otherwise, same
-# detect_backend treatment as every Linux backend above.
-detect_backend arm64 ARM64 "aarch64-linux-gnu-gcc" \
-    "sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross" \
-    qemu-aarch64 "aarch64|arm64"
-
-# amd64: 64-bit little-endian x86-64, Linux/ELF (-amd64, the bare/default
-# flag - see qc--'s own docs/claude_notes/notes_amd64.txt). Needs
-# qemu-x86_64 to run on a non-x86_64 host.
-detect_backend amd64 AMD64 "x86_64-linux-gnu-gcc" \
-    "sudo apt install gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu libc6-dev-amd64-cross" \
-    qemu-x86_64 "x86_64"
+query_backend riscv32   CC_RISCV32 AR_RISCV32 RUN_RISCV32
+query_backend riscv64   CC_RISCV64 AR_RISCV64 RUN_RISCV64
+query_backend arm64     CC_ARM64   AR_ARM64   RUN_ARM64
+query_backend amd64     CC_AMD64   AR_AMD64   RUN_AMD64
 
 # arm64-mach-o / amd64-mach-o: the OLD Mach-O/Darwin-only behaviour arm64/
 # amd64 used to mean before qc-- grew the Linux/ELF pair above - still
 # real, just demoted to an explicit flag (mirrors qc--'s own configure).
-# Only worth probing on a Darwin host: arm64-mach-o is native there (no
-# cross toolchain, no qemu - Mach-O has no qemu-user equivalent), amd64-mach-o
-# cross-assembles via "clang -arch x86_64" and runs under Rosetta 2 (or
-# natively on an actual Intel Mac) - either way with no separate wrapper
-# command, so RUN_ARM64_MACHO/RUN_AMD64_MACHO don't exist as variables at
-# all, unlike every qemu-fallback case above.
+# Only worth asking about on a Darwin host: arm64-mach-o is native there
+# (no cross toolchain, no qemu - Mach-O has no qemu-user equivalent),
+# amd64-mach-o cross-assembles via "clang -arch x86_64" and runs under
+# Rosetta 2 (or natively on an actual Intel Mac) - either way with no
+# separate wrapper command (qc's own -print-run agrees: always native for
+# both), so RUN_ARM64_MACHO/RUN_AMD64_MACHO don't exist as variables at
+# all here, same as before. Unlike every backend above, qc's own
+# -arm64-mach-o/-amd64-mach-o cc is a fixed default ("clang"/"clang -arch
+# x86_64"), not something ./configure in qc-- itself probed for - so it
+# is not guaranteed to actually be on PATH the way query_backend's other
+# callers are; this script still checks that much itself (a narrow
+# existence check on qc's own answer, not a re-detection of what that
+# answer should be).
 if [ "`uname -s`" = "Darwin" ]; then
     if [ -z "$CC_ARM64_MACHO" ]; then
-        CC_ARM64_MACHO=clang
+        CC_ARM64_MACHO=`"$QC" -arm64-mach-o -print-cc`
     fi
-    if ! command -v "$CC_ARM64_MACHO" >/dev/null 2>&1; then
+    if ! command -v "${CC_ARM64_MACHO%% *}" >/dev/null 2>&1; then
         echo "configure: warning: no $CC_ARM64_MACHO on PATH (only needed for -arm64-mach-o)" >&2
         echo "  install the Xcode command line tools: xcode-select --install" >&2
     fi
-    AR_ARM64_MACHO=${AR_ARM64_MACHO:-ar}
+    if [ -z "$AR_ARM64_MACHO" ]; then
+        AR_ARM64_MACHO=`QC_AS="$CC_ARM64_MACHO" "$QC" -arm64-mach-o -print-ar`
+    fi
 
     if [ -z "$CC_AMD64_MACHO" ]; then
-        CC_AMD64_MACHO="clang -arch x86_64"
+        CC_AMD64_MACHO=`"$QC" -amd64-mach-o -print-cc`
     fi
-    ccbin=${CC_AMD64_MACHO%% *}
-    if ! command -v "$ccbin" >/dev/null 2>&1; then
-        echo "configure: warning: no $ccbin on PATH (only needed for -amd64-mach-o)" >&2
+    if ! command -v "${CC_AMD64_MACHO%% *}" >/dev/null 2>&1; then
+        echo "configure: warning: no ${CC_AMD64_MACHO%% *} on PATH (only needed for -amd64-mach-o)" >&2
         echo "  install the Xcode command line tools: xcode-select --install" >&2
     fi
-    AR_AMD64_MACHO=${AR_AMD64_MACHO:-ar}
+    if [ -z "$AR_AMD64_MACHO" ]; then
+        AR_AMD64_MACHO=`QC_AS="$CC_AMD64_MACHO" "$QC" -amd64-mach-o -print-ar`
+    fi
 fi
 
 ###############################################################################
@@ -426,9 +339,12 @@ fi
 # default to arm64-mach-o instead - the one backend that's actually
 # guaranteed to build there (native, no cross toolchain). Every other
 # combination (Linux hosts, or a Mac with CC32 somehow installed) keeps
-# the original x86 default untouched.
+# the original x86 default untouched. Consults $CC32/$CC_ARM64_MACHO
+# (query_backend's own results above) rather than re-probing "command -v"
+# itself - CC32 = NONE is query_backend's own way of saying "not found",
+# same meaning here as everywhere else.
 #
-# Must check `uname -s` = Darwin too, not just `uname -m` = arm64: plain
+# Must check `uname -s` = Darwin too, not just `uname -m` = arm64 - plain
 # "arm64" now means qc--'s Linux/ELF backend (see this script's own header
 # comment) - a Linux arm64 host (e.g. AWS Graviton) can easily have no i686
 # cross toolchain either, and would wrongly match on CPU architecture
@@ -439,7 +355,7 @@ fi
 # below only because CC32 being absent alone isn't sufficient reason to
 # override x86 on Linux - a user there can already say BACKEND=arm64
 # explicitly, or "./configure --cc32=..." to fix x86 instead.)
-if ! command -v "$CC32" >/dev/null 2>&1 \
+if [ "$CC32" = NONE ] \
    && [ "`uname -s`" = "Darwin" ] && [ "`uname -m`" = "arm64" ] \
    && command -v "${CC_ARM64_MACHO%% *}" >/dev/null 2>&1; then
     DEFAULT_BACKEND=arm64-mach-o
@@ -481,7 +397,7 @@ AR32=$AR32
 # How to run the result; empty on an x86 host
 RUN32=$RUN32
 
-# The 32-bit ppc toolchain, for qc--'s -ppc-elf backend (optional)
+# The 32-bit ppc toolchain, for qc--'s -ppc backend (optional)
 CC_PPC=$CC_PPC
 AR_PPC=$AR_PPC
 # How to run the result; empty on a ppc host
@@ -531,7 +447,7 @@ RUN_AMD64=$RUN_AMD64
 
 # The 64-bit arm64/amd64 toolchains, for qc--'s -arm64-mach-o/-amd64-mach-o
 # backends (optional; macOS only - native for arm64, under Rosetta 2 for
-# amd64 - empty on any other host, since there's nothing to detect there)
+# amd64 - empty on any other host, since there's nothing to ask qc about there)
 CC_ARM64_MACHO=$CC_ARM64_MACHO
 AR_ARM64_MACHO=$AR_ARM64_MACHO
 CC_AMD64_MACHO=$CC_AMD64_MACHO
