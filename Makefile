@@ -28,6 +28,12 @@ clean::
 	$(MAKE) -C stdlib BACKEND=$(DEFAULT_BACKEND) clean
 	$(MAKE) -C runtime BACKEND=$(DEFAULT_BACKEND) clean
 	$(MAKE) -C demos clean
+# claude: tests/run-tests.sh leaves its own tests/build-<arch>/ dirs behind
+# (see its "B=build-$BACKEND" - one per backend, same idea as demos/'s own
+# build-<arch>/ that "$(MAKE) -C demos clean" above already handles), but
+# there's no tests/Makefile to delegate to, so remove them directly here.
+clean::
+	rm -rf tests/build tests/build-ppc tests/build-sparc tests/build-alpha tests/build-mips tests/build-arm tests/build-riscv32 tests/build-riscv64 tests/build-arm64 tests/build-amd64 tests/build-arm64-mach-o tests/build-amd64-mach-o
 install::
 	dune install
 uninstall::
