@@ -57,6 +57,18 @@ set -eu
 # (there is nothing meaningful to ask for a Mach-O backend anywhere else)
 # - see the dedicated block below.
 #
+# claude: this script also asks qc for each backend's target metrics
+# (byteorder/wordsize/float support, via "qc -<arch> -print-metrics") and
+# writes the single XFORM class (none/big/arm/64) they imply into
+# Makefile.config as XFORM_<ARCH> - see query_xform below and
+# stdlib/Makefile's header for what each XFORM value means. This used to
+# be a table hand-maintained separately in stdlib/Makefile, runtime/
+# Makefile, demos/Makefile and tests/run-tests.sh (one copy each, updated
+# by hand whenever a backend's metrics mattered); now there is exactly
+# one place a human has to get it right (this script, mechanically, from
+# what qc-- itself reports), and the four consumers just read
+# Makefile.config like they already do for CC_<ARCH> etc.
+#
 # TODO:
 #  - macOS CC32 (x86 needs i686-linux-gnu-gcc, which macOS has no
 #    equivalent for - CC32 still defaults to the Linux cross-compiler name
@@ -177,6 +189,11 @@ if ! "$QC" -available-archs >/dev/null 2>&1; then
     echo "  (too old - rebuild/reinstall qc--: cd <qc-- checkout> && dune build && make install)" >&2
     exit 1
 fi
+if ! "$QC" -print-metrics >/dev/null 2>&1; then
+    echo "configure: found qc at $QC but it does not support -print-metrics" >&2
+    echo "  (too old - rebuild/reinstall qc--: cd <qc-- checkout> && dune build && make install)" >&2
+    exit 1
+fi
 
 ###############################################################################
 # Ask qc for a backend's toolchain
@@ -243,6 +260,47 @@ query_backend() {
 }
 
 ###############################################################################
+# Ask qc for a backend's target metrics, translate to this repo's XFORM
+###############################################################################
+# claude: byteorder/wordsize/float-support are properties of the backend
+# itself, not of whatever toolchain happens to be installed on this host -
+# unlike query_backend's CC/AR/RUN, -print-metrics needs no cross
+# toolchain to answer and so is asked unconditionally for every backend,
+# regardless of whether query_backend found a real CC for it. Reduces the
+# three raw fields to the single XFORM class stdlib/Makefile, runtime/
+# Makefile, demos/Makefile and tests/run-tests.sh already branch on (see
+# stdlib/Makefile's header for the fuller reasoning behind each case):
+#   64   - wordsize (equivalently pointersize here) is 64 bits - takes
+#          priority over the other two: every 64-bit backend below is
+#          also little-endian with an FPU, so this never has to arbitrate
+#          a real conflict, just picks the one that needs the bigger
+#          rewrite when more than one property differs from x86's own
+#   big  - byteorder is big-endian
+#   arm  - no floating-point support
+#   none - none of the above (already matches qc--'s bits32-little-ieee754
+#          default, same as x86 itself)
+query_xform() {
+    name=$1
+    metrics=`"$QC" "-$name" -print-metrics` || {
+        echo "configure: qc -$name -print-metrics failed - can't happen \
+for a backend -available-archs didn't already refuse to list" >&2
+        exit 1
+    }
+    byteorder=`echo "$metrics" | sed -n 's/^byteorder //p'`
+    wordsize=`echo "$metrics"  | sed -n 's/^wordsize //p'`
+    float=`echo "$metrics"     | sed -n 's/^float //p'`
+    if [ "$wordsize" = 64 ]; then
+        echo 64
+    elif [ "$byteorder" = big ]; then
+        echo big
+    elif [ "$float" = none ]; then
+        echo arm
+    else
+        echo none
+    fi
+}
+
+###############################################################################
 # The 32-bit x86 toolchain (the primary backend)
 ###############################################################################
 # qc only emits i386, so the host compiler cannot assemble or link its
@@ -280,6 +338,30 @@ query_backend riscv32   CC_RISCV32 AR_RISCV32 RUN_RISCV32
 query_backend riscv64   CC_RISCV64 AR_RISCV64 RUN_RISCV64
 query_backend arm64     CC_ARM64   AR_ARM64   RUN_ARM64
 query_backend amd64     CC_AMD64   AR_AMD64   RUN_AMD64
+
+# claude: XFORM32 (not XFORM_X86) to match CC32/AR32/RUN32's own existing
+# naming quirk for the primary x86 backend - Makefile.backends' ccvar
+# table derives every XFORM_<ARCH>/AR_<ARCH>/RUN_<ARCH> name from the
+# corresponding CC_<ARCH> name by prefix substitution, so this has to
+# follow the same irregular x86 spelling for that derivation to hold.
+XFORM32=`query_xform x86`
+XFORM_PPC=`query_xform ppc`
+XFORM_SPARC=`query_xform sparc`
+XFORM_ALPHA=`query_xform alpha`
+XFORM_MIPS=`query_xform mips`
+XFORM_ARM=`query_xform arm`
+XFORM_RISCV32=`query_xform riscv32`
+XFORM_RISCV64=`query_xform riscv64`
+XFORM_ARM64=`query_xform arm64`
+XFORM_AMD64=`query_xform amd64`
+# claude: unlike CC_ARM64_MACHO/CC_AMD64_MACHO below, these two need no
+# Darwin gating - -print-metrics answers from qc--'s own OCaml-side
+# Target.t, not from probing this host's toolchain, so it works the same
+# on every host (verified: matches arm64/amd64's own XFORM exactly, as
+# expected - same 64-bit little-endian ieee754 target, just a different
+# object format).
+XFORM_ARM64_MACHO=`query_xform arm64-mach-o`
+XFORM_AMD64_MACHO=`query_xform amd64-mach-o`
 
 # arm64-mach-o / amd64-mach-o: the OLD Mach-O/Darwin-only behaviour arm64/
 # amd64 used to mean before qc-- grew the Linux/ELF pair above - still
@@ -452,6 +534,25 @@ CC_ARM64_MACHO=$CC_ARM64_MACHO
 AR_ARM64_MACHO=$AR_ARM64_MACHO
 CC_AMD64_MACHO=$CC_AMD64_MACHO
 AR_AMD64_MACHO=$AR_AMD64_MACHO
+
+# The XFORM class each backend's target metrics (byteorder/wordsize/float
+# support, from "qc -<arch> -print-metrics") imply for a hand-written or
+# tigerc-emitted C-- source - see stdlib/Makefile's header for what each
+# value (none/big/arm/64) means, and query_xform above for how it's
+# derived. Read by stdlib/Makefile, runtime/Makefile, demos/Makefile
+# (via Makefile.backends' ccvar table) and tests/run-tests.sh.
+XFORM32=$XFORM32
+XFORM_PPC=$XFORM_PPC
+XFORM_SPARC=$XFORM_SPARC
+XFORM_ALPHA=$XFORM_ALPHA
+XFORM_MIPS=$XFORM_MIPS
+XFORM_ARM=$XFORM_ARM
+XFORM_RISCV32=$XFORM_RISCV32
+XFORM_RISCV64=$XFORM_RISCV64
+XFORM_ARM64=$XFORM_ARM64
+XFORM_AMD64=$XFORM_AMD64
+XFORM_ARM64_MACHO=$XFORM_ARM64_MACHO
+XFORM_AMD64_MACHO=$XFORM_AMD64_MACHO
 EOF
 
 echo "wrote Makefile.config"
@@ -485,3 +586,5 @@ fi
 if [ -n "$CC_AMD64_MACHO" ]; then
     echo "  CC_AMD64_MACHO = $CC_AMD64_MACHO  (Rosetta 2)"
 fi
+echo "  XFORM (x86/ppc/sparc/alpha/mips/arm/riscv32/riscv64/arm64/amd64/arm64-mach-o/amd64-mach-o):"
+echo "    $XFORM32 $XFORM_PPC $XFORM_SPARC $XFORM_ALPHA $XFORM_MIPS $XFORM_ARM $XFORM_RISCV32 $XFORM_RISCV64 $XFORM_ARM64 $XFORM_AMD64 $XFORM_ARM64_MACHO $XFORM_AMD64_MACHO"

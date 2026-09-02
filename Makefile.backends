@@ -1,0 +1,60 @@
+# Single source of truth for the list of qc-- backends this repo builds
+# for, checked in (unlike Makefile.config, this is static - it doesn't
+# depend on what's installed on this host). Included by stdlib/Makefile,
+# runtime/Makefile, demos/Makefile and the top-level Makefile, so a
+# backend only has to be added/renamed in exactly one place.
+#
+# claude: this used to be duplicated as an ifeq/case chain in each of
+# those four files (stdlib/Makefile and runtime/Makefile each had a
+# 12-branch ifeq assigning CC/AR/B/XFORM/GLOBALS_DECL per BACKEND;
+# demos/Makefile had 12 copy-pasted rule blocks; tests/run-tests.sh had a
+# parallel shell case) - seven fields per backend (CC/AR/RUN var names,
+# QCFLAG, B, XFORM, GLOBALS_DECL, TIGERFLAG) hand-maintained in up to
+# four places at once. Now only two things are genuinely per-backend
+# data a human has to get right:
+#   - ARCHS/DARWIN_ARCHS below (the list of backends and which are
+#     macOS-only)
+#   - backend.<name>, the CC_<ARCH>/AR_<ARCH>/RUN_<ARCH> variable name
+#     ./configure wrote into Makefile.config for that backend - not
+#     mechanically derivable from the backend name because of x86's own
+#     CC32/AR32/RUN32 naming quirk (see ./configure's own comment on it)
+# everything else is derived:
+#   - AR_<ARCH>/RUN_<ARCH> = backend.<name> with CC -> AR / CC -> RUN
+#   - XFORM_<ARCH>         = backend.<name> with CC -> XFORM (see
+#     ./configure's query_xform - asked of qc--'s own -print-metrics,
+#     not hand-maintained here at all any more)
+#   - QCFLAG = -<name> (empty for x86)
+#   - B (build dir) = "." for x86, "build-<name>" otherwise
+#   - GLOBALS_DECL = bits64/bits32 depending on XFORM=64
+#   - TIGERFLAG = -64 iff XFORM=64
+#   - the "does this backend need QC_AS/QC_LD" test = every ARCHS entry
+#     except ppc (clang can already target both x86 and ppc - see
+#     stdlib/Makefile's comment on this)
+# See stdlib/Makefile's header for what XFORM's four values (none/big/
+# arm/64) each actually do to a C-- source, and ./configure's own header
+# for how -print-cc/-print-ar/-print-run/-print-metrics are asked of qc.
+
+# Every backend qc-- supports beyond its default x86 (see "qc --help" or
+# "qc -available-archs").
+ARCHS = ppc sparc alpha mips arm riscv32 riscv64 arm64 amd64 arm64-mach-o amd64-mach-o
+
+# The two backends only ever buildable on a Darwin host (no cross
+# toolchain, no qemu - see ./configure's own arm64-mach-o/amd64-mach-o
+# section). Excluded from demos' "all"/"run" and the top-level Makefile's
+# "test-all" aggregates, same as before.
+DARWIN_ARCHS = arm64-mach-o amd64-mach-o
+
+# backend.<name> = the CC_<ARCH> variable ./configure wrote into
+# Makefile.config for <name> (CC32 for x86 - the one irregular case).
+backend.x86          = CC32
+backend.ppc          = CC_PPC
+backend.sparc        = CC_SPARC
+backend.alpha        = CC_ALPHA
+backend.mips         = CC_MIPS
+backend.arm          = CC_ARM
+backend.riscv32      = CC_RISCV32
+backend.riscv64      = CC_RISCV64
+backend.arm64        = CC_ARM64
+backend.amd64        = CC_AMD64
+backend.arm64-mach-o = CC_ARM64_MACHO
+backend.amd64-mach-o = CC_AMD64_MACHO

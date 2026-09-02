@@ -4,141 +4,41 @@ TOP=..
 # Variables
 ##############################################################################
 -include $(TOP)/Makefile.config
+-include $(TOP)/Makefile.backends
 
 ##############################################################################
 # Backend selection
 ##############################################################################
 # claude: BACKEND picks qc--'s target; see stdlib/Makefile's header for the
-# fuller reasoning (including what XFORM's four values mean). Default (x86)
-# keeps the original flat filenames (runtime.o, stdlib.a, qcmm.a) so
-# tests/run-tests.sh's existing paths are untouched; every other backend's
-# outputs live under their own build-<backend>/ instead, alongside
-# stdlib/'s build-<backend>/.
+# fuller reasoning (including what XFORM's four values mean, and how
+# CCVAR/XFORMVAR's "$($(...))" double lookup works - same idea here, plus
+# AR). Default (x86) keeps the original flat filenames (runtime.o,
+# stdlib.a, qcmm.a) so tests/run-tests.sh's existing paths are untouched;
+# every other backend's outputs live under their own build-<backend>/
+# instead, alongside stdlib/'s build-<backend>/.
 #
 # GLOBALS_DECL is qcmm.a's own client-globals declaration (see that rule's
-# comment below) - bits64 for the two 64-bit backends, matching
-# Frame.bits_str()'s "-64" choice in the frontend and XFORM=64's rewrite of
-# alloc_ptr's own declaration in alloc.c--/runtime.c--/stdlibcmm.c--.
+# comment below) - bits64 iff XFORM=64, matching Frame.bits_str()'s "-64"
+# choice in the frontend and XFORM=64's rewrite of alloc_ptr's own
+# declaration in alloc.c--/runtime.c--/stdlibcmm.c--.
 BACKEND ?= x86
-ifeq ($(BACKEND),x86)
-CC           = $(CC32)
-AR           = $(AR32)
-QCFLAG       =
-B            = .
-STDLIBDIR    = ../stdlib
-XFORM        = none
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),ppc)
-CC           = $(CC_PPC)
-AR           = $(AR_PPC)
-QCFLAG       = -ppc
-B            = build-ppc
-STDLIBDIR    = ../stdlib/build-ppc
-XFORM        = big
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),sparc)
-CC           = $(CC_SPARC)
-AR           = $(AR_SPARC)
-QCFLAG       = -sparc
-B            = build-sparc
-STDLIBDIR    = ../stdlib/build-sparc
-XFORM        = big
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),alpha)
-CC           = $(CC_ALPHA)
-AR           = $(AR_ALPHA)
-QCFLAG       = -alpha
-B            = build-alpha
-STDLIBDIR    = ../stdlib/build-alpha
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else ifeq ($(BACKEND),mips)
-CC           = $(CC_MIPS)
-AR           = $(AR_MIPS)
-QCFLAG       = -mips
-B            = build-mips
-STDLIBDIR    = ../stdlib/build-mips
-XFORM        = none
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),arm)
-CC           = $(CC_ARM)
-AR           = $(AR_ARM)
-QCFLAG       = -arm
-B            = build-arm
-STDLIBDIR    = ../stdlib/build-arm
-XFORM        = arm
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),riscv32)
-CC           = $(CC_RISCV32)
-AR           = $(AR_RISCV32)
-QCFLAG       = -riscv32
-B            = build-riscv32
-STDLIBDIR    = ../stdlib/build-riscv32
-XFORM        = none
-GLOBALS_DECL = bits32 alloc_ptr;
-else ifeq ($(BACKEND),riscv64)
-CC           = $(CC_RISCV64)
-AR           = $(AR_RISCV64)
-QCFLAG       = -riscv64
-B            = build-riscv64
-STDLIBDIR    = ../stdlib/build-riscv64
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else ifeq ($(BACKEND),arm64)
-# claude: also 64-bit (wordsize/pointersize 64), like alpha/riscv64 above -
-# same XFORM=64 rewrite (verified byte-for-byte against qc--'s own
-# tests/tiger64/regenerate-arm64.sh, which applies the identical sed
-# transforms by hand). Linux/ELF (qc--'s -arm64 bare flag) - native on an
-# aarch64-linux host (this dev box included), via CC_ARM64's cross
-# toolchain/qemu otherwise, same as every other Linux backend above; see
-# configure's own arm64 comment. The OLD macOS-only Mach-O behaviour lives
-# under BACKEND=arm64-mach-o below instead.
-CC           = $(CC_ARM64)
-AR           = $(AR_ARM64)
-QCFLAG       = -arm64
-B            = build-arm64
-STDLIBDIR    = ../stdlib/build-arm64
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else ifeq ($(BACKEND),amd64)
-# claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same XFORM=64 as
-# every other 64-bit backend. Needs qemu-x86_64 to run on this (aarch64)
-# dev host; native on an x86-64 Linux host.
-CC           = $(CC_AMD64)
-AR           = $(AR_AMD64)
-QCFLAG       = -amd64
-B            = build-amd64
-STDLIBDIR    = ../stdlib/build-amd64
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else ifeq ($(BACKEND),arm64-mach-o)
-# claude: the OLD arm64 behaviour, before qc-- grew a Linux/ELF -arm64
-# (see configure's own arm64-mach-o comment) - macOS/Mach-O only, native on
-# Apple Silicon, no cross toolchain.
-CC           = $(CC_ARM64_MACHO)
-AR           = $(AR_ARM64_MACHO)
-QCFLAG       = -arm64-mach-o
-B            = build-arm64-mach-o
-STDLIBDIR    = ../stdlib/build-arm64-mach-o
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else ifeq ($(BACKEND),amd64-mach-o)
-# claude: the OLD amd64 behaviour - macOS/Mach-O only, cross-assembled via
-# "clang -arch x86_64", runs under Rosetta 2 on Apple Silicon.
-CC           = $(CC_AMD64_MACHO)
-AR           = $(AR_AMD64_MACHO)
-QCFLAG       = -amd64-mach-o
-B            = build-amd64-mach-o
-STDLIBDIR    = ../stdlib/build-amd64-mach-o
-XFORM        = 64
-GLOBALS_DECL = bits64 alloc_ptr;
-else
-$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64, amd64, arm64-mach-o or amd64-mach-o)
+ifeq ($(strip $(backend.$(BACKEND))),)
+$(error unknown BACKEND=$(BACKEND) - expected x86 $(ARCHS))
 endif
+CCVAR        = $(backend.$(BACKEND))
+ARVAR        = $(subst CC,AR,$(CCVAR))
+XFORMVAR     = $(subst CC,XFORM,$(CCVAR))
+CC           = $($(CCVAR))
+AR           = $($(ARVAR))
+XFORM        = $($(XFORMVAR))
+QCFLAG       = $(if $(filter x86,$(BACKEND)),,-$(BACKEND))
+B            = $(if $(filter x86,$(BACKEND)),.,build-$(BACKEND))
+STDLIBDIR    = ../stdlib$(if $(filter x86,$(BACKEND)),,/build-$(BACKEND))
+GLOBALS_DECL = $(if $(filter 64,$(XFORM)),bits64,bits32) alloc_ptr;
 
 # See stdlib/Makefile's identical block for why this is needed for these
 # backends and not x86/ppc.
-ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64 amd64 arm64-mach-o amd64-mach-o),$(BACKEND))
+ifneq ($(filter $(BACKEND),$(filter-out ppc,$(ARCHS))),)
 export QC_AS := $(CC)
 export QC_LD := $(CC)
 endif

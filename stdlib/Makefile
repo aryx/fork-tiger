@@ -4,6 +4,7 @@ TOP=..
 # Variables
 ##############################################################################
 -include $(TOP)/Makefile.config
+-include $(TOP)/Makefile.backends
 
 ##############################################################################
 # Backend selection
@@ -21,80 +22,29 @@ TOP=..
 #   big  - byteorder little -> big (ppc, sparc: 32-bit big-endian)
 #   arm  - splice float "none" (arm has no FPU; every source here otherwise
 #          relies on the implicit ieee754 default)
-#   64   - the full bits32->bits64 rewrite (alpha, riscv64: 64-bit targets)
+#   64   - the full bits32->bits64 rewrite (alpha, riscv64, arm64, amd64
+#          and their -mach-o siblings: 64-bit targets)
+#
+# claude: CC/XFORM used to be a 12-branch ifeq chain here, one per
+# backend, duplicated near-verbatim in runtime/Makefile (and, in spirit,
+# in demos/Makefile and tests/run-tests.sh) - see Makefile.backends for
+# where the per-backend data now lives and why only two fields
+# (backend.<name>'s CC_<ARCH> name, and ARCHS/DARWIN_ARCHS) are still
+# hand-maintained at all. CCVAR/XFORMVAR are variable *names*
+# (Makefile.config's "CC_PPC"/"XFORM_PPC" etc - XFORM_<ARCH> itself
+# comes from ./configure asking qc--'s own -print-metrics, not
+# hand-maintained anywhere any more), looked up here with one extra level
+# of "$($(...))" indirection to get their actual values.
 BACKEND ?= x86
-ifeq ($(BACKEND),x86)
-CC     = $(CC32)
-QCFLAG =
-B      = .
-XFORM  = none
-else ifeq ($(BACKEND),ppc)
-CC     = $(CC_PPC)
-QCFLAG = -ppc
-B      = build-ppc
-XFORM  = big
-else ifeq ($(BACKEND),sparc)
-CC     = $(CC_SPARC)
-QCFLAG = -sparc
-B      = build-sparc
-XFORM  = big
-else ifeq ($(BACKEND),alpha)
-CC     = $(CC_ALPHA)
-QCFLAG = -alpha
-B      = build-alpha
-XFORM  = 64
-else ifeq ($(BACKEND),mips)
-CC     = $(CC_MIPS)
-QCFLAG = -mips
-B      = build-mips
-XFORM  = none
-else ifeq ($(BACKEND),arm)
-CC     = $(CC_ARM)
-QCFLAG = -arm
-B      = build-arm
-XFORM  = arm
-else ifeq ($(BACKEND),riscv32)
-CC     = $(CC_RISCV32)
-QCFLAG = -riscv32
-B      = build-riscv32
-XFORM  = none
-else ifeq ($(BACKEND),riscv64)
-CC     = $(CC_RISCV64)
-QCFLAG = -riscv64
-B      = build-riscv64
-XFORM  = 64
-else ifeq ($(BACKEND),arm64)
-# claude: also 64-bit, like alpha/riscv64 above - same XFORM=64. Linux/ELF
-# (qc--'s -arm64 bare flag) - native on an aarch64-linux host (see
-# runtime/Makefile's identical arm64 comment); the OLD macOS-only Mach-O
-# behaviour lives under BACKEND=arm64-mach-o below instead.
-CC     = $(CC_ARM64)
-QCFLAG = -arm64
-B      = build-arm64
-XFORM  = 64
-else ifeq ($(BACKEND),amd64)
-# claude: x86-64, Linux/ELF (qc--'s -amd64 bare flag) - same XFORM=64.
-CC     = $(CC_AMD64)
-QCFLAG = -amd64
-B      = build-amd64
-XFORM  = 64
-else ifeq ($(BACKEND),arm64-mach-o)
-# claude: the OLD arm64 behaviour - macOS/Mach-O only, native on Apple
-# Silicon, no cross toolchain.
-CC     = $(CC_ARM64_MACHO)
-QCFLAG = -arm64-mach-o
-B      = build-arm64-mach-o
-XFORM  = 64
-else ifeq ($(BACKEND),amd64-mach-o)
-# claude: the OLD amd64 behaviour - macOS/Mach-O only, cross-assembled via
-# "clang -arch x86_64", runs under Rosetta 2 on Apple Silicon.
-CC     = $(CC_AMD64_MACHO)
-QCFLAG = -amd64-mach-o
-B      = build-amd64-mach-o
-XFORM  = 64
-else
-$(error unknown BACKEND=$(BACKEND) - expected x86, ppc, sparc, alpha, mips, arm, riscv32, riscv64, arm64, amd64, arm64-mach-o or amd64-mach-o)
+ifeq ($(strip $(backend.$(BACKEND))),)
+$(error unknown BACKEND=$(BACKEND) - expected x86 $(ARCHS))
 endif
+CCVAR    = $(backend.$(BACKEND))
+XFORMVAR = $(subst CC,XFORM,$(CCVAR))
+CC       = $($(CCVAR))
+XFORM    = $($(XFORMVAR))
+QCFLAG   = $(if $(filter x86,$(BACKEND)),,-$(BACKEND))
+B        = $(if $(filter x86,$(BACKEND)),.,build-$(BACKEND))
 
 # claude: qc drives an external assembler/linker, defaulting to clang
 # (able to target i386 and ppc from any host - see "qc -help"'s -as/-ld
@@ -103,8 +53,8 @@ endif
 # accepts "-target sparc-unknown-linux-gnu" but then rejects qc--'s own
 # emitted assembly, e.g. "call foo, 0" - not a supported syntax), so point
 # qc at the real cross toolchain instead, same as qc--'s own tests/
-# run-tiger-<arch>.sh scripts do.
-ifeq ($(filter $(BACKEND),sparc alpha mips arm riscv32 riscv64 arm64 amd64 arm64-mach-o amd64-mach-o),$(BACKEND))
+# run-tiger-<arch>.sh scripts do. Every ARCHS entry needs this except ppc.
+ifneq ($(filter $(BACKEND),$(filter-out ppc,$(ARCHS))),)
 export QC_AS := $(CC)
 export QC_LD := $(CC)
 endif
