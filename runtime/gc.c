@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <qc--runtime.h>
 
 /* claude: heap cells, the allocation header word, and every pointer this
@@ -80,6 +81,22 @@ void* internal_alloc(int size) {
    * whatever align = sizeof(uintptr_t) is on this target. */
   size = (size + 2 * (int)sizeof(uintptr_t) - 1) & ~((int)sizeof(uintptr_t) - 1);
   assert(size % (int)sizeof(uintptr_t) == 0);
+  /* claude: this is called mid-collection, copying whatever gc_forward's
+   * conservative is_pointer() scan found - unlike tig_gc's own post-
+   * collection check (which grow_heap can act on), there's no size known
+   * in advance here to grow ahead of, and no data race to grow safely
+   * into mid-copy. A real "true" size this large should have failed the
+   * caller's own pre-check already (see alloc.c--'s Translate.alloc), so
+   * reaching this is a sign of a stale/uninitialized root being scanned
+   * as live (a real, separate bug - see this file's own tig_gc comment)
+   * rather than a legitimately large object - fail loudly instead of
+   * silently overrunning to_space and corrupting whatever follows it. */
+  if ((uintptr_t)alloc_ptr + size > (uintptr_t)to_space + heap_size) {
+    fprintf(stderr, "tig_gc: internal allocation of %d bytes during "
+                     "collection would overflow to_space - likely a "
+                     "stale/uninitialized GC root, not a real object\n", size);
+    abort();
+  }
   (*(uintptr_t*)alloc_ptr) = (uintptr_t)size & SIZE_MASK;
   alloc_ptr = (uintptr_t*)((uintptr_t)alloc_ptr + size);
   return p;
@@ -110,7 +127,58 @@ void gc_copy(void) {
     *scan = (uintptr_t)gc_forward((uintptr_t*)*scan, -1);
 }
 /*x: gc.c  */
-void* tig_gc(Cmm_Cont* k) {
+/* claude: called right after a full collection (so from_space/space_end/
+ * alloc_ptr already describe the just-compacted, post-flip live region)
+ * when that collection still didn't free enough room for `needed` more
+ * bytes - a copying collector frees at most heap_size bytes per cycle, so
+ * a single object bigger than that can never be made to fit no matter how
+ * many times it collects; this is a hard capacity limit of the design,
+ * not a bug in the collection itself (confirmed empirically: a debug
+ * counter showed tig_gc firing exactly once, immediately, the very first
+ * time tests/tiger64/colmajor.c-- allocates its stringlist[1024] array -
+ * nothing else had run yet, so there was nothing left to free up more
+ * room by collecting again). Grows the heap on the spot instead: allocate
+ * a fresh, bigger 2*new_heap_size block, memcpy the live bytes into its
+ * first half, then rebase every pointer-looking word inside that copy by
+ * the same delta the region itself just moved by. is_pointer() is reused
+ * unchanged for "which words are pointers" - the copied bytes still hold
+ * their OLD (pre-move) addresses, and from_space/heap_size (what
+ * is_pointer() checks against) aren't updated until after this scan, so
+ * it identifies exactly the same words gc_copy()'s own conservative scan
+ * would have. This can double more than once if `needed` alone exceeds
+ * heap_size. */
+static void grow_heap(uintptr_t needed) {
+  uintptr_t  live = (uintptr_t)alloc_ptr - (uintptr_t)from_space;
+  unsigned   new_heap_size = heap_size;
+  uintptr_t* new_heap;
+  ptrdiff_t  delta;
+  uintptr_t* p;
+
+  while (new_heap_size < live + needed)
+    new_heap_size *= 2;
+
+  new_heap = malloc((size_t)new_heap_size * 2);
+  if (new_heap == NULL) {
+    perror("could not grow heap");
+    exit(1);
+  }
+  bzero(new_heap, (size_t)new_heap_size * 2);
+  memcpy(new_heap, from_space, live);
+
+  delta = (uintptr_t)new_heap - (uintptr_t)from_space;
+  for (p = new_heap; p < (uintptr_t*)((uintptr_t)new_heap + live); p++)
+    if (is_pointer(*p)) *p += delta;
+
+  free(heap);
+  heap       = new_heap;
+  heap_size  = new_heap_size;
+  from_space = heap;
+  to_space   = (uintptr_t*)((uintptr_t)heap + heap_size);
+  alloc_ptr  = (uintptr_t*)((uintptr_t)from_space + live);
+  space_end  = (uintptr_t*)((uintptr_t)from_space + heap_size);
+}
+
+void* tig_gc(Cmm_Cont* k, uintptr_t needed) {
   Cmm_Activation a;
   alloc_ptr = to_space;
   space_end = (uintptr_t*)((uintptr_t)to_space + heap_size);
@@ -156,6 +224,8 @@ void* tig_gc(Cmm_Cont* k) {
   gc_copy();
   bzero(from_space, heap_size);
   flip();
+  if ((uintptr_t)alloc_ptr + needed > (uintptr_t)space_end)
+    grow_heap(needed);
   return alloc_ptr;
 }
 /*e: gc.c  */

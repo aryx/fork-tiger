@@ -270,8 +270,20 @@ let alloc size =
   let tmp  = temp true in
   let tru  = T.new_label "alc_gc" in
   let fls  = T.new_label "alc" in
+  (* claude: pass the requested size through to call_gc/tig_gc, not just a
+   * bare trigger - a copying collector can free up AT MOST heap_size
+   * bytes per cycle, so "gc once, then proceed unconditionally" silently
+   * overflows past space_end whenever a single object's size exceeds
+   * what's available even in a freshly-collected, empty semispace (a real
+   * bug found via qc--'s -arm64/-riscv64/-alpha backends: a
+   * stringlist[1024] array needs more room than either 64-bit semispace
+   * had, and the resulting write past space_end corrupted an unrelated,
+   * later malloc() call's arena bookkeeping - "malloc(): corrupted top
+   * size" - rather than failing anywhere near the actual overflow).
+   * tig_gc now uses this to grow the heap on the spot if collecting
+   * alone didn't free enough room - see runtime/gc.c's own comment. *)
   eseq tmp [ T.CJUMP(test, tru, fls);
-             T.LABEL tru; T.EXP (ext_gc_call "call_gc" []);
+             T.LABEL tru; T.EXP (ext_gc_call "call_gc" [size]);
              T.LABEL fls;
              size => T.MEM(alloc_ptr, true);
              (alloc_ptr <+> T.CONST (ws())) => tmp;
