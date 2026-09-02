@@ -1,3 +1,6 @@
 [submodule "caps"]
 	path = caps
 	url = git@github.com:aryx/ocaml-caps.git
+[submodule "libs/commons"]
+	path = libs/commons
+	url = git@github.com:aryx/ocaml-commons.git
