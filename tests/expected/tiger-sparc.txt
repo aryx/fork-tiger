@@ -4,8 +4,8 @@ exceptions FAIL
 forloop FAIL
 funcall FAIL
 hello FAIL
-merge FAIL
-qsort FAIL
+merge PASS
+qsort PASS
 queens PASS
 rb FAIL
 rc4 FAIL

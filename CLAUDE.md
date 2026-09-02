@@ -142,30 +142,44 @@ like every other Linux-hosted backend.
 
 None of the non-x86 backends is expected to be all-green — see each
 `tests/expected/tiger-<arch>.txt` for the current pass/fail split. As of the
-last recorded baselines: ppc, arm and riscv32 are fully green (14/14);
-riscv64 13/14 and alpha 11/14 fail on real qc-- instruction-selection gaps
-(`%quot`/`%sx` at 64-bit widths on alpha; a `malloc` corruption on riscv64's
-`colmajor`); sparc and mips are the least complete backends (2/14 and 1/14),
-mostly around exception/GC codegen — consistent with qc--'s own (much
-simpler) `tests/run-tiger-<arch>.sh` baselines in the qc-- checkout, so this
-reflects real backend completeness, not a gap in this suite's own
-infrastructure. `arm64` lands at 13/14 (matching riscv64's own bar, and the
-same failure: colmajor's GC-triggered heap corruption) — see
-`docs/claude_notes/notes_64bits.txt`'s arm64 section and qc--'s own
-`notes_arm64.txt` for the fixes that got it there from an initial 6/14 (a
-macOS-sed portability bug, a real ABI mismatch in this compiler's own
-`tig_compare_str` import width, and a dead qc---side grammar rule that was
-miscompiling unrelated code by its mere presence) — note that `arm64` used
-to mean qc--'s macOS/Mach-O backend when those fixes were made; qc-- has
-since repurposed the bare `-arm64`/`-amd64` flags to mean real Linux/ELF
-backends instead (native on this dev box, an aarch64-linux host), demoting
-the old Mach-O-only behaviour to `-arm64-mach-o`/`-amd64-mach-o` — see
+last recorded baselines: ppc, arm, riscv32, riscv64, arm64 and mips are
+fully green (14/14). riscv64, arm64 and mips only reached 14/14 after the
+runtime GC fix in `gc: grow the heap on demand instead of silently
+overflowing to_space` (see `runtime/gc.c`/`runtime/alloc.c--`): a copying
+collector frees at most `heap_size` bytes per cycle, so the old "collect
+once, then proceed unconditionally" `tig_gc` could never actually make room
+for a single object bigger than the 8192-byte default semispace (hit by
+`colmajor`'s `stringlist[1024]`) — it silently overflowed `to_space` and
+corrupted unrelated `malloc` bookkeeping instead of failing anywhere near
+the real problem. `tig_gc` now grows the heap on the spot when a completed
+collection still doesn't have room. `alpha` sits at 13/14: the same fix
+turned its previous `merge`/`sieve` failures into passes, but `colmajor`
+still fails there — now via the fix's own new bounds-check abort in
+`internal_alloc`, which the fix's commit message confirms is a *different*,
+still-unfixed bug specific to that target (a stale/uninitialized GC root),
+not a heap-sizing issue. `sparc` remains the least complete backend, now
+4/14 (`merge`/`qsort` newly pass from the same GC fix) — consistent with
+qc--'s own (much simpler) `tests/run-tiger-<arch>.sh` baselines in the qc--
+checkout, so this reflects real backend completeness, not a gap in this
+suite's own infrastructure. `arm64` reached 14/14 building on the fixes
+that got it from an initial 6/14 to 13/14 (a macOS-sed portability bug, a
+real ABI mismatch in this compiler's own `tig_compare_str` import width,
+and a dead qc---side grammar rule that was miscompiling unrelated code by
+its mere presence) — see `docs/claude_notes/notes_64bits.txt`'s arm64
+section and qc--'s own `notes_arm64.txt` — note that `arm64` used to mean
+qc--'s macOS/Mach-O backend when those fixes were made; qc-- has since
+repurposed the bare `-arm64`/`-amd64` flags to mean real Linux/ELF backends
+instead (native on this dev box, an aarch64-linux host), demoting the old
+Mach-O-only behaviour to `-arm64-mach-o`/`-amd64-mach-o` — see
 `docs/claude_notes/notes_64bits.txt`'s own follow-up section on this
-rename. `amd64` (new) lands at 9/14: colmajor plus rc4/rb/wf/wff, all
-believed to be the same undiagnosed cross-backend GC/register-allocator-
-liveness bug `colmajor`'s own entry already names for every 64-bit
-backend, just hit at a lower register-pressure threshold on amd64 than on
-arm64/riscv64 — see qc--'s own `notes_amd64.txt`.
+rename. `amd64` (new) is unaffected by the GC fix and remains at 9/14:
+colmajor plus rc4/rb/wf/wff fail with different symptoms (out-of-bounds
+array-index runtime errors and qemu segfaults, not the heap-overflow
+corruption the fix targeted) — still believed to be the same undiagnosed
+cross-backend GC/register-allocator-liveness bug `colmajor`'s own entry
+already names for every 64-bit backend, just hit at a lower
+register-pressure threshold on amd64 than on arm64/riscv64 — see qc--'s
+own `notes_amd64.txt`.
 
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural

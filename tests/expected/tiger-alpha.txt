@@ -4,11 +4,11 @@ exceptions PASS
 forloop PASS
 funcall PASS
 hello PASS
-merge FAIL
+merge PASS
 qsort PASS
 queens PASS
 rb PASS
 rc4 PASS
-sieve FAIL
+sieve PASS
 wf PASS
 wff PASS

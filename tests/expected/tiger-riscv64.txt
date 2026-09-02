@@ -1,5 +1,5 @@
 arrays PASS
-colmajor FAIL
+colmajor PASS
 exceptions PASS
 forloop PASS
 funcall PASS
