@@ -231,9 +231,9 @@ The prose is mine and is licensed under the \license.
 \section{[[tigerc]] command line interface}
 
 <<function Option.usage>>=
-let rec usage() = 
+let usage () = 
   Arg.usage options "Usage:";
-  exit 0;
+  exit 0
 @
 % tigerc [options] <inputfile> > <c--file> where options are:
 % or even tigerc < inputfile > outputfile
@@ -796,10 +796,10 @@ let parse_cmdline() =
 
 
 <<constant Option.options>>=
-and options = [
+let options = [
   <<command line options>>
-  "-help",     Arg.Unit usage, "\tprint this message";
-]
+  (*"-help",     Arg.Unit usage, "\tprint this message";*)
+] |> Arg.align
 @
 % will see more command line options later
 

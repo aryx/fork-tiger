@@ -199,8 +199,8 @@ val file      : string ref
 %%the [[Arg]] module. After processing, we check the options for
 %%consistency.
 <<option.ml>>=
-<<function Option.usage>>
 <<constant Option.options>>
+<<function Option.usage>>
 <<function [[Option.parse_cmdline]]>>
 @ 
 
