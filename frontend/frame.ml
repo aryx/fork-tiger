@@ -103,6 +103,32 @@ let output_header frm =
   pf " span 1 %s_gc_data {\n" name;
   pf "  stackdata { align %d; fp : %s[%d]; }\n" (align()) bits frm.size;
   iter_ndx  init frm.params;
+  (* claude: zero every locally-declared stack slot flagged as a GC
+   * pointer, before any call in the procedure body can trigger a
+   * collection - params get a real initial value just above, but a local
+   * declared via alloc_local sits uninitialised until the program's own
+   * first assignment to it, and C-- stackdata itself carries no initial
+   * value (see the language spec). Until then, gc.c's root scan reads
+   * whatever residual stack garbage an earlier call sequence left there;
+   * if that garbage happens to look like a heap pointer, it corrupts the
+   * collector - see fork-c--'s docs/claude_notes/todo_colmajor.txt,
+   * "Option A", which diagnosed exactly this and recommended this fix.
+   * That file's own dated 2026-09-03 follow-up section has the fix's
+   * full verification across every qc-- backend and, importantly, a
+   * discussion of two more precise (and more expensive) alternative
+   * designs that were considered and deliberately NOT built here - read
+   * that before reaching for either one. gc.c's is_pointer skips a zero
+   * value, so a zeroed slot is inert until it holds a real object.
+   * Locals sit right after the params in stack-slot order (both share
+   * frm.size's single counter via stack_alloc), and frm.vars is
+   * prepended by alloc_local, so List.rev restores allocation order -
+   * matching output_footer's own List.rev frm.vars for the gc_data
+   * table below. *)
+  let nparams = List.length frm.params in
+  let zero_var n (_, ptr) =
+    if ptr then pf "  %s[fp+%d] = 0;\n" bits (ws()*(nparams+n))
+  in
+  iter_ndx zero_var (List.rev frm.vars);
   List.iter temp frm.temps
 (*x: frame.ml *)
 let output_footer frm =
