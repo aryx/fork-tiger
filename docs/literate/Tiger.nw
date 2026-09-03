@@ -103,7 +103,7 @@
 %******************************************************************************
 \title{
 {\Huge 
-The Tiger Compiler [[tigerc]]
+The Tiger Toy Compiler [[tigerc--]]
 }\\
 {version 0.1}
 }
@@ -234,15 +234,15 @@ The prose is mine and is licensed under the \license.
 % Then at runtime there is also memory allocation helpers and garbage
 % collection.
 
-\section{[[tigerc]] command line interface}
+\section{[[tigerc--]] command line interface}
 
 <<function Option.usage>>=
 let usage () = 
   Arg.usage options "Usage:";
   exit 0
 @
-% tigerc [options] <inputfile> > <c--file> where options are:
-% or even tigerc < inputfile > outputfile
+% tigerc-- [options] <inputfile> > <c--file> where options are:
+% or even tigerc-- < inputfile > outputfile
 
 \section{[[helloworld.tig]]}
 
@@ -1716,7 +1716,7 @@ let mkException s         = A.ExceptionDec(s, getpos())
 \chapter{Checking}
 %******************************************************************************
 
-% Typechecking and intermediate code generation are done together in tigerc
+% Typechecking and intermediate code generation are done together in tigerc--
 % (as opposed to ocaml where have typechecking returning a typed
 % (and named) tree first). But fortunately things are well separated and most
 % of the typechecking related functions are in Semantics and the

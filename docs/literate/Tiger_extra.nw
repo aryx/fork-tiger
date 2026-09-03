@@ -8,7 +8,7 @@
 % Note that syncweb requires a single toplevel chunkname hence
 % the introduction of a few extra boilerplate chunknames sometimes.
 
-\section{[[parsing]]}
+\section{[[parsing/]]}
 
 \subsection{[[parsing/error.nw]]}
 
@@ -487,7 +487,7 @@ module S = Symbol
 
 
 
-\section{[[frontend]]}
+\section{[[frontend/]]}
 
 \subsection{[[frontend/environment.nw]]}
 
@@ -1891,7 +1891,7 @@ let output_strings() =
   pf "}\n\n"
 @
 
-\section{[[backend]]}
+\section{[[backend/]]}
 
 \subsection{[[backend/codegen.nw]]}
 
@@ -2032,7 +2032,7 @@ let emit exl =
     | e                    -> spf "%%ne(%s, 0)" (valexp e)
 @
 
-\section{[[runtime]]}
+\section{[[runtime/]]}
 
 \subsection{[[runtime/gc.nw]]}
 %%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
@@ -2532,7 +2532,7 @@ int main(int argc, char *argv[])
 }
 @ 
 
-\section{[[stdlib]]}
+\section{[[stdlib/]]}
 
 \subsection{[[stdlib/stdlib.nw]]}
 %%% -*- mode: Noweb; noweb-code-mode: c-mode -*-
@@ -2844,7 +2844,7 @@ tig_spawn(bits32 lbl) {
 }
 @
 
-\section{[[.]]}
+\section{[[main/]]}
 
 \subsection{[[main.nw]]}
 

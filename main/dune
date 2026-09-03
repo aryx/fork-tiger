@@ -14,6 +14,7 @@
  (section bin)
  (files
   (main.exe as tigerc)
+  (main.exe as tigerc--)
   ; useful to debug, see ../../debug and ocamldebug
   (main.bc as tigerc.bc))
 )
