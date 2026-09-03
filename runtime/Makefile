@@ -152,20 +152,20 @@ $(B)/stdlib.a: $(B)/gc.o $(B)/alloc.o $(STDLIBDIR)/stdlib.o $(STDLIBDIR)/stdlibc
 .PHONY: FORCE
 FORCE:
 
-# claude: QCLIB's own installed Makefile predates qc--'s arm64/amd64
-# Linux/ELF rename (it still only knows BACKEND names "arm64"/"amd64",
-# meaning what this repo now calls arm64-mach-o/amd64-mach-o) - map the
-# two -mach-o names down to the plain ones it recognizes (right choice of
-# GLOBALS_DECL/CONTOBJ filename either way - arm64cont.s/amd64cont.s are
-# the same trap stub regardless of ELF vs Mach-O, an ISA property not an
-# OS one), and separately force QCFLAG on the command line to the REAL
-# flag (-arm64-mach-o/-amd64-mach-o) - a command-line variable always wins
-# over that Makefile's own per-BACKEND "QCFLAG = -arm64" assignment, same
-# reasoning as CC32 below.
-QCLIB_BACKEND = $(patsubst %-mach-o,%,$(BACKEND))
-
+# claude: QCLIB's own installed Makefile used to predate qc--'s arm64/amd64
+# Linux/ELF rename and know only the plain BACKEND names "arm64"/"amd64" -
+# meaning what this repo calls arm64-mach-o/amd64-mach-o - so this used to
+# map the two -mach-o names down to those before calling it. QCLIB's
+# Makefile has since grown its own native "arm64-mach-o"/"amd64-mach-o"
+# BACKEND values (see its own ifeq chain), each picking the correctly
+# underscore-prefixed CONTOBJ (arm64machocont.o/amd64machocont.o, not
+# arm64cont.o/amd64cont.o - Darwin's C symbol-mangling adds a leading
+# underscore that ELF hosts don't use, see arm64cont.s/arm64machocont.s's
+# own comments) - so BACKEND is passed through unmapped now. Passing the
+# old stripped name still "worked" (no error) but silently built the
+# ELF-flavored CONTOBJ, leaving _Cmm_unwindcont_pc undefined at final link.
 $(B)/qcmm.a: FORCE | $(B)
-	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(QCLIB_BACKEND) QCFLAG='$(QCFLAG)' \
+	$(MAKE) -C $(QCLIB) B=$(CURDIR)/$(B)/qcmm BACKEND=$(BACKEND) QCFLAG='$(QCFLAG)' \
 	  QC=$(QC) CC32="$(CC)" GLOBALS_DECL='$(GLOBALS_DECL)'
 	cp $(B)/qcmm/libqcmm.a $@
 

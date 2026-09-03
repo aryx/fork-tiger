@@ -181,6 +181,22 @@ already names for every 64-bit backend, just hit at a lower
 register-pressure threshold on amd64 than on arm64/riscv64 — see qc--'s
 own `notes_amd64.txt`.
 
+`arm64-mach-o` (the Darwin-only sibling demoted by the same rename above)
+reaches 14/14 on this dev box (an Apple Silicon Mac), but only after fixing
+a fork-tiger-side bug: `runtime/Makefile`'s `$(B)/qcmm.a` rule used to map
+`BACKEND=arm64-mach-o` down to plain `arm64` before invoking qc--'s
+installed `qcmm` Makefile, on the (once-true, now-stale) assumption that
+qc-- only knew the old bare backend names. qc-- has since grown its own
+native `arm64-mach-o`/`amd64-mach-o` `BACKEND` values with the correct
+underscore-prefixed Mach-O continuation stub (`arm64machocont.s`); the
+stale mapping instead built `qcmm.a` against the Linux/ELF continuation
+object (`arm64cont.s`, no leading underscore), leaving `_Cmm_unwindcont_pc`
+undefined and every single test failing to *link*. Fixed by passing
+`BACKEND` straight through unmapped.
+
+`amd64-mach-o` presumably has (or had) the same bug — not verified/fixed
+here since this dev box can't build for it.
+
 There is no OCaml-level unit test framework in this repo (unlike the Testo
 convention used elsewhere) — correctness is verified through this behavioural
 suite.
