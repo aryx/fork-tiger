@@ -15,9 +15,9 @@ type dec =
 | VarDec       of name * typename option * exp * pos
 | TypeDec      of (typename * ty * pos) list
 | FunctionDec  of (name * field list * typename option * exp * pos) list
-(*s: [[Ast.dec]] cases *)
+(*s: [[Ast.dec]] other cases *)
 | ExceptionDec of name * pos
-(*e: [[Ast.dec]] cases *)
+(*e: [[Ast.dec]] other cases *)
 (*e: type Ast.dec *)
 (*s: type Ast.ty *)
 and ty =

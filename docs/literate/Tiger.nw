@@ -141,12 +141,12 @@ Paul Govereau
 %******************************************************************************
 
 The goal of this book is to present in full details the source code of
-a {compiler}.
-% frontend
+a {compiler} frontend.
+% c-- book will be backend part
 
 \section{Motivations}
 
-Why a compiler? Because we think you are a better programmer if
+Why a compiler? Because I think you are a better programmer if
 you fully understand how things work under the hood.
 
 \section{The Tiger compiler}
@@ -154,22 +154,23 @@ you fully understand how things work under the hood.
 % choose tiger because minimalistic/teaching language while at the same time
 % has most of the essential features of a language like C or pascal 
 % and so can showcase the essential compilation algorithms.
+% also GC!
 
 %% Hmm is it redundant with Compiler.nw and even now OCaml.nw? Maybe but
 %% maybe it can help me to first have a cleaner and simpler compiler.
 %% So maybe making this manual can improve later Compiler.nw and OCaml.nw.
 %% Can also see a simpler GC, which again can improve later OCaml.nw.
 
-%% vs original tigerc.pdf manual? no file/module fixed boundaries, so
-%% can LP-split and aspectize AST elements for instances.
-
 
 \section{Other compilers}
 
 Here are other candidates that were considered but ultimately discarded:
 \begin{itemize}
+
 \item gcc
+
 \item clang
+
 \end{itemize}
 
 % other:
@@ -198,7 +199,11 @@ The prose is mine and is licensed under the \license.
 
 \section{Acknowledgments}
 
-
+% Paul Govereau who wrote in some sense most of this book.
+% Actually also use literate programming and noweb! so had its own book
+% about tiger. 
+%% vs original tigerc.pdf manual? no file/module fixed boundaries, so
+%% can LP-split and aspectize AST elements for instances.
 
 
 %******************************************************************************
@@ -223,6 +228,7 @@ The prose is mine and is licensed under the \license.
 %     basic memory offsets (a form of pointer arithmetic)
 %  - "layouting": structured data section and complex data initialization to
 %     basic bytes layout
+%claude: better terms than those? more official names in compiler literature?
 
 % Then in addition to that there is the lexing/parsing and typechecking.
 % Then at runtime there is also memory allocation helpers and garbage
@@ -262,7 +268,8 @@ end
 %  - no modules (no qualifier), so name resolution simple (even though
 %    scoped/nested language), and no linking really. Compile a single file.
 %  - no pointers, no union, no general polymorphic types (ANY??), 
-%    have just polymorphic arrays, no float
+%    have just polymorphic arrays
+%  - no float (tricky with arch usually, even though c-- can ease things)
 %  - no switch, no goto/labels (but generate code using goto/labels), 
 %    goto considered harmful spirit I guess
 
@@ -273,16 +280,16 @@ end
 %    holding functions)
 %  - statements are expressions. If is an expression :) no need ? : ugly 
 %    C syntax.
+%  - GC
+%  - exn! (was in original Tiger from Appel?)
 
-\section{Output [[C--]] Portable assembly language}
-
-\section{Output ARM assembly language}
-
-%old: use c-- but complex to install
-%\section{Output C-- language}
-% =~ Assembly
+\section{Output [[C--]] portable assembly language}
 
 % ex of output for hello.tig, or fact.tig?
+
+%\section{Output ARM assembly language}
+%old: use c-- but complex to install
+
 
 \section{Code organization}
 
@@ -291,6 +298,8 @@ end
 % classic compiler archi:
 % lexer -> parser -> typechecker & IR-generator -> linearizer -> c-- generator 
 % and on the side have runtime and stdlib "linked" with the generated file.
+% well almost classic, because c-- part done in separate project
+% (OCaml though has a c-- like intermediate in same project)
 
 \section{Book structure}
 
@@ -347,7 +356,7 @@ type dec =
 | VarDec       of name * typename option * exp * pos
 | TypeDec      of (typename * ty * pos) list
 | FunctionDec  of (name * field list * typename option * exp * pos) list
-<<[[Ast.dec]] cases>>
+<<[[Ast.dec]] other cases>>
 @
 % list for TypeDec and FunctionDec so can have mutually recursive things
 % typename option for VarDec so have a form of type inference!
@@ -3213,7 +3222,7 @@ let lookup_base_type env sym pos =
 
 
 %AST def
-<<[[Ast.dec]] cases>>=
+<<[[Ast.dec]] other cases>>=
 | ExceptionDec of name * pos
 @
 
@@ -3854,6 +3863,4 @@ then List.iter Tree.print_stm ltree;
 %******************************************************************************
 % Postlude
 %******************************************************************************
-
 \end{document}
-
