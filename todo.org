@@ -12,6 +12,28 @@
 *** tiger: omk index?
 need dune 2.7? but pb with toplevel symlinks bin
 
+*** understand linearization
+LP split it
+
+*** continue moving out code from Extra to Tiger.nw,
+
+**** c-- generation chapter
+
+*** still? change backend to 5a asm :) so can run under plan9 with 5i
+
+**** register allocation
+
+**** runtime support
+
+**** gc
+
+*** need uid? look in appel's book?
+
+*** EASY fix the conflicts in the grammar
+
+*** EASY get rid of all those mkXXX
+
+
 * Testinfra
 
 ** Dockerfile
